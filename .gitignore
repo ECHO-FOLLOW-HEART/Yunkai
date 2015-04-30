@@ -100,3 +100,8 @@ project/boot/
 .cache
 
 
+activator
+activator-launch-1.3.2.jar
+activator.bat
+project/.sbtserver
+project/.sbtserver.lock
