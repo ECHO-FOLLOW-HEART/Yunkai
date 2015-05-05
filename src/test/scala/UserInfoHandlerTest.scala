@@ -1,37 +1,10 @@
-import java.net.InetSocketAddress
-
-import com.aizou.yunkai.handler.UserInfoHandler
-import com.aizou.yunkai.{ UserInfoProp, Userservice }
-import com.twitter.finagle.builder.{ ClientBuilder, ServerBuilder }
-import com.twitter.finagle.thrift.{ ThriftClientFramedCodec, ThriftServerFramedCodec }
-import com.twitter.util.{ Await, Closable }
-import org.apache.thrift.protocol.TBinaryProtocol
+import com.aizou.yunkai.UserInfoProp
+import com.twitter.util.Await
 
 /**
  * Created by zephyre on 5/4/15.
  */
-class UserInfoHandlerTest extends org.specs2.mutable.Specification {
-  def createServer(): (Closable, Int) = {
-    val server = ServerBuilder()
-      .bindTo(new InetSocketAddress(0))
-      .codec(ThriftServerFramedCodec())
-      .name("server")
-      .build(new Userservice.FinagledService(new UserInfoHandler, new TBinaryProtocol.Factory()))
-    val port = server.localAddress.asInstanceOf[InetSocketAddress].getPort
-    (server, port)
-  }
-
-  def createClient(port: Int) = {
-    val clientService = ClientBuilder()
-      .hosts(new InetSocketAddress("localhost", port))
-      .hostConnectionLimit(100)
-      .name("client")
-      .codec(ThriftClientFramedCodec())
-      .build()
-
-    new Userservice.FinagledClient(clientService, new TBinaryProtocol.Factory())
-  }
-
+class UserInfoHandlerTest extends TestCase {
   "The specification for the user-info service" >> {
 
     "Returns null if a user cannot be found" >> {
@@ -55,9 +28,9 @@ class UserInfoHandlerTest extends org.specs2.mutable.Specification {
       val (server, port) = createServer()
       val client = createClient(port)
       try {
-        val userId = 100076
+        val userId = 100018
         val user = Await.result(client.getUserById(userId))
-        user.userId must_== userId
+        user.userId must beEqualTo(userId)
       } finally {
         client.service.close()
         server.close()
@@ -68,11 +41,31 @@ class UserInfoHandlerTest extends org.specs2.mutable.Specification {
       val (server, port) = createServer()
       val client = createClient(port)
       try {
-        val userId = 100076
+        val userId = 100018
         val nickName = "name%d" format System.currentTimeMillis
         Await.result(client.updateUserInfo(userId, Map(UserInfoProp.NickName -> nickName)))
         val user = Await.result(client.getUserById(userId))
         user.nickName must_== nickName
+      } finally {
+        client.service.close()
+        server.close()
+      }
+    }
+
+    "Add/remove another user as contact" >> {
+      val (server, port) = createServer()
+      val client = createClient(port)
+      try {
+        val self = 100018
+        val target = 100019
+
+        // Add
+        Await.result(client.addContact(self, target))
+        Await.result(client.isContact(self, target)) must_== true
+
+        // Remove
+        Await.result(client.removeContact(self, Seq(target)))
+        Await.result(client.isContact(self, target)) must_== false
       }
     }
   }

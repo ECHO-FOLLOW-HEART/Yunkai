@@ -2,7 +2,7 @@ package com.aizou.yunkai
 
 import java.net.InetSocketAddress
 
-import com.aizou.yunkai.handler.UserInfoHandler
+import com.aizou.yunkai.handler.UserServiceHandler
 import com.twitter.finagle.builder.ServerBuilder
 import com.twitter.finagle.thrift.ThriftServerFramedCodec
 import com.typesafe.config.ConfigFactory
@@ -21,7 +21,7 @@ object YunkaiServer extends App {
     val maxConcurPath = "service.user.maxConcurrentRequests"
     val maxConcur = if (conf.hasPath(maxConcurPath)) conf.getInt(maxConcurPath) else 1000
 
-    val service = new Userservice$FinagleService(new UserInfoHandler, new TBinaryProtocol.Factory())
+    val service = new Userservice$FinagleService(new UserServiceHandler, new TBinaryProtocol.Factory())
 
     ServerBuilder()
       .bindTo(new InetSocketAddress(conf.getInt("service.user.port")))

@@ -1,6 +1,6 @@
 package com.aizou.yunkai.database.mongo
 
-import com.aizou.yunkai.model.UserInfo
+import com.aizou.yunkai.model.{ Relationship, UserInfo }
 import com.mongodb.{ MongoClient, ServerAddress }
 import com.typesafe.config.ConfigFactory
 import org.mongodb.morphia.{ Datastore, Morphia, ValidationExtension }
@@ -32,6 +32,7 @@ object MorphiaFactory {
     val morphia = new Morphia
     new ValidationExtension(morphia)
     morphia.map(classOf[UserInfo])
+    morphia.map(classOf[Relationship])
     morphia
   }
 

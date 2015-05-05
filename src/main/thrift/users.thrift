@@ -36,4 +36,10 @@ service userservice {
   UserInfo getUserById(1:i64 userId) throws (1:NotFoundException ex)
 
   void updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo)
+
+  bool isContact(1:i64 userA, 2:i64 userB)
+
+  void addContact(1:i64 userA, 2:i64 userB)
+
+  void removeContact(1:i64 userA, 2:list<i64> userList)
 }
