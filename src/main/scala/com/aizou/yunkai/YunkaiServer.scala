@@ -21,12 +21,14 @@ object YunkaiServer extends App {
     val maxConcurPath = "service.user.maxConcurrentRequests"
     val maxConcur = if (conf.hasPath(maxConcurPath)) conf.getInt(maxConcurPath) else 1000
 
+    val service = new Userservice$FinagleService(new UserInfoHandler, new TBinaryProtocol.Factory())
+
     ServerBuilder()
       .bindTo(new InetSocketAddress(conf.getInt("service.user.port")))
       .codec(ThriftServerFramedCodec())
       .name(name)
       .maxConcurrentRequests(maxConcur)
-      .build(new Userservice.FinagledService(new UserInfoHandler, new TBinaryProtocol.Factory()))
+      .build(service)
   }
 
 }

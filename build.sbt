@@ -34,7 +34,8 @@ libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-log4j12" % "1.7.12",
   "com.typesafe" % "config" % "1.2.1",
   //  "com.google.code.findbugs" % "jsr305" % "3.0.0",
-  "org.specs2" %% "specs2" % "3.3.1"
+  "org.specs2" %% "specs2" % "3.3.1",
+  "org.specs2" %% "specs2-core" % "3.6"
 )
 
 fork in run := true

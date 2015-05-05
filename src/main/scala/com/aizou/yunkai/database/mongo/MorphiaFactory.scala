@@ -1,5 +1,6 @@
 package com.aizou.yunkai.database.mongo
 
+import com.aizou.yunkai.model.UserInfo
 import com.mongodb.{ MongoClient, ServerAddress }
 import com.typesafe.config.ConfigFactory
 import org.mongodb.morphia.{ Datastore, Morphia, ValidationExtension }
@@ -30,10 +31,13 @@ object MorphiaFactory {
   private val morphia = {
     val morphia = new Morphia
     new ValidationExtension(morphia)
+    morphia.map(classOf[UserInfo])
     morphia
   }
 
-  def getDatastore(name: String): Datastore = {
-    morphia.createDatastore(client, name)
+  def getDatastore(name: String = "test"): Datastore = {
+    val ds = morphia.createDatastore(client, name)
+    ds.ensureIndexes(true)
+    ds
   }
 }
