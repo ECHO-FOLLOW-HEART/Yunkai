@@ -1,7 +1,7 @@
 import java.net.InetSocketAddress
 
-import com.aizou.yunkai.Userservice
 import com.aizou.yunkai.handler.UserInfoHandler
+import com.aizou.yunkai.{ UserInfoProp, Userservice }
 import com.twitter.finagle.builder.{ ClientBuilder, ServerBuilder }
 import com.twitter.finagle.thrift.{ ThriftClientFramedCodec, ThriftServerFramedCodec }
 import com.twitter.util.{ Await, Closable }
@@ -61,6 +61,18 @@ class UserInfoHandlerTest extends org.specs2.mutable.Specification {
       } finally {
         client.service.close()
         server.close()
+      }
+    }
+
+    "Change user info" >> {
+      val (server, port) = createServer()
+      val client = createClient(port)
+      try {
+        val userId = 100076
+        val nickName = "name%d" format System.currentTimeMillis
+        Await.result(client.updateUserInfo(userId, Map(UserInfoProp.NickName -> nickName)))
+        val user = Await.result(client.getUserById(userId))
+        user.nickName must_== nickName
       }
     }
   }

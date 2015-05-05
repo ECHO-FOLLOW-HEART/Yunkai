@@ -3,8 +3,10 @@ package com.aizou.yunkai.handler
 import com.aizou.yunkai
 import com.aizou.yunkai.database.mongo.MorphiaFactory
 import com.aizou.yunkai.model.UserInfo
-import com.aizou.yunkai.{ NotFoundException, Userservice }
+import com.aizou.yunkai.{ NotFoundException, UserInfoProp, Userservice }
 import com.twitter.util.Future
+
+import scala.collection.Map
 
 /**
  * Created by zephyre on 5/4/15.
@@ -21,5 +23,23 @@ class UserInfoHandler extends Userservice.FutureIface {
         yunkai.UserInfo(entry.userId, entry.nickName, toOption(entry.avatar), None, None, None)
       }
     }
+  }
+
+  override def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String]): Future[Unit] = Future {
+    val ds = MorphiaFactory.getDatastore()
+    val updateOps = ds.createUpdateOperations(classOf[UserInfo])
+    val query = ds.find(classOf[UserInfo], "userId", userId)
+
+    userInfo foreach ((item: (UserInfoProp, String)) => {
+      val key = item._1
+      val value = item._2
+      key match {
+        case UserInfoProp.NickName => updateOps.set("nickName", value)
+        case UserInfoProp.Signature => updateOps.set("signature", value)
+        case _ => updateOps
+      }
+    })
+
+    ds.updateFirst(query, updateOps)
   }
 }
