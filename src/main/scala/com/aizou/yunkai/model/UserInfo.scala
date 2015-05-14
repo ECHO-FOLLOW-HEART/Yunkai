@@ -39,6 +39,12 @@ class UserInfo {
 }
 
 object UserInfo {
+
+  val fdUserId = "userId"
+  val fdNickName = "nickName"
+  val fdAvatar = "avatar"
+  val fdContacts = "contacts"
+
   def apply(userId: Long, nickName: String, avatar: String): UserInfo = {
     val result = new UserInfo
     result.setId(new ObjectId)

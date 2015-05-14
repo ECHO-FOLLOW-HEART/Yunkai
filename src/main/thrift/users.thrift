@@ -37,9 +37,14 @@ service userservice {
 
   void updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo)
 
+  // userA和userB是否为好友
   bool isContact(1:i64 userA, 2:i64 userB)
 
+  // 将userA和userB相互加为好友
   void addContact(1:i64 userA, 2:i64 userB)
 
+  // 移除userA和userB的好友关系
   void removeContact(1:i64 userA, 2:list<i64> userList)
+
+  list<UserInfo> getContactList(1:i64 userId, 2: optional list<UserInfoProp> fields, 3: optional i32 index, 4: optional i32 count)
 }

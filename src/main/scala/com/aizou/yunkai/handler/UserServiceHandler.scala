@@ -7,6 +7,7 @@ import com.aizou.yunkai.{ NotFoundException, UserInfoProp, Userservice }
 import com.twitter.util.Future
 import org.mongodb.morphia.query.CriteriaContainer
 
+import scala.collection.JavaConversions._
 import scala.collection.Map
 
 /**
@@ -69,5 +70,61 @@ class UserServiceHandler extends Userservice.FutureIface {
     val query = ds.createQuery(classOf[Relationship])
     query.or(userList map (buildQuery(userA, _)): _*)
     ds.delete(query)
+  }
+
+  override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]],
+    index: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
+    val ds = MorphiaFactory.getDatastore()
+    val criteria = Seq("userA", "userB") map (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
+    val queryRel = ds.createQuery(classOf[Relationship])
+    queryRel.or(criteria: _*)
+    val defaultOffset = 0
+    val defaultLimit = 1000
+    queryRel.offset(index.getOrElse(defaultOffset)).limit(count.getOrElse(defaultLimit))
+
+    queryRel.asList
+
+    // 获得好友关系
+    val relList = Future {
+      queryRel.asList.toSeq
+    }
+
+    // 从好友关系获得用户信息
+    def relToUserInfo(relList: Seq[Relationship]): Future[Seq[yunkai.UserInfo]] = {
+      // 目标userId
+      val targetIds = relList map (rel => if (rel.userA == userId) rel.userB else rel.userA)
+
+      Future {
+        if (targetIds nonEmpty) {
+          val query = ds.createQuery(classOf[UserInfo]).field("userId").in(targetIds)
+
+          // 限定字段获取的范围
+          val retrievedFields = fields.getOrElse(Seq()) map {
+            case UserInfoProp.UserId => UserInfo.fdUserId
+            case UserInfoProp.NickName => UserInfo.fdNickName
+            case UserInfoProp.Avatar => UserInfo.fdAvatar
+            case _ => ""
+          } filter (_ nonEmpty)
+
+          if (retrievedFields nonEmpty)
+            query.retrievedFields(true, retrievedFields: _*)
+
+          query.asList().toSeq map userInfoConversion
+        } else Seq()
+      }
+    }
+
+    relList flatMap relToUserInfo
+  }
+
+  implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
+    val userId = user.userId
+    val nickName = user.nickName
+    val avatar = if (user.avatar == null) None else Some(user.avatar)
+    val gender = None
+    val signature = None
+    val tel = None
+
+    yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
   }
 }

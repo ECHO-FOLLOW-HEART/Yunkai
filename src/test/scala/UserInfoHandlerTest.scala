@@ -62,10 +62,17 @@ class UserInfoHandlerTest extends TestCase {
         // Add
         Await.result(client.addContact(self, target))
         Await.result(client.isContact(self, target)) must_== true
+        Await.result(client.getContactList(self, None, None, None)) map (_.userId) contains target must_== true
+        Await.result(client.getContactList(target, None, None, None)) map (_.userId) contains self must_== true
 
         // Remove
         Await.result(client.removeContact(self, Seq(target)))
         Await.result(client.isContact(self, target)) must_== false
+        Await.result(client.getContactList(self, None, None, None)) map (_.userId) contains target must_== false
+        Await.result(client.getContactList(target, None, None, None)) map (_.userId) contains self must_== false
+      } finally {
+        client.service.close()
+        server.close()
       }
     }
   }
