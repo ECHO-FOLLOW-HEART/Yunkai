@@ -23,8 +23,10 @@ object MorphiaFactory {
       }
     }
 
-    val serverList = AppConfig.conf.getList("mongo.servers")
-      .map(v => buildServerAddr(v.unwrapped.toString)).toSeq.flatten
+    val host = AppConfig.conf.getString("mongo.host")
+    val port = AppConfig.conf.getInt("mongo.port")
+
+    val serverList = Seq(buildServerAddr(s"$host:$port").get)
     new MongoClient(serverList)
   }
 
