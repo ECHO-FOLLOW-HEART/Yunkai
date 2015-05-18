@@ -35,7 +35,10 @@ libraryDependencies ++= Seq(
   "com.typesafe" % "config" % "1.2.1",
   //  "com.google.code.findbugs" % "jsr305" % "3.0.0",
   "org.specs2" %% "specs2" % "3.3.1",
-  "org.specs2" %% "specs2-core" % "3.6"
+  "org.specs2" %% "specs2-core" % "3.6",
+  "com.fasterxml.jackson.module" % "jackson-module-scala_2.10" % "2.5.2",
+  "com.fasterxml.jackson.core" % "jackson-core" % "2.5.3",
+  "net.databinder.dispatch" %% "dispatch-core" % "0.11.2"
 )
 
 fork in run := true

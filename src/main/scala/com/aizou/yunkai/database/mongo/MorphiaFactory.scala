@@ -1,8 +1,8 @@
 package com.aizou.yunkai.database.mongo
 
+import com.aizou.yunkai.AppConfig
 import com.aizou.yunkai.model.{ Relationship, UserInfo }
 import com.mongodb.{ MongoClient, ServerAddress }
-import com.typesafe.config.ConfigFactory
 import org.mongodb.morphia.{ Datastore, Morphia, ValidationExtension }
 
 import scala.collection.JavaConversions._
@@ -23,7 +23,7 @@ object MorphiaFactory {
       }
     }
 
-    val serverList = ConfigFactory.load().getList("mongo.servers")
+    val serverList = AppConfig.conf.getList("mongo.servers")
       .map(v => buildServerAddr(v.unwrapped.toString)).toSeq.flatten
     new MongoClient(serverList)
   }
