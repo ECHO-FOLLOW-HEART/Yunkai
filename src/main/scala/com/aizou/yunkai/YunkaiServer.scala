@@ -23,7 +23,7 @@ object YunkaiServer extends App {
     val service = new Userservice$FinagleService(new UserServiceHandler, new TBinaryProtocol.Factory())
 
     ServerBuilder()
-      .bindTo(new InetSocketAddress(conf.getInt("service.user.port")))
+      .bindTo(new InetSocketAddress(conf.getInt("services.user.port")))
       .codec(ThriftServerFramedCodec())
       .name(name)
       .maxConcurrentRequests(maxConcur)
