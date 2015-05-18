@@ -1,3 +1,5 @@
+
+
 name := """Yunkai"""
 
 version := "0.1.0"
@@ -40,5 +42,9 @@ libraryDependencies ++= Seq(
   "com.fasterxml.jackson.core" % "jackson-core" % "2.5.3",
   "net.databinder.dispatch" %% "dispatch-core" % "0.11.2"
 )
+
+val root = project.in(file(".")).enablePlugins(JavaAppPackaging)
+
+Keys.mainClass in Compile := Some("com.aizou.yunkai.YunkaiServer")
 
 fork in run := true
