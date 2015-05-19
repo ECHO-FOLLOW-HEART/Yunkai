@@ -4,7 +4,8 @@ import com.aizou.yunkai
 import com.aizou.yunkai.database.mongo.MorphiaFactory
 import com.aizou.yunkai.model.{ Relationship, UserInfo }
 import com.aizou.yunkai.{ NotFoundException, UserInfoProp, Userservice }
-import com.twitter.util.Future
+import com.twitter.util.{ Future, FuturePool }
+import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.CriteriaContainer
 
 import scala.collection.JavaConversions._
@@ -14,17 +15,15 @@ import scala.collection.Map
  * Created by zephyre on 5/4/15.
  */
 class UserServiceHandler extends Userservice.FutureIface {
-  override def getUserById(userId: Long): Future[yunkai.UserInfo] = {
-    val ds = MorphiaFactory.getDatastore()
-    val entry = ds.find(classOf[UserInfo], "userId", userId).get()
 
-    Future {
-      if (entry == null) throw new NotFoundException(s"User not found for userId=$userId")
-      else {
-        def toOption[T](value: T): Option[T] = if (value != null) Some(value) else None
-        yunkai.UserInfo(entry.userId, entry.nickName, toOption(entry.avatar), None, None, None)
-      }
-    }
+  override def getUserById(userId: Long): Future[yunkai.UserInfo] = {
+    implicit val ds = MorphiaFactory.getDatastore()
+
+    implicit val futurePool = FuturePool.unboundedPool
+
+    UserServiceHandler.getUserById(userId) map (userInfo => {
+      if (userInfo isEmpty) throw new NotFoundException(s"User not found for userId=$userId") else userInfo.get
+    })
   }
 
   override def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String]): Future[Unit] = Future {
@@ -82,11 +81,9 @@ class UserServiceHandler extends Userservice.FutureIface {
     val defaultLimit = 1000
     queryRel.offset(index.getOrElse(defaultOffset)).limit(count.getOrElse(defaultLimit))
 
-    queryRel.asList
-
     // 获得好友关系
     val relList = Future {
-      queryRel.asList.toSeq
+      queryRel.asList().toSeq
     }
 
     // 从好友关系获得用户信息
@@ -126,5 +123,17 @@ class UserServiceHandler extends Userservice.FutureIface {
     val tel = None
 
     yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
+  }
+}
+
+object UserServiceHandler {
+
+  def getUserById(userId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[yunkai.UserInfo]] = futurePool {
+    val entry = ds.find(classOf[UserInfo], "userId", userId).get()
+    if (entry == null) None
+    else {
+      def toOption[T](value: T): Option[T] = if (value != null) Some(value) else None
+      Some(yunkai.UserInfo(entry.userId, entry.nickName, toOption(entry.avatar), None, None, None))
+    }
   }
 }
