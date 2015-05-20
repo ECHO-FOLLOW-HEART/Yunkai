@@ -136,4 +136,20 @@ object UserServiceHandler {
       Some(yunkai.UserInfo(entry.userId, entry.nickName, toOption(entry.avatar), None, None, None))
     }
   }
+
+  def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
+
+    val query = ds.find(classOf[UserInfo], "userId", userId)
+
+    val updateOps = userInfo.foldLeft(ds.createUpdateOperations(classOf[UserInfo]))((ops, entry) => {
+      val (key, value) = entry
+      key match {
+        case UserInfoProp.NickName => ops.set(UserInfo.fdNickName, value)
+        case UserInfoProp.Signature => ops.set(UserInfo.fdNickName, value)
+        case _ => ops
+      }
+    })
+
+    ds.updateFirst(query, updateOps)
+  }
 }

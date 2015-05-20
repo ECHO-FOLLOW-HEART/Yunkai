@@ -7,36 +7,6 @@ import com.twitter.util.Await
 class UserInfoHandlerTest extends TestCase {
   "The specification for the user-info service" >> {
 
-    "Returns null if a user cannot be found" >> {
-      val (server, port) = createServer()
-      val client = createClient(port)
-      try {
-        val badUserId = 1
-        val user = try {
-          Await.result(client.getUserById(badUserId))
-        } catch {
-          case ex: Throwable => null
-        }
-        user must beNull
-      } finally {
-        client.service.close()
-        server.close()
-      }
-    }
-
-    "Looks up users by userId" >> {
-      val (server, port) = createServer()
-      val client = createClient(port)
-      try {
-        val userId = 100018
-        val user = Await.result(client.getUserById(userId))
-        user.userId must beEqualTo(userId)
-      } finally {
-        client.service.close()
-        server.close()
-      }
-    }
-
     "Change user info" >> {
       val (server, port) = createServer()
       val client = createClient(port)
