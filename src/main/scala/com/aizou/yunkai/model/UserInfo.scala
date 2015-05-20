@@ -4,7 +4,7 @@ import javax.validation.constraints.{ Min, NotNull, Size }
 
 import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.NotBlank
-import org.mongodb.morphia.annotations.{ Indexed, Entity, Id, Version }
+import org.mongodb.morphia.annotations.{ Entity, Id, Indexed, Version }
 
 import scala.beans.BeanProperty
 
@@ -29,6 +29,10 @@ class UserInfo {
   var nickName: String = ""
 
   @BeanProperty
+  @Size(min = 2, max = 512)
+  var signature: String = null
+
+  @BeanProperty
   var avatar: String = ""
 
   @BeanProperty
@@ -44,6 +48,7 @@ object UserInfo {
   val fdNickName = "nickName"
   val fdAvatar = "avatar"
   val fdContacts = "contacts"
+  val fdSignature = "signature"
 
   def apply(userId: Long, nickName: String, avatar: String): UserInfo = {
     val result = new UserInfo

@@ -1,13 +1,14 @@
-import com.aizou.yunkai.Gender
+import com.aizou.yunkai
 import com.aizou.yunkai.handler.UserServiceHandler
 import com.aizou.yunkai.model.UserInfo
+import com.aizou.yunkai.{ Gender, UserInfoProp }
 import com.twitter.util.{ Await, FuturePool }
+import org.mockito.Matchers
 import org.mongodb.morphia.Datastore
-import org.mongodb.morphia.query.Query
+import org.mongodb.morphia.query.{ Query, UpdateOperations }
 import org.specs2.Specification
 import org.specs2.mock.Mockito
 import org.specs2.specification.core.SpecStructure
-import com.aizou.yunkai
 
 /**
  * 用户服务的测试代码
@@ -20,6 +21,7 @@ class UserServiceTest extends Specification with Mockito {
 
   implicit val userInfoDatastore = {
     val ds = mock[Datastore]
+    val userInfoCls = classOf[UserInfo]
 
     val validQuery = mock[Query[UserInfo]]
     validQuery.get() returns UserInfo(validUser.userId, validUser.nickName, validUser.avatar.orNull)
@@ -27,8 +29,14 @@ class UserServiceTest extends Specification with Mockito {
     val invalidQuery = mock[Query[UserInfo]]
     invalidQuery.get() returns null
 
-    ds.find(===(classOf[UserInfo]), ===("userId"), argThat(===(validUser.userId))) returns validQuery
-    ds.find(===(classOf[UserInfo]), ===("userId"), argThat(!==(validUser.userId))) returns invalidQuery
+    val updateOps = mock[UpdateOperations[UserInfo]]
+
+    updateOps.set(Matchers.anyString(), Matchers.any()) returns updateOps
+
+    ds.find(===(userInfoCls), ===("userId"), argThat(===(validUser.userId))) returns validQuery
+    ds.find(===(userInfoCls), ===("userId"), argThat(!==(validUser.userId))) returns invalidQuery
+
+    ds.createUpdateOperations(===(userInfoCls)) returns updateOps
 
     ds
   }
@@ -40,6 +48,7 @@ class UserServiceTest extends Specification with Mockito {
         |User-info service should:
         |Invalid userId should return None      $invalidUserInfoCheck
         |Valid userId should return user-info   $validUserInfoCheck
+        |Update user info $updateUserInfoCheck
      """.stripMargin
 
   def invalidUserInfoCheck = {
@@ -51,5 +60,11 @@ class UserServiceTest extends Specification with Mockito {
     val user = Await.result(UserServiceHandler.getUserById(validUser.userId)).get
     user.userId must_== validUser.userId
     user.nickName must_== validUser.nickName
+  }
+
+  def updateUserInfoCheck = {
+    Await.result(UserServiceHandler.updateUserInfo(validUser.userId, Map(UserInfoProp.NickName -> "nickName")))
+    there was one(userInfoDatastore).updateFirst(Matchers.any(classOf[Query[UserInfo]]),
+      Matchers.any(classOf[UpdateOperations[UserInfo]]))
   }
 }
