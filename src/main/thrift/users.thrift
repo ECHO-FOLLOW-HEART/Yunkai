@@ -50,5 +50,6 @@ service userservice {
 
   void removeContacts(1:i64 userA, 2:list<i64> targets)
 
-  list<UserInfo> getContactList(1:i64 userId, 2: optional list<UserInfoProp> fields, 3: optional i32 index, 4: optional i32 count)
+  list<UserInfo> getContactList(1:i64 userId, 2: optional list<UserInfoProp> fields,
+    3: optional i32 offset, 4: optional i32 count)
 }
