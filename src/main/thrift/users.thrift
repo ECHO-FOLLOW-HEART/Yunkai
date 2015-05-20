@@ -43,8 +43,12 @@ service userservice {
   // 将userA和userB相互加为好友
   void addContact(1:i64 userA, 2:i64 userB)
 
+  void addContacts(1:i64 userA, 2:list<i64> targets)
+
   // 移除userA和userB的好友关系
-  void removeContact(1:i64 userA, 2:list<i64> userList)
+  void removeContact(1:i64 userA, 2:i64 userB)
+
+  void removeContacts(1:i64 userA, 2:list<i64> targets)
 
   list<UserInfo> getContactList(1:i64 userId, 2: optional list<UserInfoProp> fields, 3: optional i32 index, 4: optional i32 count)
 }

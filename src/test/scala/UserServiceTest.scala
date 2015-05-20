@@ -62,7 +62,7 @@ class UserServiceTest extends Specification with Mockito {
     user.nickName must_== validUser.nickName
   }
 
-  def updateUserInfoCheck() = {
+  def updateUserInfoCheck = {
     Await.result(UserServiceHandler.updateUserInfo(validUser.userId, Map(UserInfoProp.NickName -> "nickName")))
     there was one(userInfoDatastore).updateFirst(Matchers.any(classOf[Query[UserInfo]]),
       Matchers.any(classOf[UpdateOperations[UserInfo]]))
