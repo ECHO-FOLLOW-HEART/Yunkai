@@ -32,6 +32,10 @@ exception InvalidArgsException {
     1: string message;
 }
 
+exception AuthException {
+    1: string message
+}
+
 service userservice {
   UserInfo getUserById(1:i64 userId) throws (1:NotFoundException ex)
 
@@ -52,4 +56,6 @@ service userservice {
 
   list<UserInfo> getContactList(1:i64 userId, 2: optional list<UserInfoProp> fields,
     3: optional i32 offset, 4: optional i32 count)
+
+  UserInfo login(1:string loginName, 2:string password) throws (1:AuthException ex)
 }

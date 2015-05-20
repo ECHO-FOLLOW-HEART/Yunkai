@@ -36,6 +36,10 @@ class UserInfo {
   var avatar: String = ""
 
   @BeanProperty
+  @Size(min = 6, max = 11)
+  var tel: String = ""
+
+  @BeanProperty
   var contacts: java.util.List[Int] = null
 
   @Version
@@ -49,6 +53,7 @@ object UserInfo {
   val fdAvatar = "avatar"
   val fdContacts = "contacts"
   val fdSignature = "signature"
+  val fdTel = "tel"
 
   def apply(userId: Long, nickName: String, avatar: String): UserInfo = {
     val result = new UserInfo
