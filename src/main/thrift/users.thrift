@@ -32,6 +32,10 @@ exception InvalidArgsException {
     1: string message;
 }
 
+exception AuthException {
+    1: string message
+}
+
 service userservice {
   UserInfo getUserById(1:i64 userId) throws (1:NotFoundException ex)
 
@@ -43,8 +47,15 @@ service userservice {
   // 将userA和userB相互加为好友
   void addContact(1:i64 userA, 2:i64 userB)
 
-  // 移除userA和userB的好友关系
-  void removeContact(1:i64 userA, 2:list<i64> userList)
+  void addContacts(1:i64 userA, 2:list<i64> targets)
 
-  list<UserInfo> getContactList(1:i64 userId, 2: optional list<UserInfoProp> fields, 3: optional i32 index, 4: optional i32 count)
+  // 移除userA和userB的好友关系
+  void removeContact(1:i64 userA, 2:i64 userB)
+
+  void removeContacts(1:i64 userA, 2:list<i64> targets)
+
+  list<UserInfo> getContactList(1:i64 userId, 2: optional list<UserInfoProp> fields,
+    3: optional i32 offset, 4: optional i32 count)
+
+  UserInfo login(1:string loginName, 2:string password) throws (1:AuthException ex)
 }
