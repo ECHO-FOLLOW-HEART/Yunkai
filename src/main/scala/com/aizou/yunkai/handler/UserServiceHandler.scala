@@ -1,9 +1,11 @@
 package com.aizou.yunkai.handler
 
+import java.security.MessageDigest
+
 import com.aizou.yunkai
 import com.aizou.yunkai.Implicits._
-import com.aizou.yunkai.model.{ Relationship, UserInfo }
-import com.aizou.yunkai.{ NotFoundException, UserInfoProp, Userservice }
+import com.aizou.yunkai.model.{ Credential, Relationship, UserInfo }
+import com.aizou.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice }
 import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.CriteriaContainer
@@ -40,6 +42,16 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]],
     offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] =
     UserServiceHandler.getContactList(userId, fields, offset, count) map (_ map UserServiceHandler.userInfoConversion)
+
+  /**
+   * 用户登录
+   *
+   * @param loginName 登录所需要的用户名
+   * @param password  密码
+   * @return 用户的详细资料
+   */
+  override def login(loginName: String, password: String): Future[yunkai.UserInfo] =
+    UserServiceHandler.login(loginName, password) map UserServiceHandler.userInfoConversion
 }
 
 object UserServiceHandler {
@@ -144,6 +156,34 @@ object UserServiceHandler {
       cid <- contactIds
       userInfoMap <- getUsersByIdList(fields, cid: _*)
     } yield userInfoMap.toSeq.filter(_._2 nonEmpty).map(_._2.get)
+  }
+
+  def login(loginName: String, password: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+    // 获得用户信息
+    val userInfo = futurePool {
+      ds.find(classOf[UserInfo], UserInfo.fdTel, loginName).get()
+    }
+
+    // 获得机密信息
+    val complex = userInfo map (v => {
+      if (v != null) {
+        val userId = v.userId
+        (v, ds.find(classOf[Credential], Credential.fdUserId, userId).get())
+      } else throw new AuthException("")
+    })
+
+    // 验证
+    complex map (v => {
+      val (user, credential) = v
+      val salt = credential.salt
+      val encrypted = credential.passwdHash
+      val msg = salt + password
+      val bytes = MessageDigest.getInstance("SHA-256").digest(msg.getBytes)
+      val digest = bytes map ("%02x".format(_)) mkString
+
+      if (digest == encrypted) user
+      else throw new AuthException("")
+    })
   }
 
   implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
