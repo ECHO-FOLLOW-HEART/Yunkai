@@ -15,7 +15,7 @@ import scala.concurrent.{ Await, Future }
  * Created by zephyre on 5/18/15.
  */
 object AppConfig {
-  def conf = buildConfig()
+  val conf = buildConfig()
 
   // 获得数据库的配置。主要的键有两个：host和port
   private def getDatabaseConf(service: (String, String)): Future[java.util.Map[String, Object]] = {
