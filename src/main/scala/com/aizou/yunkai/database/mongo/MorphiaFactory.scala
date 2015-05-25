@@ -1,9 +1,9 @@
 package com.aizou.yunkai.database.mongo
 
 import com.aizou.yunkai.AppConfig
-import com.aizou.yunkai.model.{ Relationship, UserInfo }
-import com.mongodb.{ MongoClient, MongoClientOptions, ServerAddress }
-import org.mongodb.morphia.{ Datastore, Morphia, ValidationExtension }
+import com.aizou.yunkai.model.{Relationship, UserInfo}
+import com.mongodb.{MongoClient, MongoClientOptions, ServerAddress}
+import org.mongodb.morphia.{Datastore, Morphia, ValidationExtension}
 
 import scala.collection.JavaConversions._
 

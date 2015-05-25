@@ -4,9 +4,9 @@ import java.security.MessageDigest
 
 import com.aizou.yunkai
 import com.aizou.yunkai.Implicits._
-import com.aizou.yunkai.model.{ Credential, Relationship, UserInfo }
-import com.aizou.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice }
-import com.twitter.util.{ Future, FuturePool }
+import com.aizou.yunkai.model.{Credential, Relationship, UserInfo}
+import com.aizou.yunkai.{AuthException, NotFoundException, UserInfoProp, Userservice}
+import com.twitter.util.{Future, FuturePool}
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.CriteriaContainer
 
@@ -40,7 +40,7 @@ class UserServiceHandler extends Userservice.FutureIface {
     UserServiceHandler.removeContacts(userA, userList: _*)
 
   override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]],
-    offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] =
+                              offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] =
     UserServiceHandler.getContactList(userId, fields, offset, count) map (_ map UserServiceHandler.userInfoConversion)
 
   /**
@@ -72,7 +72,7 @@ object UserServiceHandler {
       val (key, value) = entry
       key match {
         case UserInfoProp.NickName => ops.set(UserInfo.fdNickName, value)
-        case UserInfoProp.Signature => ops.set(UserInfo.fdNickName, value)
+        case UserInfoProp.Signature => ops.set(UserInfo.fdSignature, value)
         case _ => ops
       }
     })
@@ -111,7 +111,7 @@ object UserServiceHandler {
     }
 
   def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]] = None, offset: Option[Int] = None,
-    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
+                     count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
     val criteria = Seq("userA", "userB") map (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
     val queryRel = ds.createQuery(classOf[Relationship])
     queryRel.or(criteria: _*)
@@ -155,7 +155,7 @@ object UserServiceHandler {
     for {
       cid <- contactIds
       userInfoMap <- getUsersByIdList(fields, cid: _*)
-    } yield userInfoMap.toSeq.filter(_._2 nonEmpty).map(_._2.get)
+    } yield userInfoMap.toSeq.filter(_._2.nonEmpty).map(_._2.get)
   }
 
   def login(loginName: String, password: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
