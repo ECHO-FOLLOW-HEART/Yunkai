@@ -1,15 +1,15 @@
 package com.aizou.yunkai
 
-import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
-import com.typesafe.config.{Config, ConfigFactory}
-import dispatch.{Http, url}
+import com.typesafe.config.{ Config, ConfigFactory }
+import dispatch.{ Http, url }
 
 import scala.collection.JavaConversions._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{ Await, Future }
 
 /**
  * Created by zephyre on 5/18/15.

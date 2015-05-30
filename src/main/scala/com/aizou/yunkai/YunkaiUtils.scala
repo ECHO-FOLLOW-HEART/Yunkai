@@ -1,7 +1,7 @@
 package com.aizou.yunkai
 
 import com.redis.RedisClientPool
-import com.twitter.util.{Future, FuturePool}
+import com.twitter.util.{ Future, FuturePool }
 
 /**
  * Created by zephyre on 5/19/15.

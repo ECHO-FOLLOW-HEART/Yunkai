@@ -1,78 +1,89 @@
 package com.aizou.yunkai.model
 
-import javax.validation.constraints.{Max, Min, NotNull, Size}
+import javax.validation.constraints.NotNull
 
 import org.bson.types.ObjectId
-import org.mongodb.morphia.annotations.{Entity, Id, Version}
+import org.mongodb.morphia.annotations.{ Id, Entity, Indexed }
 
 import scala.beans.BeanProperty
-import scala.collection.JavaConversions._
+import com.aizou.yunkai.util.Constant
 
 /**
- * 普通讨论组
- * Created by zephyre on 5/15/15.
+ * Created by pengyt on 2015/5/26.
  */
 @Entity
 class ChatGroup {
   @BeanProperty
   @Id
-  var id: ObjectId = new ObjectId()
+  var id: ObjectId = null
 
   @BeanProperty
   @NotNull
-  @Min(value = 1)
-  var groupId: Long = 0
+  @Indexed(unique = true)
+  var chatGroupId: Long = 0
 
   @BeanProperty
-  @NotNull
-  @Size(min = 2, max = 32)
-  var name: String = null
+  var name: String = ""
 
   @BeanProperty
-  @Size(min = 2, max = 1024)
-  var desc: String = null
+  var groupDesc: String = Constant.groupDesc
 
   @BeanProperty
-  @Size(min = 32, max = 32)
-  var avatar: String = null
+  var groupType: String = ""
 
   @BeanProperty
-  @NotNull
-  @Min(value = 1)
+  var avatar: String = ""
+
+  @BeanProperty
+  var tags: java.util.List[String] = null
+
+  @BeanProperty
   var creator: Long = 0
 
   @BeanProperty
-  @Size(max = 64)
   var admin: java.util.List[Long] = null
 
   @BeanProperty
-  @Size(min = 1, max = 1024)
-  var members: java.util.List[Long] = null
+  var participants: java.util.List[Long] = null
+
+  //  @BeanProperty
+  //  var participantCnt: Int = 0
 
   @BeanProperty
-  @NotNull
-  @Min(value = 1)
-  @Max(value = 1024)
-  var maxMembers: Int = 50
+  var msgCounter: Long = 0
 
   @BeanProperty
-  @NotNull
-  @Min(value = 1)
+  var maxUsers: Int = 0
+
+  @BeanProperty
   var createTime: Long = 0
 
   @BeanProperty
-  @Version
-  var version: Long = 0
-}
+  var updateTime: Long = 0
 
+  @BeanProperty
+  var visible: Boolean = true
+}
 object ChatGroup {
-  def apply(groupId: Long, name: String, members: Seq[Long], maxMembers: Int = 50): ChatGroup = {
-    val group = new ChatGroup
-    group.groupId = groupId
-    group.name = name
-    group.members = members
-    group.maxMembers = maxMembers
-    group.createTime = System.currentTimeMillis()
-    group
+  val fdChatGroupId = "chatGroupId"
+  val fdName = "name"
+  val fdGroupDesc = "groupDesc"
+  val fdGroupType = "groupType"
+  val fdTypeCommon = "common"
+  val fdAvatar = "avatar"
+  val fdTags = "tags"
+  val fdCreator = "creator"
+  val fdMaxUsers = "maxUsers"
+  val fdVisible = "visible"
+  val fdParticipants = "participants"
+  //val fdParticipantCnt = "participantCnt"
+  def apply(creator: Long, chatGroupId: Long, name: String, members: java.util.List[Long]): ChatGroup = {
+    val result = new ChatGroup
+    result.id = new ObjectId
+    result.creator = creator
+    result.chatGroupId = chatGroupId
+    result.name = name
+    result.participants = members
+    result
   }
 }

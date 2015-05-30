@@ -1,10 +1,10 @@
 package com.aizou.yunkai.model
 
-import javax.validation.constraints.{Min, NotNull, Size}
+import javax.validation.constraints.{ Min, NotNull, Size }
 
 import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.NotBlank
-import org.mongodb.morphia.annotations.{Entity, Id, Indexed, Version}
+import org.mongodb.morphia.annotations.{ Entity, Id, Indexed, Version }
 
 import scala.beans.BeanProperty
 
@@ -55,12 +55,12 @@ object UserInfo {
   val fdSignature = "signature"
   val fdTel = "tel"
 
-  def apply(userId: Long, nickName: String, avatar: String): UserInfo = {
+  def apply(userId: Long, nickName: String, tel: String): UserInfo = {
     val result = new UserInfo
-    result.setId(new ObjectId)
-    result.setUserId(userId)
-    result.setNickName(nickName)
-    result.setAvatar(avatar)
+    result.id = new ObjectId
+    result.userId = userId
+    result.nickName = nickName
+    result.tel = tel
     result
   }
 }

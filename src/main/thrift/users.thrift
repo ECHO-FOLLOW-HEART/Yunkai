@@ -14,7 +14,24 @@ struct UserInfo {
   5: optional string signature,
   6: optional string tel,
 }
-
+//Created by pengyt on 2015/5/26.
+struct ChatGroup{
+  1: i64 chatGroupId,
+  2: string name,
+  3: optional string groupDesc,
+  4: string groupType,
+  5: optional string avatar,
+  6: optional list<string> tags,
+  7: i64 creator,
+  8: list<i64> admin,
+  9: list<i64> participants,
+  //10: i32 participantCnt,
+  10: optional i64 msgCounter,
+  11: i32 maxUsers,
+  12: i64 createTime,
+  13: i64 updateTime,
+  14: bool visible
+}
 enum UserInfoProp {
   USER_ID,
   NICK_NAME,
@@ -23,7 +40,24 @@ enum UserInfoProp {
   SIGNATURE,
   TEL
 }
-
+//Created by pengyt on 2015/5/26.
+enum ChatGroupProp{
+  CHAT_GROUP_ID,
+  NAME,
+  GROUP_DESC,
+  GROUP_TYPE,
+  AVATAR,
+  TAGS,
+  CREATOR,
+  ADMIN,
+  PARTICIPANTS,
+  //PARTICIPANTCNT,
+  MSG_COUNTER,
+  MAX_USERS,
+  CREATE_TIME,
+  UPDATE_TIME,
+  VISIBLE
+}
 exception NotFoundException {
     1: string message;
 }
@@ -41,15 +75,12 @@ service userservice {
 
   void updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo)
 
-  // userA和userB是否为好友
   bool isContact(1:i64 userA, 2:i64 userB)
 
-  // 将userA和userB相互加为好友
   void addContact(1:i64 userA, 2:i64 userB)
 
   void addContacts(1:i64 userA, 2:list<i64> targets)
 
-  // 移除userA和userB的好友关系
   void removeContact(1:i64 userA, 2:i64 userB)
 
   void removeContacts(1:i64 userA, 2:list<i64> targets)
@@ -58,4 +89,36 @@ service userservice {
     3: optional i32 offset, 4: optional i32 count)
 
   UserInfo login(1:string loginName, 2:string password) throws (1:AuthException ex)
+
+  // Created by pengyt on 2015/5/26.
+  // 群名称备注（和群成员id关联，某个群成员将群备注修改了）和群成员备注后面再做
+  // 新用户注册
+  void createUser(1:string nickName, 2:string password, 3:string tel) throws (1: InvalidArgsException ex)
+
+  // 用户退出登录
+  // void logout(1: i64 userId)
+
+  // 创建讨论组
+  void createChatGroup(1:i64 creator, 2:string name, 3:map<ChatGroupProp, string> chatGroup, 4:list<i64> participants) throws (1: InvalidArgsException ex)
+
+  // 搜索讨论组
+  // list<ChatGroup> searchChatGroup(1: string keyword)
+
+  // 修改讨论组信息（比如名称、描述等）
+  void updateChatGroup(1: i64 chatGroupId, 2:map<ChatGroupProp, string> chatGroup) throws (1: InvalidArgsException ex)
+
+  // 获取讨论组信息
+  ChatGroup getChatGroup(1: i64 chatGroupId) throws (1:NotFoundException ex)
+
+  // 获取用户讨论组信息
+  list<ChatGroup> getUserChatGroups(1: i64 userId 2: optional list<ChatGroupProp> fields) throws (1:NotFoundException ex)
+
+  // 批量添加讨论组成员
+  void addChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
+
+  // 批量删除讨论组成员
+  void removeChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
+
+  // 获得讨论组成员
+  list<UserInfo> getChatGroupMembers(1: i64 chatGroupId, 2: optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
 }

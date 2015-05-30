@@ -108,3 +108,4 @@ project/.sbtserver.lock
 src/main/resources/*.conf
 Sandbox.scala
 YunkaiClient.scala
+*.jar
