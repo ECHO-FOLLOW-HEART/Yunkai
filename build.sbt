@@ -1,18 +1,14 @@
+organization := "com.lvxingpai"
 
+name := "yunkai"
 
-name := """Yunkai"""
-
-version := "0.1.0"
+version := "0.2-SNAPSHOT"
 
 scalaVersion := "2.10.4"
 
 com.twitter.scrooge.ScroogeSBT.newSettings
 
 scalariformSettings
-
-resolvers ++= Seq(
-  "twttr" at "http://maven.twttr.com/"
-)
 
 val finagleVersion = "6.14.0"
 
@@ -44,6 +40,14 @@ libraryDependencies ++= Seq(
   "org.mockito" % "mockito-all" % "2.0.2-beta",
   "org.specs2" %% "specs2-mock" % "3.6"
 )
+
+publishTo := {
+  val nexus = "http://nexus.lvxingpai.com/content/repositories/"
+  if (isSnapshot.value)
+    Some("snapshots" at nexus + "snapshots")
+  else
+    Some("releases"  at nexus + "releases")
+}
 
 val root = project.in(file(".")).enablePlugins(JavaAppPackaging)
 
