@@ -40,7 +40,7 @@ class UserInfo {
   var tel: String = ""
 
   @BeanProperty
-  var contacts: java.util.List[Int] = null
+  var contacts: Seq[Int] = null
 
   @Version
   var version: Long = 0
@@ -55,12 +55,12 @@ object UserInfo {
   val fdSignature = "signature"
   val fdTel = "tel"
 
-  def apply(userId: Long, nickName: String, avatar: String): UserInfo = {
+  def apply(userId: Long, nickName: String): UserInfo = {
     val result = new UserInfo
-    result.setId(new ObjectId)
-    result.setUserId(userId)
-    result.setNickName(nickName)
-    result.setAvatar(avatar)
+    result.id = new ObjectId
+    result.userId = userId
+    result.nickName = nickName
     result
   }
 }
+

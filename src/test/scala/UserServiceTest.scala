@@ -1,7 +1,7 @@
 import com.aizou.yunkai
+import com.aizou.yunkai.Gender
 import com.aizou.yunkai.handler.UserServiceHandler
 import com.aizou.yunkai.model.UserInfo
-import com.aizou.yunkai.{ Gender, UserInfoProp }
 import com.twitter.util.{ Await, FuturePool }
 import org.mockito.Matchers
 import org.mongodb.morphia.Datastore
@@ -24,7 +24,7 @@ class UserServiceTest extends Specification with Mockito {
     val userInfoCls = classOf[UserInfo]
 
     val validQuery = mock[Query[UserInfo]]
-    validQuery.get() returns UserInfo(validUser.userId, validUser.nickName, validUser.avatar.orNull)
+    validQuery.get() returns UserInfo(validUser.userId, validUser.nickName)
 
     val invalidQuery = mock[Query[UserInfo]]
     invalidQuery.get() returns null
@@ -48,23 +48,22 @@ class UserServiceTest extends Specification with Mockito {
         |User-info service should:
         |Invalid userId should return None      $invalidUserInfoCheck
         |Valid userId should return user-info   $validUserInfoCheck
-        |Update user info $updateUserInfoCheck
      """.stripMargin
 
   def invalidUserInfoCheck = {
     val fakeUserId = 10000L
-    Await.result(UserServiceHandler.getUserById(fakeUserId)) must_== None
+    Await.result(UserServiceHandler.getUserById(fakeUserId)) must_== null
   }
 
   def validUserInfoCheck = {
-    val user = Await.result(UserServiceHandler.getUserById(validUser.userId)).get
+    val user = Await.result(UserServiceHandler.getUserById(validUser.userId))
     user.userId must_== validUser.userId
     user.nickName must_== validUser.nickName
   }
 
-  def updateUserInfoCheck = {
-    Await.result(UserServiceHandler.updateUserInfo(validUser.userId, Map(UserInfoProp.NickName -> "nickName")))
-    there was one(userInfoDatastore).updateFirst(Matchers.any(classOf[Query[UserInfo]]),
-      Matchers.any(classOf[UpdateOperations[UserInfo]]))
-  }
+  //  def updateUserInfoCheck = {
+  //    Await.result(UserServiceHandler.updateUserInfo(validUser.userId, Map(UserInfoProp.NickName -> "nickName")))
+  //    there was one(userInfoDatastore).updateFirst(Matchers.any(classOf[Query[UserInfo]]),
+  //      Matchers.any(classOf[UpdateOperations[UserInfo]]))
+  //  }
 }
