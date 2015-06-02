@@ -1,12 +1,12 @@
 package com.aizou.yunkai.model
 
-import javax.validation.constraints.NotNull
+import javax.validation.constraints.{ Max, Min, Size, NotNull }
 
 import org.bson.types.ObjectId
+import org.hibernate.validator.constraints.NotBlank
 import org.mongodb.morphia.annotations.{ Id, Entity, Indexed }
 
 import scala.beans.BeanProperty
-import com.aizou.yunkai.util.Constant
 
 /**
  * Created by pengyt on 2015/5/26.
@@ -23,45 +23,57 @@ class ChatGroup {
   var chatGroupId: Long = 0
 
   @BeanProperty
+  @NotBlank
+  @Size(min = 2, max = 32)
   var name: String = ""
 
   @BeanProperty
-  var groupDesc: String = Constant.groupDesc
+  @Size(min = 0, max = 1024)
+  var groupDesc: String = "群主什么也没说"
 
   @BeanProperty
+  @Size(min = 2, max = 32)
   var groupType: String = ""
 
   @BeanProperty
+  @Size(min = 0, max = 128)
   var avatar: String = ""
 
   @BeanProperty
-  var tags: java.util.List[String] = null
+  var tags: Seq[String] = null
 
   @BeanProperty
+  @NotNull
   var creator: Long = 0
 
   @BeanProperty
-  var admin: java.util.List[Long] = null
+  var admin: Seq[Long] = null
 
   @BeanProperty
-  var participants: java.util.List[Long] = null
+  var participants: Seq[Long] = null
 
   //  @BeanProperty
   //  var participantCnt: Int = 0
 
-  @BeanProperty
-  var msgCounter: Long = 0
+  //  @BeanProperty
+  //  var msgCounter: Long = 0
 
   @BeanProperty
-  var maxUsers: Int = 0
+  @NotNull
+  @Min(value = 1)
+  @Max(value = 2000)
+  var maxUsers: Int = 50
 
   @BeanProperty
+  @NotNull
   var createTime: Long = 0
 
   @BeanProperty
+  @NotNull
   var updateTime: Long = 0
 
   @BeanProperty
+  @NotNull
   var visible: Boolean = true
 }
 object ChatGroup {
@@ -77,7 +89,7 @@ object ChatGroup {
   val fdVisible = "visible"
   val fdParticipants = "participants"
   //val fdParticipantCnt = "participantCnt"
-  def apply(creator: Long, chatGroupId: Long, name: String, members: java.util.List[Long]): ChatGroup = {
+  def apply(creator: Long, chatGroupId: Long, name: String, members: Seq[Long]): ChatGroup = {
     val result = new ChatGroup
     result.id = new ObjectId
     result.creator = creator

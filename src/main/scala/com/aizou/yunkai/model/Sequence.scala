@@ -28,4 +28,6 @@ class Sequence {
 object Sequence {
   val groupId: String = "GroupID"
   val userId: String = "UserID"
+  val fdColumn: String = "column"
+  val fdCount: String = "count"
 }

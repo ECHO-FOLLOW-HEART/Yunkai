@@ -5,7 +5,10 @@ enum Gender {
   MALE,
   FEMALE
 }
-
+enum GroupType{
+  CHAT_GROUP
+  GROUP
+}
 struct UserInfo {
   1: i64 userId,
   2: string nickName,
@@ -19,18 +22,18 @@ struct ChatGroup{
   1: i64 chatGroupId,
   2: string name,
   3: optional string groupDesc,
-  4: string groupType,
+  4: GroupType groupType,
   5: optional string avatar,
   6: optional list<string> tags,
   7: i64 creator,
   8: list<i64> admin,
   9: list<i64> participants,
   //10: i32 participantCnt,
-  10: optional i64 msgCounter,
-  11: i32 maxUsers,
-  12: i64 createTime,
-  13: i64 updateTime,
-  14: bool visible
+  //10: optional i64 msgCounter,
+  10: i32 maxUsers,
+  11: i64 createTime,
+  12: i64 updateTime,
+  13: bool visible
 }
 enum UserInfoProp {
   USER_ID,
@@ -52,7 +55,7 @@ enum ChatGroupProp{
   ADMIN,
   PARTICIPANTS,
   //PARTICIPANTCNT,
-  MSG_COUNTER,
+  //MSG_COUNTER,
   MAX_USERS,
   CREATE_TIME,
   UPDATE_TIME,
@@ -93,19 +96,19 @@ service userservice {
   // Created by pengyt on 2015/5/26.
   // 群名称备注（和群成员id关联，某个群成员将群备注修改了）和群成员备注后面再做
   // 新用户注册
-  void createUser(1:string nickName, 2:string password, 3:string tel) throws (1: InvalidArgsException ex)
+  UserInfo createUser(1:string nickName, 2:string password, 3:optional string tel) throws (1: InvalidArgsException ex)
 
   // 用户退出登录
   // void logout(1: i64 userId)
 
   // 创建讨论组
-  void createChatGroup(1:i64 creator, 2:string name, 3:map<ChatGroupProp, string> chatGroup, 4:list<i64> participants) throws (1: InvalidArgsException ex)
+  ChatGroup createChatGroup(1:i64 creator, 2:string name, 3:list<i64> participants, 4:map<ChatGroupProp, string> chatGroupProps) throws (1: InvalidArgsException ex)
 
   // 搜索讨论组
   // list<ChatGroup> searchChatGroup(1: string keyword)
 
   // 修改讨论组信息（比如名称、描述等）
-  void updateChatGroup(1: i64 chatGroupId, 2:map<ChatGroupProp, string> chatGroup) throws (1: InvalidArgsException ex)
+  ChatGroup updateChatGroup(1: i64 chatGroupId, 2:map<ChatGroupProp, string> chatGroupProps) throws (1: InvalidArgsException ex)
 
   // 获取讨论组信息
   ChatGroup getChatGroup(1: i64 chatGroupId) throws (1:NotFoundException ex)

@@ -1,6 +1,6 @@
 package com.aizou.yunkai.model
 
-import javax.validation.constraints.NotNull
+import javax.validation.constraints.{ Size, NotNull }
 
 import org.bson.types.ObjectId
 import org.mongodb.morphia.annotations.{ Id, Indexed, Entity }
@@ -17,40 +17,45 @@ class Conversation {
   var id: ObjectId = null
 
   @BeanProperty
+  @Size(min = 1, max = 64)
   @Indexed(unique = true)
   var fingerprint: String = ""
 
-  @BeanProperty
-  @NotNull
-  @Indexed(unique = true)
-  var creator: Long = 0
+  //  @BeanProperty
+  //  @NotNull
+  //  @Indexed(unique = true)
+  //  var creator: Long = 0
+
+  //  @BeanProperty
+  //  @NotNull
+  //  var admin: Long = 0
 
   @BeanProperty
-  var admin: Long = 0
-
-  @BeanProperty
-  var participants: java.util.List[Long] = null
+  var participants: Seq[Long] = null
 
   @BeanProperty
   var msgCounter: Long = 0
 
   @BeanProperty
+  @NotNull
   var createTime: Long = 0
 
   @BeanProperty
+  @NotNull
   var updateTime: Long = 0
 }
 object Conversation {
   val fdParticipants = "participants"
   val fdFingerprint = "fingerprint"
+  val fdId = "id"
   def apply(userA: Long, userB: Long): Conversation = {
     val result = new Conversation
     val l = Seq(userA, userB).sorted
-    result.setId(new ObjectId())
-    result.setParticipants(java.util.Arrays.asList(l head, l last))
-    //result.setFingerprint(String.format("%d.%d", l head, l last))
-    result.setCreateTime(java.lang.System.currentTimeMillis())
-    result.setUpdateTime(java.lang.System.currentTimeMillis())
+    result.id = new ObjectId()
+    result.participants = Seq(l head, l last)
+    //result.fingerprint = String.format("%d.%d", l head, l last)
+    result.createTime = System.currentTimeMillis()
+    result.updateTime = System.currentTimeMillis()
     result
   }
 }
