@@ -1,9 +1,9 @@
 package com.aizou.yunkai.model
 
-import javax.validation.constraints.{ NotNull }
+import javax.validation.constraints.NotNull
 
 import org.bson.types.ObjectId
-import org.mongodb.morphia.annotations.{ Id, Indexed, Entity }
+import org.mongodb.morphia.annotations.{ Entity, Id, Indexed }
 
 import scala.beans.BeanProperty
 
@@ -25,6 +25,7 @@ class Sequence {
   @Indexed(unique = true)
   var count: Long = 0
 }
+
 object Sequence {
   val groupId: String = "GroupID"
   val userId: String = "UserID"

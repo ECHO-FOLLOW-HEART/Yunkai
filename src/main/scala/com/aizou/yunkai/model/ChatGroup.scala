@@ -1,10 +1,10 @@
 package com.aizou.yunkai.model
 
-import javax.validation.constraints.{ Max, Min, Size, NotNull }
+import javax.validation.constraints.{ Max, Min, NotNull, Size }
 
 import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.NotBlank
-import org.mongodb.morphia.annotations.{ Id, Entity, Indexed }
+import org.mongodb.morphia.annotations.{ Entity, Id, Indexed }
 
 import scala.beans.BeanProperty
 
@@ -29,7 +29,7 @@ class ChatGroup {
 
   @BeanProperty
   @Size(min = 0, max = 1024)
-  var groupDesc: String = "群主什么也没说"
+  var groupDesc: String = null
 
   @BeanProperty
   @Size(min = 2, max = 32)
@@ -76,6 +76,7 @@ class ChatGroup {
   @NotNull
   var visible: Boolean = true
 }
+
 object ChatGroup {
   val fdChatGroupId = "chatGroupId"
   val fdName = "name"
@@ -89,6 +90,7 @@ object ChatGroup {
   val fdVisible = "visible"
   val fdParticipants = "participants"
   //val fdParticipantCnt = "participantCnt"
+
   def apply(creator: Long, chatGroupId: Long, name: String, members: Seq[Long]): ChatGroup = {
     val result = new ChatGroup
     result.id = new ObjectId

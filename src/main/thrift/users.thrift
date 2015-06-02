@@ -5,10 +5,12 @@ enum Gender {
   MALE,
   FEMALE
 }
+
 enum GroupType{
   CHAT_GROUP
   GROUP
 }
+
 struct UserInfo {
   1: i64 userId,
   2: string nickName,
@@ -17,6 +19,7 @@ struct UserInfo {
   5: optional string signature,
   6: optional string tel,
 }
+
 //Created by pengyt on 2015/5/26.
 struct ChatGroup{
   1: i64 chatGroupId,
@@ -35,6 +38,7 @@ struct ChatGroup{
   12: i64 updateTime,
   13: bool visible
 }
+
 enum UserInfoProp {
   USER_ID,
   NICK_NAME,
@@ -43,6 +47,7 @@ enum UserInfoProp {
   SIGNATURE,
   TEL
 }
+
 //Created by pengyt on 2015/5/26.
 enum ChatGroupProp{
   CHAT_GROUP_ID,
@@ -61,6 +66,7 @@ enum ChatGroupProp{
   UPDATE_TIME,
   VISIBLE
 }
+
 exception NotFoundException {
     1: string message;
 }
@@ -108,7 +114,7 @@ service userservice {
   // list<ChatGroup> searchChatGroup(1: string keyword)
 
   // 修改讨论组信息（比如名称、描述等）
-  ChatGroup updateChatGroup(1: i64 chatGroupId, 2:map<ChatGroupProp, string> chatGroupProps) throws (1: InvalidArgsException ex)
+  ChatGroup updateChatGroup(1: i64 chatGroupId, 2:map<ChatGroupProp, string> chatGroupProps) throws (1:InvalidArgsException ex1, 2:NotFoundException ex2)
 
   // 获取讨论组信息
   ChatGroup getChatGroup(1: i64 chatGroupId) throws (1:NotFoundException ex)

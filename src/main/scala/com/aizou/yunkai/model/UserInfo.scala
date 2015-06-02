@@ -54,6 +54,7 @@ object UserInfo {
   val fdContacts = "contacts"
   val fdSignature = "signature"
   val fdTel = "tel"
+
   def apply(userId: Long, nickName: String): UserInfo = {
     val result = new UserInfo
     result.id = new ObjectId

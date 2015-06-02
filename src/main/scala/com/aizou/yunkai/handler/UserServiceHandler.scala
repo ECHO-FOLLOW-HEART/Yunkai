@@ -1,24 +1,23 @@
 package com.aizou.yunkai.handler
 
 import java.security.MessageDigest
-import java.security.NoSuchAlgorithmException
 
 import com.aizou.yunkai
 import com.aizou.yunkai.Implicits._
-import com.aizou.yunkai.model.{ Credential, Relationship, UserInfo }
-import com.aizou.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice }
+import com.aizou.yunkai.model.{ ChatGroup, Conversation, Credential, Relationship, Sequence, UserInfo }
+import com.aizou.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice, _ }
 import com.mongodb.DuplicateKeyException
 import com.twitter.util.{ Future, FuturePool }
-import com.aizou.yunkai.model.{ Credential, Relationship, UserInfo, ChatGroup, Sequence, Conversation }
-import com.aizou.yunkai._
-import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
-import org.mongodb.morphia.query.{ UpdateOperations, Query, CriteriaContainer }
+import org.mongodb.morphia.query.{ CriteriaContainer, Query, UpdateOperations }
+
 import scala.collection.JavaConversions._
 import scala.collection.Map
 import scala.util.Random
 
 /**
+ * 提供Yunkai服务
+ *
  * Created by zephyre on 5/4/15.
  */
 class UserServiceHandler extends Userservice.FutureIface {
@@ -51,6 +50,7 @@ class UserServiceHandler extends Userservice.FutureIface {
     offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
     UserServiceHandler.getContactList(userId, fields, offset, count) map (_ map UserServiceHandler.userInfoConversion)
   }
+
   /**
    * 用户登录
    *
@@ -94,11 +94,7 @@ class UserServiceHandler extends Userservice.FutureIface {
       items <- result
     } yield {
       if (items isEmpty) throw NotFoundException(s"User $userId chat groups not found")
-      else {
-        items map ({ item =>
-          UserServiceHandler.chatGroupConversion(item)
-        })
-      }
+      else items map UserServiceHandler.chatGroupConversion
     }
   }
 
@@ -114,18 +110,12 @@ class UserServiceHandler extends Userservice.FutureIface {
       items <- result
     } yield {
       if (items isEmpty) throw new NotFoundException(s"Chat group $chatGroupId members not found")
-      else {
-        items map ({ item =>
-          UserServiceHandler.userInfoConversion(item)
-        })
-      }
+      else items map UserServiceHandler.userInfoConversion
     }
   }
 }
 
 object UserServiceHandler {
-  def toOption[T](value: T): Option[T] = if (value != null) Some(value) else None
-
   def getUserById(userId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] =
     futurePool {
       ds.find(classOf[UserInfo], "userId", userId).get()
@@ -262,23 +252,11 @@ object UserServiceHandler {
     yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
   }
 
-  // 取用户ID
-  def populateId(sequenceType: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Long] = {
-    futurePool {
-      val query: Query[Sequence] = ds.createQuery(classOf[Sequence])
-      query.field(Sequence.fdColumn).equal(sequenceType)
-      val ops: UpdateOperations[Sequence] = ds.createUpdateOperations(classOf[Sequence]).inc(Sequence.fdCount)
-      //查询或者修改异常, 参数4如果查找不存在, 则新建一个对象, 参数3表示返回新建的对象的count
-      ds.findAndModify(query, ops, false, true).count
-      //if (ret != null) ret.count else throw new NotFoundException(s"Sequence $sequenceType not found")
-    }
-  }
-
   // 新用户注册
   def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
     // 取得用户ID
     val newUserId = populateId(Sequence.userId)(ds, futurePool)
-    val tempTel: String = tel.getOrElse("")
+    val tempTel: String = tel.orNull
     // 创建用户并保存
     val userInfo = for {
       userId <- newUserId
@@ -295,8 +273,8 @@ object UserServiceHandler {
     // 生成64个字节的salt
     val md5 = MessageDigest.getInstance("MD5")
     //使用指定的字节更新摘要
-    md5.update(Random.nextLong().toString.getBytes())
-    val salt = md5.digest().toString()
+    md5.update(Random.nextLong().toString.getBytes)
+    val salt = md5.digest().toString
 
     // 将密码与salt一起生成密文
     val msg = salt + password
@@ -347,6 +325,18 @@ object UserServiceHandler {
     }
   }
 
+  // 取用户ID
+  def populateId(sequenceType: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Long] = {
+    futurePool {
+      val query: Query[Sequence] = ds.createQuery(classOf[Sequence])
+      query.field(Sequence.fdColumn).equal(sequenceType)
+      val ops: UpdateOperations[Sequence] = ds.createUpdateOperations(classOf[Sequence]).inc(Sequence.fdCount)
+      //查询或者修改异常, 参数4如果查找不存在, 则新建一个对象, 参数3表示返回新建的对象的count
+      ds.findAndModify(query, ops, false, true).count
+      //if (ret != null) ret.count else throw new NotFoundException(s"Sequence $sequenceType not found")
+    }
+  }
+
   //  // 获取讨论组信息
   def getChatGroup(chatGroupId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[ChatGroup] =
     futurePool {
@@ -375,6 +365,8 @@ object UserServiceHandler {
 
     yunkai.ChatGroup(chatGroupId, name, toOption(groupDesc), groupType, toOption(avatar), toOption(tags), creator, admin, participants, maxUsers, createTime, updateTime, visible)
   }
+
+  def toOption[T](value: T): Option[T] = if (value != null) Some(value) else None
 
   // 修改讨论组信息（比如名称、描述等）
   def updateChatGroup(chatGroupId: Long, chatGroupProps: Map[ChatGroupProp, String])(implicit ds: Datastore, futurePool: FuturePool): Future[ChatGroup] = futurePool {
