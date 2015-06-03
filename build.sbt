@@ -38,7 +38,8 @@ libraryDependencies ++= Seq(
   "net.databinder.dispatch" %% "dispatch-core" % "0.11.2",
   "net.debasishg" %% "redisclient" % "2.15",
   "org.mockito" % "mockito-all" % "2.0.2-beta",
-  "org.specs2" %% "specs2-mock" % "3.6"
+  "org.specs2" %% "specs2-mock" % "3.6",
+  "com.lvxingpai" %% "apium" % "0.1-SNAPSHOT"
 )
 
 publishTo := {
@@ -46,7 +47,7 @@ publishTo := {
   if (isSnapshot.value)
     Some("snapshots" at nexus + "snapshots")
   else
-    Some("releases"  at nexus + "releases")
+    Some("releases" at nexus + "releases")
 }
 
 val root = project.in(file(".")).enablePlugins(JavaAppPackaging)

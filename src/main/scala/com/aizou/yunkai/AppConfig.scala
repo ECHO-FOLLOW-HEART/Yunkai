@@ -125,7 +125,11 @@ object AppConfig {
 
     val confMain = ConfigFactory.parseMap(configMap)
 
-    val sideConf = Future.sequence(Seq(getDatabaseConf("redis" -> "redis"), getDatabaseConf("mongo" -> "mongo")))
+    val sideConf = Future.sequence(Seq(
+      getDatabaseConf("redis" -> "redis"),
+      getDatabaseConf("mongo" -> "mongo"),
+      getDatabaseConf("rabbitmq" -> "rabbitmq")
+    ))
 
     val result = Await.result(sideConf, 10 seconds).reduce(_ ++ _)
 

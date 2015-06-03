@@ -6,6 +6,7 @@ import com.aizou.yunkai
 import com.aizou.yunkai.Implicits._
 import com.aizou.yunkai.model.{ ChatGroup, Conversation, Credential, Relationship, Sequence, UserInfo }
 import com.aizou.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice, _ }
+import com.fasterxml.jackson.databind.node.{ LongNode, NullNode, TextNode }
 import com.mongodb.DuplicateKeyException
 import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
@@ -227,8 +228,9 @@ object UserServiceHandler {
         (v, ds.find(classOf[Credential], Credential.fdUserId, userId).get())
       } else throw new AuthException("")
     })
+
     // 验证
-    complex map (v => {
+    val result = complex map (v => {
       val (user, credential) = v
       val salt = credential.salt
       val encrypted = credential.passwdHash
@@ -238,6 +240,17 @@ object UserServiceHandler {
 
       if (digest == encrypted) user
       else throw new AuthException("")
+    })
+
+    // 触发登录事件
+    result map (v => {
+      val eventArgs = scala.collection.immutable.Map(
+        "userId" -> LongNode.valueOf(v.userId),
+        "nickName" -> TextNode.valueOf(v.nickName),
+        "avatar" -> (if (v.avatar != null && v.avatar.nonEmpty) TextNode.valueOf(v.avatar) else NullNode.getInstance())
+      )
+      EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
+      v
     })
   }
 
@@ -292,6 +305,17 @@ object UserServiceHandler {
         case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId credential is existed")
       }
     }
+
+    // 触发创建新用户的事件
+    userInfo map (v => {
+      val eventArgs = scala.collection.immutable.Map(
+        "userId" -> LongNode.valueOf(v.userId),
+        "nickName" -> TextNode.valueOf(v.nickName),
+        "avatar" -> (if (v.avatar != null && v.avatar.nonEmpty) TextNode.valueOf(v.avatar) else NullNode.getInstance())
+      )
+      EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
+    })
+
     userInfo
   }
 
