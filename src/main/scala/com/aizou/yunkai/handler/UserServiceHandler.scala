@@ -4,9 +4,10 @@ import java.security.MessageDigest
 
 import com.aizou.yunkai
 import com.aizou.yunkai.Implicits._
-import com.aizou.yunkai.model.{ ChatGroup, Conversation, Credential, Relationship, Sequence, UserInfo }
+import com.aizou.yunkai.model.{ ChatGroup, Credential, Relationship, Sequence, UserInfo }
 import com.aizou.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice, _ }
-import com.fasterxml.jackson.databind.node.{ LongNode, NullNode, TextNode }
+import com.fasterxml.jackson.databind.node._
+import com.fasterxml.jackson.databind.{ ObjectMapper }
 import com.mongodb.DuplicateKeyException
 import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
@@ -61,6 +62,9 @@ class UserServiceHandler extends Userservice.FutureIface {
    */
   override def login(loginName: String, password: String): Future[yunkai.UserInfo] =
     UserServiceHandler.login(loginName, password) map UserServiceHandler.userInfoConversion
+
+  override def updatePassword(userId: Long, newPassword: String): Future[Unit] =
+    UserServiceHandler.updatePassword(userId, newPassword)
 
   override def createUser(nickName: String, password: String, tel: Option[String]): Future[yunkai.UserInfo] = {
     UserServiceHandler.createUser(nickName, password, tel) map (userInfo => {
@@ -119,11 +123,11 @@ class UserServiceHandler extends Userservice.FutureIface {
 object UserServiceHandler {
   def getUserById(userId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] =
     futurePool {
-      ds.find(classOf[UserInfo], "userId", userId).get()
+      ds.find(classOf[UserInfo], UserInfo.fdUserId, userId).get()
     }
 
   def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
-    val query = ds.find(classOf[UserInfo], "userId", userId)
+    val query = ds.find(classOf[UserInfo], UserInfo.fdUserId, userId)
     if (query isEmpty) throw new NotFoundException(s"User userId=$userId is not found")
     val updateOps = userInfo.foldLeft(ds.createUpdateOperations(classOf[UserInfo]))((ops, entry) => {
       val (key, value) = entry
@@ -135,12 +139,21 @@ object UserServiceHandler {
     })
 
     ds.updateFirst(query, updateOps)
+
+    // 触发修改个人信息事件
+    val v = query.get
+    val eventArgs = scala.collection.immutable.Map(
+      "userId" -> LongNode.valueOf(v.userId),
+      "nickName" -> TextNode.valueOf(v.nickName),
+      "avatar" -> (if (v.avatar != null && v.avatar.nonEmpty) TextNode.valueOf(v.avatar) else NullNode.getInstance())
+    )
+    EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
   }
 
   def isContact(userA: Long, userB: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] =
     futurePool {
       val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
-      ds.createQuery(classOf[Relationship]).field("userA").equal(user1).field("userB").equal(user2).get() != null
+      ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1).field(Relationship.fdUserB).equal(user2).get() != null
     }
 
   def addContact(userA: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] =
@@ -149,27 +162,41 @@ object UserServiceHandler {
 
       for (userB <- targetUsers) {
         val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
-        val op = ds.createUpdateOperations(cls).set("userA", user1).set("userB", user2)
-        val query = ds.createQuery(cls).field("userA").equal(user1).field("userB").equal(user2)
+        val op = ds.createUpdateOperations(cls).set(Relationship.fdUserA, user1).set(Relationship.fdUserB, user2)
+        val query = ds.createQuery(cls).field(Relationship.fdUserA).equal(user1).field(Relationship.fdUserB).equal(user2)
         ds.updateFirst(query, op, true)
       }
+
+      // 触发添加/删除联系人的事件
+      val eventArgs = scala.collection.immutable.Map(
+        "userId" -> LongNode.valueOf(userA),
+        "targetUserIds" -> (new ObjectMapper()).valueToTree(targetUsers)
+      )
+      EventEmitter.emitEvent(EventEmitter.evtModContacts, eventArgs)
     }
 
   def removeContacts(userA: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] =
     futurePool {
       def buildQuery(user1: Long, user2: Long): CriteriaContainer = {
         val l = Seq(user1, user2).sorted
-        ds.createQuery(classOf[Relationship]).criteria("userA").equal(l head).criteria("userB").equal(l last)
+        ds.createQuery(classOf[Relationship]).criteria(Relationship.fdUserA).equal(l head).criteria(Relationship.fdUserB).equal(l last)
       }
 
       val query = ds.createQuery(classOf[Relationship])
       query.or(targetUsers map (buildQuery(userA, _)): _*)
       ds.delete(query)
+
+      // 触发添加/删除联系人的事件
+      val eventArgs = scala.collection.immutable.Map(
+        "userId" -> LongNode.valueOf(userA),
+        "targetUserIds" -> (new ObjectMapper()).valueToTree(targetUsers)
+      )
+      EventEmitter.emitEvent(EventEmitter.evtModContacts, eventArgs)
     }
 
   def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]] = None, offset: Option[Int] = None,
     count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
-    val criteria = Seq("userA", "userB") map (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
+    val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
     val queryRel = ds.createQuery(classOf[Relationship])
     queryRel.or(criteria: _*)
     val defaultOffset = 0
@@ -254,6 +281,23 @@ object UserServiceHandler {
     })
   }
 
+  def updatePassword(userId: Long, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
+    val query = ds.find(classOf[Credential], Credential.fdUserId, userId)
+    if (query isEmpty) throw new NotFoundException(s"User userId=$userId credential is not found")
+    else {
+      val salt = generateSalt
+      // 更新Credential
+      val updateOps = ds.createUpdateOperations(classOf[Credential]).set(Credential.fdSalt, salt).set(Credential.fdPasswdHash, generatePassword(salt, newPassword))
+      ds.updateFirst(query, updateOps)
+    }
+
+    // 触发重置用户密码的事件
+    val eventArgs = scala.collection.immutable.Map(
+      "userId" -> LongNode.valueOf(userId)
+    )
+    EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
+  }
+
   implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
     val userId = user.userId
     val nickName = user.nickName
@@ -264,7 +308,21 @@ object UserServiceHandler {
 
     yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
   }
-
+  // 产生salt
+  def generateSalt(): String = {
+    // 生成64个字节的salt
+    val md5 = MessageDigest.getInstance("MD5")
+    //使用指定的字节更新摘要
+    md5.update(Random.nextLong().toString.getBytes)
+    md5.digest().toString
+  }
+  // 产生密文
+  def generatePassword(salt: String, password: String): String = {
+    // 将密码与salt一起生成密文
+    val msg = salt + password
+    val bytes = MessageDigest.getInstance("SHA-256").digest(msg.getBytes)
+    bytes map ("%02x".format(_)) mkString
+  }
   // 新用户注册
   def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
     // 取得用户ID
@@ -283,22 +341,14 @@ object UserServiceHandler {
         case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId is existed")
       }
     }
-    // 生成64个字节的salt
-    val md5 = MessageDigest.getInstance("MD5")
-    //使用指定的字节更新摘要
-    md5.update(Random.nextLong().toString.getBytes)
-    val salt = md5.digest().toString
-
-    // 将密码与salt一起生成密文
-    val msg = salt + password
-    val bytes = MessageDigest.getInstance("SHA-256").digest(msg.getBytes)
-    val digest = bytes map ("%02x".format(_)) mkString
+    // 产生salt
+    val salt = generateSalt
 
     // 创建并保存新用户Credential实例
     for {
       userId <- newUserId
     } yield {
-      val credential = Credential(userId, salt, digest)
+      val credential = Credential(userId, salt, generatePassword(salt, password))
       try {
         ds.save[Credential](credential)
       } catch {
@@ -342,10 +392,25 @@ object UserServiceHandler {
       // 1. gid重复 2. 数据库通信异常  3. 切面
       try {
         ds.save[ChatGroup](cg)
+        // 触发创建讨论组的事件
+        val eventArgs = scala.collection.immutable.Map(
+          "chatGroupId" -> LongNode.valueOf(cg.chatGroupId),
+          "name" -> TextNode.valueOf(cg.name),
+          "groupDesc" -> (if (cg.groupDesc != null && cg.groupDesc.nonEmpty) TextNode.valueOf(cg.groupDesc) else NullNode.getInstance()),
+          "groupType" -> TextNode.valueOf(cg.groupType),
+          "Avatar" -> (if (cg.avatar != null && cg.avatar.nonEmpty) TextNode.valueOf(cg.avatar) else NullNode.getInstance()),
+          "Tags" -> (new ObjectMapper).valueToTree(cg.tags),
+          "admin" -> (new ObjectMapper).valueToTree(cg.admin),
+          "participants" -> (new ObjectMapper).valueToTree(cg.participants),
+          "visible" -> BooleanNode.valueOf(cg.visible)
+        )
+        EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
+
         cg
       } catch {
         case ex: DuplicateKeyException => throw new InvalidArgsException(s"Chat group $gid duplicated")
       }
+
     }
   }
 
@@ -357,7 +422,6 @@ object UserServiceHandler {
       val ops: UpdateOperations[Sequence] = ds.createUpdateOperations(classOf[Sequence]).inc(Sequence.fdCount)
       //查询或者修改异常, 参数4如果查找不存在, 则新建一个对象, 参数3表示返回新建的对象的count
       ds.findAndModify(query, ops, false, true).count
-      //if (ret != null) ret.count else throw new NotFoundException(s"Sequence $sequenceType not found")
     }
   }
 
@@ -404,13 +468,28 @@ object UserServiceHandler {
           case ChatGroupProp.GroupDesc => ops.set(ChatGroup.fdGroupDesc, value)
           case ChatGroupProp.Avatar => ops.set(ChatGroup.fdAvatar, value)
           case ChatGroupProp.Tags => ops.set(ChatGroup.fdTags, value)
+          case ChatGroupProp.Admin => ops.set(ChatGroup.fdAdmin, value)
           case ChatGroupProp.Visible => ops.set(ChatGroup.fdVisible, value)
           case _ => ops
         }
       })
       ds.updateFirst(query, updateOps)
     }
-    query.get()
+    val result = query.get()
+
+    // 触发修改讨论组属性的事件
+    val eventArgs = scala.collection.immutable.Map(
+      "chatGroupId" -> LongNode.valueOf(result.chatGroupId),
+      "name" -> TextNode.valueOf(result.name),
+      "groupDesc" -> (if (result.groupDesc != null && result.groupDesc.nonEmpty) TextNode.valueOf(result.groupDesc) else NullNode.getInstance()),
+      "avatar" -> (if (result.avatar != null && result.avatar.nonEmpty) TextNode.valueOf(result.avatar) else NullNode.getInstance()),
+      "tags" -> (new ObjectMapper()).valueToTree(result.tags),
+      "admin" -> (new ObjectMapper()).valueToTree(result.admin),
+      "visible" -> BooleanNode.valueOf(result.visible)
+    )
+    EventEmitter.emitEvent(EventEmitter.evtModChatGroup, eventArgs)
+
+    result
   }
 
   // 获取用户讨论组信息
@@ -446,11 +525,13 @@ object UserServiceHandler {
       val chatGroupUpdateOps = ds.createUpdateOperations(classOf[ChatGroup]).addAll(ChatGroup.fdParticipants, userIds, false)
       ds.updateFirst(queryChatGroup, chatGroupUpdateOps)
 
-      // 更新Conversation的成员列表
-      // 目前先这么做，后面给成观察者模式
-      val queryConversation = ds.find(classOf[Conversation], Conversation.fdId, queryChatGroup.get().getId)
-      val conversationUpdateOps = ds.createUpdateOperations(classOf[Conversation]).addAll(Conversation.fdParticipants, userIds, false)
-      ds.updateFirst(queryConversation, conversationUpdateOps)
+      val chatGroup = queryChatGroup.get
+      // 触发添加/删除讨论组成员的事件
+      val eventArgs = scala.collection.immutable.Map(
+        "chatGroupId" -> LongNode.valueOf(chatGroup.chatGroupId),
+        "participants" -> (new ObjectMapper()).valueToTree(chatGroup.participants)
+      )
+      EventEmitter.emitEvent(EventEmitter.evtModGroupMembers, eventArgs)
     }
 
   // 批量删除讨论组成员
@@ -461,11 +542,13 @@ object UserServiceHandler {
       val chatGroupUpdateOps = ds.createUpdateOperations(classOf[ChatGroup]).removeAll(ChatGroup.fdParticipants, userIds)
       ds.updateFirst(queryChatGroup, chatGroupUpdateOps)
 
-      // 更新Conversation的成员列表
-      // 目前先这么做，后面给成观察者模式
-      val queryConversation = ds.find(classOf[Conversation], Conversation.fdId, queryChatGroup.get().getId)
-      val conversationUpdateOps = ds.createUpdateOperations(classOf[Conversation]).removeAll(Conversation.fdParticipants, userIds)
-      ds.updateFirst(queryConversation, conversationUpdateOps)
+      val chatGroup = queryChatGroup.get
+      // 触发添加/删除讨论组成员的事件
+      val eventArgs = scala.collection.immutable.Map(
+        "chatGroupId" -> LongNode.valueOf(chatGroup.chatGroupId),
+        "participants" -> (new ObjectMapper()).valueToTree(chatGroup.participants)
+      )
+      EventEmitter.emitEvent(EventEmitter.evtModGroupMembers, eventArgs)
     }
 
   // 获得讨论组成员

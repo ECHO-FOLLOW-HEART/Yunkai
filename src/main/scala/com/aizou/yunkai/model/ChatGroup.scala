@@ -90,6 +90,7 @@ object ChatGroup {
   val fdVisible = "visible"
   val fdParticipants = "participants"
   //val fdParticipantCnt = "participantCnt"
+  val fdAdmin = "admin"
 
   def apply(creator: Long, chatGroupId: Long, name: String, members: Seq[Long]): ChatGroup = {
     val result = new ChatGroup

@@ -53,6 +53,11 @@ object EventEmitter {
   val evtFollow = "follow"
 
   /**
+   * 修改个人信息事件
+   */
+  val evtModUserInfo = "modUserInfo"
+
+  /**
    * 创建讨论组的事件
    */
   val evtCreateChatGroup = "createChatGroup"
@@ -66,6 +71,11 @@ object EventEmitter {
    * 修改讨论组属性的事件
    */
   val evtModChatGroup = "modChatGroup"
+
+  /**
+   * 添加群申请事件
+   */
+  val evtChatGroupReq = "chatGroupReq"
 
   // 初始化
   val apiumPlant = {

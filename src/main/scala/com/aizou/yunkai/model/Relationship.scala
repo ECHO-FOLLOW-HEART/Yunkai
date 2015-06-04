@@ -35,6 +35,9 @@ class Relationship {
 }
 
 object Relationship {
+  val fdUserA = "userA"
+  val fdUserB = "userB"
+
   def apply(userA: Long, userB: Long): Relationship = {
     val result = new Relationship
     result.userA = userA
