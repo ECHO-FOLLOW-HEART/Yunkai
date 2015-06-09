@@ -1,0 +1,17 @@
+<aspectj>
+
+    <aspects>
+        <!-- declare existing aspects to the weaver -->
+        <aspect name="com.aizou.yunkai.aspectj.test.ConditionalPointcut"/>
+        <aspect name="com.aizou.yunkai.aspectj.test.AnnotationAspect"/>
+
+    </aspects>
+
+    <weaver options="-verbose">
+
+        <!-- Dump all types within the "com.foo.bar" package
+             to the "./_ajdump" folder on disk (for diagnostic purposes) -->
+        <dump within="com.aizou.yunkai.*"/>
+    </weaver>
+
+</aspectj>

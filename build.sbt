@@ -20,6 +20,7 @@ libraryDependencies ++= Seq(
   "org.mongodb.morphia" % "morphia-validation" % morphiaVersion,
   "org.mongodb.morphia" % "morphia-util" % morphiaVersion,
   "org.hibernate" % "hibernate-validator" % "5.1.3.Final",
+  "org.aspectj" % "aspectjweaver" % "1.8.4",
   "javax.el" % "javax.el-api" % "3.0.0",
   "org.glassfish.web" % "javax.el" % "2.2.6",
   "cglib" % "cglib-nodep" % "3.1",
