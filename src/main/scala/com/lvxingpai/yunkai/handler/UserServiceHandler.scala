@@ -117,6 +117,14 @@ class UserServiceHandler extends Userservice.FutureIface {
       else items map UserServiceHandler.userInfoConversion
     }
   }
+
+  override def add(val1: Int, val2: Int): Future[Int] = Future {
+    val1 + val2
+  }
+
+  override def range(start: Int, end: Int, step: Option[Int]): Future[Seq[Int]] = Future {
+    Range(start, end, step.getOrElse(1))
+  }
 }
 
 object UserServiceHandler {
