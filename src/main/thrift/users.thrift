@@ -80,6 +80,10 @@ exception AuthException {
 }
 
 service userservice {
+  i32 add(1:i32 val1, 2:i32 val2)
+
+  list<i32> range(1:i32 start, 2:i32 end, 3:optional i32 step)
+
   UserInfo getUserById(1:i64 userId) throws (1:NotFoundException ex)
 
   void updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo)
