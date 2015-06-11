@@ -1,9 +1,9 @@
 package com.lvxingpai.yunkai.database.mongo
 
-import com.lvxingpai.yunkai.AppConfig
-import com.lvxingpai.yunkai.model.{ UserInfo, Relationship }
-import com.mongodb.{ MongoClient, MongoClientOptions, ServerAddress }
-import org.mongodb.morphia.{ Datastore, Morphia, ValidationExtension }
+import com.lvxingpai.yunkai.GlobalConf
+import com.lvxingpai.yunkai.model.{Relationship, UserInfo}
+import com.mongodb.{MongoClient, MongoClientOptions, ServerAddress}
+import org.mongodb.morphia.{Datastore, Morphia, ValidationExtension}
 
 import scala.collection.JavaConversions._
 
@@ -11,11 +11,12 @@ import scala.collection.JavaConversions._
  * Created by zephyre on 5/4/15.
  */
 object MorphiaFactory {
+
   private val client = {
     def buildServerAddr(address: String): Option[ServerAddress] = {
       address.split(":") match {
-        case Array(host, portStr) => try {
-          new Some(new ServerAddress(host, portStr.toInt))
+        case Array(h, p) => try {
+          new Some(new ServerAddress(h, p.toInt))
         } catch {
           case _: Throwable => None
         }
@@ -23,8 +24,8 @@ object MorphiaFactory {
       }
     }
 
-    val host = AppConfig.conf.getString("mongo.host")
-    val port = AppConfig.conf.getInt("mongo.port")
+    val host = GlobalConf.conf.getString("mongo.host")
+    val port = GlobalConf.conf.getInt("mongo.port")
 
     val serverList = Seq(buildServerAddr(s"$host:$port").get)
 

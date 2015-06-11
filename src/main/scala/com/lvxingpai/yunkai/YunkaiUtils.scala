@@ -8,8 +8,8 @@ import com.twitter.util.{ Future, FuturePool }
  */
 object YunkaiUtils {
   var redisPool = {
-    val host = AppConfig.conf.getString("redis.host")
-    val port = AppConfig.conf.getInt("redis.port")
+    val host = GlobalConf.conf.getString("redis.host")
+    val port = GlobalConf.conf.getInt("redis.port")
     new RedisClientPool(host, port)
   }
 

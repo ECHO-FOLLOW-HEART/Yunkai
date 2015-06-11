@@ -15,6 +15,7 @@ val finagleVersion = "6.14.0"
 val morphiaVersion = "0.111"
 
 libraryDependencies ++= Seq(
+  "com.lvxingpai" %% "appconfig" % "0.1",
   "org.mongodb" % "mongo-java-driver" % "3.0.0",
   "org.mongodb.morphia" % "morphia" % morphiaVersion,
   "org.mongodb.morphia" % "morphia-validation" % morphiaVersion,
