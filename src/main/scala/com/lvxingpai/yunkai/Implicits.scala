@@ -1,6 +1,6 @@
-package com.aizou.yunkai
+package com.lvxingpai.yunkai
 
-import com.aizou.yunkai.database.mongo.MorphiaFactory
+import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
 import com.twitter.util.FuturePool
 
 /**

@@ -1,4 +1,4 @@
-package com.aizou.yunkai
+package com.lvxingpai.yunkai
 
 import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.fasterxml.jackson.module.scala.DefaultScalaModule

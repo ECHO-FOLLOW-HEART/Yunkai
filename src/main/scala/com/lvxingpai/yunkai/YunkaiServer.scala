@@ -1,8 +1,7 @@
-package com.aizou.yunkai
+package com.lvxingpai.yunkai
 
 import java.net.InetSocketAddress
-
-import com.aizou.yunkai.handler.UserServiceHandler
+import com.lvxingpai.yunkai.handler.UserServiceHandler
 import com.twitter.finagle.builder.ServerBuilder
 import com.twitter.finagle.thrift.ThriftServerFramedCodec
 import org.apache.thrift.protocol.TBinaryProtocol

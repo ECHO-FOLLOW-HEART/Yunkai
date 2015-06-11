@@ -1,5 +1,5 @@
-namespace java com.aizou.yunkai
-#@namespace scala com.aizou.yunkai
+namespace java com.lvxingpai.yunkai
+#@namespace scala com.lvxingpai.yunkai
 
 enum Gender {
   MALE,

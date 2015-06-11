@@ -1,7 +1,7 @@
 import java.net.InetSocketAddress
 
 import com.aizou.yunkai.Userservice
-import com.aizou.yunkai.handler.UserServiceHandler
+import com.lvxingpai.yunkai.handler.UserServiceHandler
 import com.twitter.finagle.builder.{ ClientBuilder, ServerBuilder }
 import com.twitter.finagle.thrift.{ ThriftClientFramedCodec, ThriftServerFramedCodec }
 import com.twitter.util.Closable

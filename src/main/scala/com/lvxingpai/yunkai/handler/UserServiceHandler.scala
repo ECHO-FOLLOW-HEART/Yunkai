@@ -1,19 +1,18 @@
-package com.aizou.yunkai.handler
+package com.lvxingpai.yunkai.handler
 
 import java.security.MessageDigest
 
-import com.aizou.yunkai
-import com.aizou.yunkai.Implicits._
-import com.aizou.yunkai.model.{ ChatGroup, Conversation, Credential, Relationship, Sequence, UserInfo }
-import com.aizou.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice, _ }
+import com.lvxingpai.yunkai.Implicits._
+import com.lvxingpai.yunkai._
+import com.lvxingpai.yunkai.model.{ ChatGroup, UserInfo, _ }
 import com.mongodb.DuplicateKeyException
 import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.{ CriteriaContainer, Query, UpdateOperations }
-import scala.language.postfixOps
-import scala.language.implicitConversions
+
 import scala.collection.JavaConversions._
 import scala.collection.Map
+import scala.language.{ implicitConversions, postfixOps }
 import scala.util.Random
 
 /**
@@ -23,7 +22,7 @@ import scala.util.Random
  */
 class UserServiceHandler extends Userservice.FutureIface {
 
-  override def getUserById(userId: Long): Future[yunkai.UserInfo] = {
+  override def getUserById(userId: Long): Future[com.lvxingpai.yunkai.UserInfo] = {
     UserServiceHandler.getUserById(userId) map (userInfo => {
       if (userInfo == null) throw new NotFoundException(s"User not found for userId=$userId")
       else {
@@ -48,7 +47,7 @@ class UserServiceHandler extends Userservice.FutureIface {
     UserServiceHandler.removeContacts(userA, userList: _*)
 
   override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]],
-    offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
+    offset: Option[Int], count: Option[Int]): Future[Seq[com.lvxingpai.yunkai.UserInfo]] = {
     UserServiceHandler.getContactList(userId, fields, offset, count) map (_ map UserServiceHandler.userInfoConversion)
   }
 
@@ -59,29 +58,29 @@ class UserServiceHandler extends Userservice.FutureIface {
    * @param password  密码
    * @return 用户的详细资料
    */
-  override def login(loginName: String, password: String): Future[yunkai.UserInfo] =
+  override def login(loginName: String, password: String): Future[com.lvxingpai.yunkai.UserInfo] =
     UserServiceHandler.login(loginName, password) map UserServiceHandler.userInfoConversion
 
-  override def createUser(nickName: String, password: String, tel: Option[String]): Future[yunkai.UserInfo] = {
+  override def createUser(nickName: String, password: String, tel: Option[String]): Future[com.lvxingpai.yunkai.UserInfo] = {
     UserServiceHandler.createUser(nickName, password, tel) map (userInfo => {
       if (userInfo == null) throw new NotFoundException("Create user failure") else UserServiceHandler.userInfoConversion(userInfo)
     })
   }
 
-  override def createChatGroup(creator: Long, name: String, members: Seq[Long], chatGroupProps: Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
+  override def createChatGroup(creator: Long, name: String, members: Seq[Long], chatGroupProps: Map[ChatGroupProp, String]): Future[com.lvxingpai.yunkai.ChatGroup] = {
     UserServiceHandler.createChatGroup(creator, name, members, chatGroupProps) map (chatGroup => {
       if (chatGroup == null) throw new NotFoundException("Create chatGroup failure") else UserServiceHandler.chatGroupConversion(chatGroup)
     })
   }
 
-  override def getChatGroup(chatGroupId: Long): Future[yunkai.ChatGroup] = {
+  override def getChatGroup(chatGroupId: Long): Future[com.lvxingpai.yunkai.ChatGroup] = {
     val result = UserServiceHandler.getChatGroup(chatGroupId)
     result map (item => {
       if (item == null) throw NotFoundException("Chat group not found") else UserServiceHandler.chatGroupConversion(item)
     })
   }
 
-  override def updateChatGroup(chatGroupId: Long, chatGroupProps: Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
+  override def updateChatGroup(chatGroupId: Long, chatGroupProps: Map[ChatGroupProp, String]): Future[com.lvxingpai.yunkai.ChatGroup] = {
     val result = UserServiceHandler.updateChatGroup(chatGroupId, chatGroupProps)
     result map (item => {
       if (item == null) throw NotFoundException("Chat group not found") else UserServiceHandler.chatGroupConversion(item)
@@ -89,7 +88,7 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   }
 
-  override def getUserChatGroups(userId: Long, fields: Option[Seq[ChatGroupProp]]): Future[Seq[yunkai.ChatGroup]] = {
+  override def getUserChatGroups(userId: Long, fields: Option[Seq[ChatGroupProp]]): Future[Seq[com.lvxingpai.yunkai.ChatGroup]] = {
     val result = UserServiceHandler.getUserChatGroups(userId, fields)
     for {
       items <- result
@@ -105,7 +104,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Unit] =
     UserServiceHandler.removeChatGroupMembers(chatGroupId, userIds)
 
-  override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]]): Future[Seq[yunkai.UserInfo]] = {
+  override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]]): Future[Seq[com.lvxingpai.yunkai.UserInfo]] = {
     val result = UserServiceHandler.getChatGroupMembers(chatGroupId, fields)
     for {
       items <- result
@@ -250,7 +249,7 @@ object UserServiceHandler {
     })
   }
 
-  implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
+  implicit def userInfoConversion(user: UserInfo): com.lvxingpai.yunkai.UserInfo = {
     val userId = user.userId
     val nickName = user.nickName
     val avatar = if (user.avatar == null) None else Some(user.avatar)
@@ -258,7 +257,7 @@ object UserServiceHandler {
     val signature = None
     val tel = None
 
-    yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
+    com.lvxingpai.yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
   }
 
   // 新用户注册
@@ -352,7 +351,7 @@ object UserServiceHandler {
       ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId).get()
     }
 
-  implicit def chatGroupConversion(chatGroup: ChatGroup): yunkai.ChatGroup = {
+  implicit def chatGroupConversion(chatGroup: ChatGroup): com.lvxingpai.yunkai.ChatGroup = {
     val chatGroupId = chatGroup.chatGroupId
     val name = chatGroup.name
     val groupDesc = chatGroup.groupDesc
@@ -372,7 +371,7 @@ object UserServiceHandler {
     val updateTime = chatGroup.updateTime
     val visible = chatGroup.visible
 
-    yunkai.ChatGroup(chatGroupId, name, toOption(groupDesc), groupType, toOption(avatar), toOption(tags), creator, admin, participants, maxUsers, createTime, updateTime, visible)
+    com.lvxingpai.yunkai.ChatGroup(chatGroupId, name, toOption(groupDesc), groupType, toOption(avatar), toOption(tags), creator, admin, participants, maxUsers, createTime, updateTime, visible)
   }
 
   def toOption[T](value: T): Option[T] = if (value != null) Some(value) else None

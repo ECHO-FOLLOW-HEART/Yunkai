@@ -1,7 +1,7 @@
-package com.aizou.yunkai.database.mongo
+package com.lvxingpai.yunkai.database.mongo
 
-import com.aizou.yunkai.AppConfig
-import com.aizou.yunkai.model.{ Relationship, UserInfo }
+import com.lvxingpai.yunkai.AppConfig
+import com.lvxingpai.yunkai.model.{ UserInfo, Relationship }
 import com.mongodb.{ MongoClient, MongoClientOptions, ServerAddress }
 import org.mongodb.morphia.{ Datastore, Morphia, ValidationExtension }
 

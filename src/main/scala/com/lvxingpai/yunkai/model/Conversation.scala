@@ -1,4 +1,4 @@
-package com.aizou.yunkai.model
+package com.lvxingpai.yunkai.model
 
 import javax.validation.constraints.{ NotNull, Size }
 
