@@ -11,7 +11,8 @@ import com.mongodb.DuplicateKeyException
 import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.{ CriteriaContainer, Query, UpdateOperations }
-
+import scala.language.postfixOps
+import scala.language.implicitConversions
 import scala.collection.JavaConversions._
 import scala.collection.Map
 import scala.util.Random
