@@ -44,9 +44,9 @@ libraryDependencies ++= Seq(
 publishTo := {
   val nexus = "http://nexus.lvxingpai.com/content/repositories/"
   if (isSnapshot.value)
-    Some("snapshots" at nexus + "snapshots")
+    Some("publishSnapshots" at nexus + "snapshots")
   else
-    Some("releases"  at nexus + "releases")
+    Some("publishReleases"  at nexus + "releases")
 }
 
 val root = project.in(file(".")).enablePlugins(JavaAppPackaging)

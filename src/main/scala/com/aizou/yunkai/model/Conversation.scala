@@ -4,7 +4,7 @@ import javax.validation.constraints.{ NotNull, Size }
 
 import org.bson.types.ObjectId
 import org.mongodb.morphia.annotations.{ Entity, Id, Indexed }
-
+import scala.language.postfixOps
 import scala.beans.BeanProperty
 
 /**
