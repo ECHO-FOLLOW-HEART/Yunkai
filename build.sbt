@@ -52,6 +52,6 @@ publishTo := {
 
 val root = project.in(file(".")).enablePlugins(JavaAppPackaging)
 
-Keys.mainClass in Compile := Some("com.aizou.yunkai.YunkaiServer")
+Keys.mainClass in Compile := Some("com.lvxingpai.yunkai.YunkaiServer")
 
 fork in run := true
