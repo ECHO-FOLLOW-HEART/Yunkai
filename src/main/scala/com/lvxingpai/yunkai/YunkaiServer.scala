@@ -13,8 +13,8 @@ object YunkaiServer extends App {
   main(args)
 
   override def main(args: Array[String]): Unit = {
-    val conf = GlobalConf.conf
-    val namePath = "service.user.name"
+    val conf = GlobalConf.conf.getConfig("yunkai")
+    val namePath = "services.user.name"
     val name = if (conf.hasPath(namePath)) conf.getString(namePath) else "unnamed"
     val maxConcurPath = "service.user.maxConcurrentRequests"
     val maxConcur = if (conf.hasPath(maxConcurPath)) conf.getInt(maxConcurPath) else 1000
