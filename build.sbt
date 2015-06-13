@@ -10,6 +10,10 @@ com.twitter.scrooge.ScroogeSBT.newSettings
 
 scalariformSettings
 
+lazy val thriftJava = taskKey[Unit]("Generating thrift Java codes")
+
+lazy val thriftPython = taskKey[Unit]("Generating thrift Python codes")
+lazy val thriftGen = taskKey[Unit]("Generating thrift codes")
 val finagleVersion = "6.14.0"
 
 val morphiaVersion = "0.111"
@@ -47,7 +51,22 @@ publishTo := {
   if (isSnapshot.value)
     Some("publishSnapshots" at nexus + "snapshots")
   else
-    Some("publishReleases"  at nexus + "releases")
+    Some("publishReleases" at nexus + "releases")
+}
+
+val cmdTemplate = "thrift -r -gen %s -o src/main/thrift src/main/thrift/users.thrift"
+
+thriftJava := {
+  Process(cmdTemplate format "java:beans,private-members,fullcamel") !
+}
+
+thriftPython := {
+  Process(cmdTemplate format "py:utf8strings,new_style") !
+}
+
+thriftGen := {
+  thriftPython.value
+  thriftJava.value
 }
 
 val root = project.in(file(".")).enablePlugins(JavaAppPackaging)
