@@ -14,16 +14,14 @@ object YunkaiServer extends App {
   main(args)
 
   override def main(args: Array[String]): Unit = {
-    val conf = AppConfig.conf
-    val namePath = "service.user.name"
-    val name = if (conf.hasPath(namePath)) conf.getString(namePath) else "unnamed"
-    val maxConcurPath = "service.user.maxConcurrentRequests"
-    val maxConcur = if (conf.hasPath(maxConcurPath)) conf.getInt(maxConcurPath) else 1000
+    val conf = Global.conf
+    val name = conf.getString("name")
+    val maxConcur = conf.getInt("maxConcurrentRequests")
 
     val service = new Userservice$FinagleService(new UserServiceHandler, new TBinaryProtocol.Factory())
 
     ServerBuilder()
-      .bindTo(new InetSocketAddress(conf.getInt("services.user.port")))
+      .bindTo(new InetSocketAddress(conf.getInt("port")))
       .codec(ThriftServerFramedCodec())
       .name(name)
       .maxConcurrentRequests(maxConcur)

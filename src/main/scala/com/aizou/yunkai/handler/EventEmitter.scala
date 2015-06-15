@@ -1,6 +1,6 @@
 package com.aizou.yunkai.handler
 
-import com.aizou.yunkai.AppConfig
+import com.aizou.yunkai.Global
 import com.fasterxml.jackson.databind.JsonNode
 import com.lvxingpai.apium.ApiumPlant.ConnectionParam
 import com.lvxingpai.apium.{ ApiumPlant, ApiumSeed }
@@ -71,7 +71,7 @@ object EventEmitter {
 
   // 初始化
   val apiumPlant = {
-    val conf = AppConfig.conf
+    val conf = Global.conf.getConfig("backends")
     val host = conf.getString("rabbitmq.host")
     val port = conf.getInt("rabbitmq.port")
     val username = conf.getString("rabbitmq.username")

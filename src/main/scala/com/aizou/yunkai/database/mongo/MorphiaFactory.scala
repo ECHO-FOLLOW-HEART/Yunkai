@@ -1,6 +1,6 @@
 package com.aizou.yunkai.database.mongo
 
-import com.aizou.yunkai.AppConfig
+import com.aizou.yunkai.Global
 import com.aizou.yunkai.model.{ Relationship, UserInfo }
 import com.mongodb.{ MongoClient, MongoClientOptions, ServerAddress }
 import org.mongodb.morphia.{ Datastore, Morphia, ValidationExtension }
@@ -23,8 +23,9 @@ object MorphiaFactory {
       }
     }
 
-    val host = AppConfig.conf.getString("mongo.host")
-    val port = AppConfig.conf.getInt("mongo.port")
+    val conf = Global.conf.getConfig("backends")
+    val host = conf.getString("mongo.host")
+    val port = conf.getInt("mongo.port")
 
     val serverList = Seq(buildServerAddr(s"$host:$port").get)
 
