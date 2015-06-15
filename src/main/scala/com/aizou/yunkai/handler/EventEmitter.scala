@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.lvxingpai.apium.ApiumPlant.ConnectionParam
 import com.lvxingpai.apium.{ ApiumPlant, ApiumSeed }
 
+import scala.language.postfixOps
+
 /**
  * 事件发布模块
  *

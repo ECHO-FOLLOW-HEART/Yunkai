@@ -16,6 +16,9 @@ import scala.collection.JavaConversions._
 import scala.collection.Map
 import scala.util.Random
 
+import scala.language.postfixOps
+import scala.language.implicitConversions
+
 /**
  * 提供Yunkai服务
  *
