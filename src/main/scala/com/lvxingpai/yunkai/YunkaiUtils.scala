@@ -1,4 +1,4 @@
-package com.aizou.yunkai
+package com.lvxingpai.yunkai
 
 import com.redis.RedisClientPool
 import com.twitter.util.{ Future, FuturePool }

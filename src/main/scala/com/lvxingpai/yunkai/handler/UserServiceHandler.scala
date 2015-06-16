@@ -1,11 +1,11 @@
-package com.aizou.yunkai.handler
+package com.lvxingpai.yunkai.handler
 
 import java.security.MessageDigest
 
-import com.aizou.yunkai
-import com.aizou.yunkai.Implicits._
-import com.aizou.yunkai.model.{ ChatGroup, Conversation, Credential, Relationship, Sequence, UserInfo }
-import com.aizou.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice, _ }
+import com.lvxingpai.yunkai
+import com.lvxingpai.yunkai.Implicits._
+import com.lvxingpai.yunkai.model.{ ChatGroup, Conversation, Credential, Relationship, Sequence, UserInfo }
+import com.lvxingpai.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice, _ }
 import com.fasterxml.jackson.databind.node.{ LongNode, NullNode, TextNode }
 import com.mongodb.DuplicateKeyException
 import com.twitter.util.{ Future, FuturePool }

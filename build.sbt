@@ -39,7 +39,7 @@ libraryDependencies ++= Seq(
   "net.debasishg" %% "redisclient" % "2.15",
   "org.mockito" % "mockito-all" % "2.0.2-beta",
   "org.specs2" %% "specs2-mock" % "3.6",
-  "com.lvxingpai" %% "appconfig" % "0.1.1-SNAPSHOT",
+  "com.lvxingpai" %% "appconfig" % "0.1.2-SNAPSHOT",
   "com.lvxingpai" %% "apium" % "0.1-SNAPSHOT"
 )
 
@@ -55,6 +55,6 @@ val root = project.in(file(".")).enablePlugins(JavaAppPackaging)
 
 scalacOptions ++= Seq("-feature", "-deprecation")
 
-Keys.mainClass in Compile := Some("com.aizou.yunkai.YunkaiServer")
+Keys.mainClass in Compile := Some("com.lvxingpai.yunkai.YunkaiServer")
 
 fork in run := true

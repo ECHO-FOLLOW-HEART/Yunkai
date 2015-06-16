@@ -1,12 +1,11 @@
-package com.aizou.yunkai
+package com.lvxingpai.yunkai
 
 import com.lvxingpai.appconfig.AppConfig
+import com.lvxingpai.yunkai.Implicits.defaultExecutionContext
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
-
-import com.aizou.yunkai.Implicits._
 
 /**
  * Created by zephyre on 6/15/15.
