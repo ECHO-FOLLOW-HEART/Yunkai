@@ -2,7 +2,7 @@ organization := "com.lvxingpai"
 
 name := "yunkai"
 
-version := "0.2-SNAPSHOT"
+version := "0.3"
 
 scalaVersion := "2.10.4"
 
@@ -39,19 +39,22 @@ libraryDependencies ++= Seq(
   "net.debasishg" %% "redisclient" % "2.15",
   "org.mockito" % "mockito-all" % "2.0.2-beta",
   "org.specs2" %% "specs2-mock" % "3.6",
+  "com.lvxingpai" %% "appconfig" % "0.1.2-SNAPSHOT",
   "com.lvxingpai" %% "apium" % "0.1-SNAPSHOT"
 )
 
 publishTo := {
   val nexus = "http://nexus.lvxingpai.com/content/repositories/"
   if (isSnapshot.value)
-    Some("snapshots" at nexus + "snapshots")
+    Some("publishSnapshots" at nexus + "snapshots")
   else
-    Some("releases" at nexus + "releases")
+    Some("publishReleases" at nexus + "releases")
 }
 
 val root = project.in(file(".")).enablePlugins(JavaAppPackaging)
 
-Keys.mainClass in Compile := Some("com.aizou.yunkai.YunkaiServer")
+scalacOptions ++= Seq("-feature", "-deprecation")
+
+Keys.mainClass in Compile := Some("com.lvxingpai.yunkai.YunkaiServer")
 
 fork in run := true

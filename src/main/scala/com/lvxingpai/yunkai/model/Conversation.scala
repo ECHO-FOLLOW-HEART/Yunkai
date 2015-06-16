@@ -1,4 +1,4 @@
-package com.aizou.yunkai.model
+package com.lvxingpai.yunkai.model
 
 import javax.validation.constraints.{ NotNull, Size }
 
@@ -6,6 +6,7 @@ import org.bson.types.ObjectId
 import org.mongodb.morphia.annotations.{ Entity, Id, Indexed }
 
 import scala.beans.BeanProperty
+import scala.language.postfixOps
 
 /**
  * Created by pengyt on 2015/5/26.

@@ -1,9 +1,11 @@
-package com.aizou.yunkai.handler
+package com.lvxingpai.yunkai.handler
 
-import com.aizou.yunkai.AppConfig
 import com.fasterxml.jackson.databind.JsonNode
 import com.lvxingpai.apium.ApiumPlant.ConnectionParam
 import com.lvxingpai.apium.{ ApiumPlant, ApiumSeed }
+import com.lvxingpai.yunkai.Global
+
+import scala.language.postfixOps
 
 /**
  * 事件发布模块
@@ -69,12 +71,17 @@ object EventEmitter {
 
   // 初始化
   val apiumPlant = {
-    val conf = AppConfig.conf
-    val host = conf.getString("rabbitmq.host")
-    val port = conf.getInt("rabbitmq.port")
-    val username = conf.getString("rabbitmq.username")
-    val password = conf.getString("rabbitmq.password")
-    val virtualHost = conf.getString("rabbitmq.virtualhost")
+    val conf = Global.conf
+
+    // 获得rabbitmq的地址
+    import scala.collection.JavaConversions._
+    val tmp = conf.getConfig("backends.rabbitmq").entrySet().toSeq.head.getValue.unwrapped().toString.split(":")
+    val host = tmp(0)
+    val port = tmp(1).toInt
+
+    val username = conf.getString("yunkai.rabbitmq.username")
+    val password = conf.getString("yunkai.rabbitmq.password")
+    val virtualHost = conf.getString("yunkai.rabbitmq.virtualhost")
     ApiumPlant(ConnectionParam(host, port, username, password, virtualHost), "yunkai",
       Seq(evtCreateUser, evtLogin, evtResetPassword))
   }

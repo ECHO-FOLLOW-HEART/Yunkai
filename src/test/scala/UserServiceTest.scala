@@ -1,7 +1,7 @@
-import com.aizou.yunkai
-import com.aizou.yunkai.Gender
-import com.aizou.yunkai.handler.UserServiceHandler
-import com.aizou.yunkai.model.UserInfo
+import com.lvxingpai.yunkai
+import com.lvxingpai.yunkai.Gender
+import com.lvxingpai.yunkai.handler.UserServiceHandler
+import com.lvxingpai.yunkai.model.UserInfo
 import com.twitter.util.{ Await, FuturePool }
 import org.mockito.Matchers
 import org.mongodb.morphia.Datastore
