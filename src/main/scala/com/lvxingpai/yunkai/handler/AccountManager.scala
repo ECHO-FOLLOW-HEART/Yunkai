@@ -2,15 +2,15 @@ package com.lvxingpai.yunkai.handler
 
 import java.security.MessageDigest
 
-import com.lvxingpai.yunkai.model.{Credential, Relationship, UserInfo}
-import com.lvxingpai.yunkai.{AuthException, NotFoundException, UserInfoProp}
-import com.twitter.util.{Future, FuturePool}
+import com.lvxingpai.yunkai.model.{ Credential, Relationship, UserInfo }
+import com.lvxingpai.yunkai.{ AuthException, NotFoundException, UserInfoProp }
+import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.CriteriaContainer
 
 import scala.collection.JavaConversions._
 import scala.collection.Map
-import scala.language.{implicitConversions, postfixOps}
+import scala.language.{ implicitConversions, postfixOps }
 
 /**
  * 用户账户管理。包括但不限于：
@@ -29,8 +29,7 @@ object AccountManager {
    *
    * @return 用户信息
    */
-  def getUserById(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp])
-                 (implicit ds: Datastore, futurePool: FuturePool): Future[Option[UserInfo]] =
+  def getUserById(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp])(implicit ds: Datastore, futurePool: FuturePool): Future[Option[UserInfo]] =
     futurePool {
       val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).equal(userId)
 
@@ -65,8 +64,7 @@ object AccountManager {
    * @param userIds 需要查找的用户的ID
    * @return
    */
-  def getUsersByIdList(include: Boolean, fields: Seq[UserInfoProp], userIds: Long*)
-                      (implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[UserInfo]]] = {
+  def getUsersByIdList(include: Boolean, fields: Seq[UserInfoProp], userIds: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[UserInfo]]] = {
     val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(userIds)
     val retrievedFields = fields map userInfoPropToFieldName
     query.retrievedFields(include, retrievedFields: _*)
@@ -84,8 +82,7 @@ object AccountManager {
    * @param userInfo  需要更新的用户信息
    * @return
    */
-  def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, Any])
-                    (implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
+  def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, Any])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
     // 只允许更新一小部分字段信息
     val allowedFields = Seq(UserInfoProp.NickName, UserInfoProp.Signature)
     val filteredUserInfo = userInfo filter (item => allowedFields contains item._1)
@@ -168,8 +165,7 @@ object AccountManager {
    * @return
    */
   def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp], offset: Option[Int] = None,
-                     count: Option[Int] = None)
-                    (implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
+    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
     val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
       (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
     val queryRel = ds.createQuery(classOf[Relationship])
@@ -190,8 +186,8 @@ object AccountManager {
 
     for {
       ids <- contactIds
-      contactsMap <- getUsersByIdList(include, fields, ids:_*)
-    } yield (contactsMap.values.toSeq map (_.orNull)) filter (_!=null)
+      contactsMap <- getUsersByIdList(include, fields, ids: _*)
+    } yield (contactsMap.values.toSeq map (_.orNull)) filter (_ != null)
   }
 
   def login(loginName: String, password: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
