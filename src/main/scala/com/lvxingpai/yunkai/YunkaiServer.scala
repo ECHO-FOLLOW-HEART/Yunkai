@@ -14,7 +14,7 @@ object YunkaiServer extends App {
   main(args)
 
   override def main(args: Array[String]): Unit = {
-    val conf = Global.conf
+    val conf = Global.conf.getConfig("yunkai")
     val name = conf.getString("name")
     val maxConcur = conf.getInt("maxConcurrentRequests")
 
