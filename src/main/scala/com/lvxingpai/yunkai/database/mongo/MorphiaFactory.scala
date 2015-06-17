@@ -46,7 +46,8 @@ object MorphiaFactory {
   }
 
   lazy val datastore = {
-    val ds = morphia.createDatastore(client, "yunkai")
+    val dbName = Global.conf.getString("yunkai.mongo.db")
+    val ds = morphia.createDatastore(client, dbName)
     ds.ensureIndexes()
     ds.ensureCaps()
     ds
