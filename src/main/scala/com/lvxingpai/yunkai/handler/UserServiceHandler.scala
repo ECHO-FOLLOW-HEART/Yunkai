@@ -179,13 +179,14 @@ object UserServiceHandler {
         ds.updateFirst(query, op, true)
       }
       // 触发添加联系人的事件
-      for (userId <- targetUsers) {
-        val user = getUserById(userId)(ds, futurePool)
+      for (userB <- targetUsers) {
+        val user = getUserById(userB)(ds, futurePool)
         for {
           userInfo <- user
         } yield {
           val eventArgs = scala.collection.immutable.Map(
-            "userId" -> LongNode.valueOf(userId),
+            "userA" -> LongNode.valueOf(userA),
+            "userB" -> LongNode.valueOf(userB),
             "nickName" -> TextNode.valueOf(userInfo.nickName),
             "avatar" -> (if (userInfo.avatar != null && userInfo.avatar.nonEmpty) TextNode.valueOf(userInfo.avatar) else NullNode.getInstance())
           )
@@ -206,15 +207,16 @@ object UserServiceHandler {
       ds.delete(query)
 
       // 触发删除联系人的事件
-      for (userId <- targetUsers) {
-        val user = getUserById(userId)(ds, futurePool)
+      for (userB <- targetUsers) {
+        val user = getUserById(userB)(ds, futurePool)
         for {
           userInfo <- user
         } yield {
           val eventArgs = scala.collection.immutable.Map(
-            "userId" -> LongNode.valueOf(userId),
-            "nickName" -> TextNode.valueOf(userInfo.nickName),
-            "avatar" -> (if (userInfo.avatar != null && userInfo.avatar.nonEmpty) TextNode.valueOf(userInfo.avatar) else NullNode.getInstance())
+            "userA" -> LongNode.valueOf(userA),
+            "userB" -> LongNode.valueOf(userB),
+            "userBNickName" -> TextNode.valueOf(userInfo.nickName),
+            "userBAvatar" -> (if (userInfo.avatar != null && userInfo.avatar.nonEmpty) TextNode.valueOf(userInfo.avatar) else NullNode.getInstance())
           )
           EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
         }
