@@ -103,6 +103,9 @@ service userservice {
 
   UserInfo login(1:string loginName, 2:string password) throws (1:AuthException ex)
 
+  // 用户修改密码
+    void updatePassword(1:i64 userId, 2:string newPassword) throws (1: InvalidArgsException ex)
+
   // Created by pengyt on 2015/5/26.
   // 群名称备注（和群成员id关联，某个群成员将群备注修改了）和群成员备注后面再做
   // 新用户注册
