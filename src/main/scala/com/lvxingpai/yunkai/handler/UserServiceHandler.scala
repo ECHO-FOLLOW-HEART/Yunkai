@@ -178,17 +178,22 @@ object UserServiceHandler {
         val query = ds.createQuery(cls).field("userA").equal(user1).field("userB").equal(user2)
         ds.updateFirst(query, op, true)
       }
+
       // 触发添加联系人的事件
+      val userAInfo1 = getUserById(userA)(ds, futurePool)
       for (userB <- targetUsers) {
-        val user = getUserById(userB)(ds, futurePool)
+        val userBInfos = getUserById(userB)(ds, futurePool)
         for {
-          userInfo <- user
+          userAInfo <- userAInfo1
+          userBInfo <- userBInfos
         } yield {
           val eventArgs = scala.collection.immutable.Map(
             "userA" -> LongNode.valueOf(userA),
+            "userANickName" -> TextNode.valueOf(userAInfo.nickName),
+            "userAAvatar" -> (if (userAInfo.avatar != null && userAInfo.avatar.nonEmpty) TextNode.valueOf(userAInfo.avatar) else NullNode.getInstance()),
             "userB" -> LongNode.valueOf(userB),
-            "nickName" -> TextNode.valueOf(userInfo.nickName),
-            "avatar" -> (if (userInfo.avatar != null && userInfo.avatar.nonEmpty) TextNode.valueOf(userInfo.avatar) else NullNode.getInstance())
+            "userBNickName" -> TextNode.valueOf(userBInfo.nickName),
+            "userBAvatar" -> (if (userBInfo.avatar != null && userBInfo.avatar.nonEmpty) TextNode.valueOf(userBInfo.avatar) else NullNode.getInstance())
           )
           EventEmitter.emitEvent(EventEmitter.evtAddContacts, eventArgs)
         }
@@ -207,16 +212,20 @@ object UserServiceHandler {
       ds.delete(query)
 
       // 触发删除联系人的事件
+      val userAInfo1 = getUserById(userA)(ds, futurePool)
       for (userB <- targetUsers) {
-        val user = getUserById(userB)(ds, futurePool)
+        val userBInfos = getUserById(userB)(ds, futurePool)
         for {
-          userInfo <- user
+          userAInfo <- userAInfo1
+          userBInfo <- userBInfos
         } yield {
           val eventArgs = scala.collection.immutable.Map(
             "userA" -> LongNode.valueOf(userA),
+            "userANickName" -> TextNode.valueOf(userAInfo.nickName),
+            "userAAvatar" -> (if (userAInfo.avatar != null && userAInfo.avatar.nonEmpty) TextNode.valueOf(userAInfo.avatar) else NullNode.getInstance()),
             "userB" -> LongNode.valueOf(userB),
-            "userBNickName" -> TextNode.valueOf(userInfo.nickName),
-            "userBAvatar" -> (if (userInfo.avatar != null && userInfo.avatar.nonEmpty) TextNode.valueOf(userInfo.avatar) else NullNode.getInstance())
+            "userBNickName" -> TextNode.valueOf(userBInfo.nickName),
+            "userBAvatar" -> (if (userBInfo.avatar != null && userBInfo.avatar.nonEmpty) TextNode.valueOf(userBInfo.avatar) else NullNode.getInstance())
           )
           EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
         }
