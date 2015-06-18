@@ -9,9 +9,10 @@ import com.twitter.util.{ Future, FuturePool }
  */
 object IdGenerator {
   lazy val redisPool = {
-    val host = Global.conf.getString("redis.host")
-    val port = Global.conf.getInt("redis.port")
-    new RedisClientPool(host, port)
+    val host = Global.conf.getString("backends.redis.host")
+    val port = Global.conf.getInt("backends.redis.port")
+    val redisDB = Global.conf.getInt("yunkai.redis.db")
+    new RedisClientPool(host, port, database = redisDB)
   }
 
   def generateId(key: String)(implicit futurePool: FuturePool): Future[Long] = futurePool {

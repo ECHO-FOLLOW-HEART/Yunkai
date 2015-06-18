@@ -2,15 +2,18 @@ package com.lvxingpai.yunkai.handler
 
 import java.security.MessageDigest
 
-import com.lvxingpai.yunkai.model.{ Credential, Relationship, UserInfo }
-import com.lvxingpai.yunkai.{ AuthException, NotFoundException, UserInfoProp }
-import com.twitter.util.{ Future, FuturePool }
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.LongNode
+import com.lvxingpai.yunkai
+import com.lvxingpai.yunkai.model.{Credential, Relationship, UserInfo}
+import com.lvxingpai.yunkai.{AuthException, NotFoundException, UserInfoProp}
+import com.twitter.util.{Future, FuturePool}
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.CriteriaContainer
 
 import scala.collection.JavaConversions._
 import scala.collection.Map
-import scala.language.{ implicitConversions, postfixOps }
+import scala.language.{implicitConversions, postfixOps}
 
 /**
  * 用户账户管理。包括但不限于：
@@ -21,6 +24,23 @@ import scala.language.{ implicitConversions, postfixOps }
  *
  */
 object AccountManager {
+
+  /**
+   * 在models.UserInfo和yunkai.UserInfo之间进行类型转换
+   *
+   * @param user
+   * @return
+   */
+  implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
+    val userId = user.userId
+    val nickName = user.nickName
+    val avatar = if (user.avatar == null) None else Some(user.avatar)
+    val gender = None
+    val signature = None
+    val tel = None
+
+    yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
+  }
 
   /**
    * 获得用户信息
@@ -190,6 +210,13 @@ object AccountManager {
     } yield (contactsMap.values.toSeq map (_.orNull)) filter (_ != null)
   }
 
+  /**
+   * 用户登录
+   *
+   * @param loginName   登录用户名（默认情况下是注册的手机号）
+   * @param password    登录密码
+   * @return
+   */
   def login(loginName: String, password: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
     // 获得用户信息
     val userInfo = futurePool {
@@ -203,8 +230,9 @@ object AccountManager {
         (v, ds.find(classOf[Credential], Credential.fdUserId, userId).get())
       } else throw new AuthException("")
     })
+
     // 验证
-    complex map (v => {
+    val result = complex map (v => {
       val (user, credential) = v
       val salt = credential.salt
       val encrypted = credential.passwdHash
@@ -214,6 +242,19 @@ object AccountManager {
 
       if (digest == encrypted) user
       else throw new AuthException("")
+    })
+
+    // 触发登录事件
+    result map (v => {
+      val miscInfo = new ObjectMapper().createObjectNode()
+      miscInfo.put("nickName", v.nickName)
+      miscInfo.put("avatar", v.avatar)
+      val eventArgs = scala.collection.immutable.Map(
+        "userId" -> LongNode.valueOf(v.userId),
+        "info" -> miscInfo
+      )
+      EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
+      v
     })
   }
 

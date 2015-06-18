@@ -29,7 +29,8 @@ object MorphiaFactory {
     })
     val user = conf.getString("yunkai.mongo.user")
     val password = conf.getString("yunkai.mongo.password")
-    val credential = MongoCredential.createScramSha1Credential(user, "admin", password.toCharArray)
+    val dbName = conf.getString("yunkai.mongo.db")
+    val credential = MongoCredential.createScramSha1Credential(user, dbName, password.toCharArray)
 
     val options = new MongoClientOptions.Builder()
       //连接超时
