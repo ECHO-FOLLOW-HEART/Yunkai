@@ -2,8 +2,12 @@ package com.lvxingpai.yunkai.handler
 
 import java.security.MessageDigest
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.{ LongNode, NullNode, TextNode }
+import com.lvxingpai.yunkai
+import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.model.{ Credential, Relationship, UserInfo }
-import com.lvxingpai.yunkai.{ AuthException, NotFoundException, UserInfoProp }
+import com.mongodb.DuplicateKeyException
 import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.CriteriaContainer
@@ -11,6 +15,7 @@ import org.mongodb.morphia.query.CriteriaContainer
 import scala.collection.JavaConversions._
 import scala.collection.Map
 import scala.language.{ implicitConversions, postfixOps }
+import scala.util.Random
 
 /**
  * 用户账户管理。包括但不限于：
@@ -21,6 +26,23 @@ import scala.language.{ implicitConversions, postfixOps }
  *
  */
 object AccountManager {
+
+  /**
+   * 在models.UserInfo和yunkai.UserInfo之间进行类型转换
+   *
+   * @param user
+   * @return
+   */
+  implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
+    val userId = user.userId
+    val nickName = user.nickName
+    val avatar = if (user.avatar == null) None else Some(user.avatar)
+    val gender = None
+    val signature = None
+    val tel = None
+
+    yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
+  }
 
   /**
    * 获得用户信息
@@ -39,41 +61,6 @@ object AccountManager {
       val user = query.retrievedFields(include, fieldNames: _*).get()
       if (user == null) None else Some(user)
     }
-
-  /**
-   * 将UserInfoProp转换为字段名称
-   *
-   * @param prop
-   * @return
-   */
-  implicit def userInfoPropToFieldName(prop: UserInfoProp): String = {
-    prop match {
-      case UserInfoProp.UserId => UserInfo.fdUserId
-      case UserInfoProp.NickName => UserInfo.fdNickName
-      case UserInfoProp.Signature => UserInfo.fdSignature
-      case UserInfoProp.Avatar => UserInfo.fdAvatar
-      case UserInfoProp.Tel => UserInfo.fdTel
-      case _ => throw new IllegalArgumentException("Illegal arguemnt: %s" format prop.toString)
-    }
-  }
-
-  /**
-   * 批量获得多个用户的信息
-   *
-   * @param include 和fields配合使用。表示是返回fields字段的内容，还是排除fields字段的内容
-   * @param userIds 需要查找的用户的ID
-   * @return
-   */
-  def getUsersByIdList(include: Boolean, fields: Seq[UserInfoProp], userIds: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[UserInfo]]] = {
-    val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(userIds)
-    val retrievedFields = fields map userInfoPropToFieldName
-    query.retrievedFields(include, retrievedFields: _*)
-
-    futurePool {
-      val results = Map(query.asList() map (v => v.userId -> v): _*)
-      Map(userIds map (v => v -> (results get v)): _*)
-    }
-  }
 
   /**
    * 更新用户信息
@@ -190,6 +177,51 @@ object AccountManager {
     } yield (contactsMap.values.toSeq map (_.orNull)) filter (_ != null)
   }
 
+  /**
+   * 批量获得多个用户的信息
+   *
+   * @param include 和fields配合使用。表示是返回fields字段的内容，还是排除fields字段的内容
+   * @param userIds 需要查找的用户的ID
+   * @return
+   */
+  def getUsersByIdList(include: Boolean, fields: Seq[UserInfoProp], userIds: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[UserInfo]]] = {
+    futurePool {
+      if (userIds isEmpty) {
+        Map[Long, Option[UserInfo]]()
+      } else {
+        val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(userIds)
+        val retrievedFields = fields map userInfoPropToFieldName
+        query.retrievedFields(include, retrievedFields: _*)
+        val results = Map(query.asList() map (v => v.userId -> v): _*)
+        Map(userIds map (v => v -> (results get v)): _*)
+      }
+    }
+  }
+
+  /**
+   * 将UserInfoProp转换为字段名称
+   *
+   * @param prop
+   * @return
+   */
+  implicit def userInfoPropToFieldName(prop: UserInfoProp): String = {
+    prop match {
+      case UserInfoProp.UserId => UserInfo.fdUserId
+      case UserInfoProp.NickName => UserInfo.fdNickName
+      case UserInfoProp.Signature => UserInfo.fdSignature
+      case UserInfoProp.Avatar => UserInfo.fdAvatar
+      case UserInfoProp.Tel => UserInfo.fdTel
+      case _ => throw new IllegalArgumentException("Illegal arguemnt: %s" format prop.toString)
+    }
+  }
+
+  /**
+   * 用户登录
+   *
+   * @param loginName   登录用户名（默认情况下是注册的手机号）
+   * @param password    登录密码
+   * @return
+   */
   def login(loginName: String, password: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
     // 获得用户信息
     val userInfo = futurePool {
@@ -203,8 +235,9 @@ object AccountManager {
         (v, ds.find(classOf[Credential], Credential.fdUserId, userId).get())
       } else throw new AuthException("")
     })
+
     // 验证
-    complex map (v => {
+    val result = complex map (v => {
       val (user, credential) = v
       val salt = credential.salt
       val encrypted = credential.passwdHash
@@ -215,6 +248,72 @@ object AccountManager {
       if (digest == encrypted) user
       else throw new AuthException("")
     })
+
+    // 触发登录事件
+    result map (v => {
+      val miscInfo = new ObjectMapper().createObjectNode()
+      miscInfo.put("nickName", v.nickName)
+      miscInfo.put("avatar", v.avatar)
+      val eventArgs = scala.collection.immutable.Map(
+        "userId" -> LongNode.valueOf(v.userId),
+        "info" -> miscInfo
+      )
+      EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
+      v
+    })
   }
 
+  // 新用户注册
+  def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+    // 取得用户ID
+    val futureUserId = IdGenerator.generateId("yunkai.newUserId")
+
+    // 创建用户并保存
+    val userInfo = for {
+      userId <- futureUserId
+    } yield {
+      val newUser = UserInfo(userId, nickName)
+      newUser.tel = tel.orNull
+      try {
+        ds.save[UserInfo](newUser)
+        newUser
+      } catch {
+        case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId is existed")
+      }
+    }
+    // 生成64个字节的salt
+    val md5 = MessageDigest.getInstance("MD5")
+    //使用指定的字节更新摘要
+    md5.update(Random.nextLong().toString.getBytes)
+    val salt = md5.digest().toString
+
+    // 将密码与salt一起生成密文
+    val msg = salt + password
+    val bytes = MessageDigest.getInstance("SHA-256").digest(msg.getBytes)
+    val digest = bytes map ("%02x".format(_)) mkString
+
+    // 创建并保存新用户Credential实例
+    for {
+      userId <- futureUserId
+    } yield {
+      val credential = Credential(userId, salt, digest)
+      try {
+        ds.save[Credential](credential)
+      } catch {
+        case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId credential is existed")
+      }
+    }
+
+    // 触发创建新用户的事件
+    userInfo map (v => {
+      val eventArgs = scala.collection.immutable.Map(
+        "userId" -> LongNode.valueOf(v.userId),
+        "nickName" -> TextNode.valueOf(v.nickName),
+        "avatar" -> (if (v.avatar != null && v.avatar.nonEmpty) TextNode.valueOf(v.avatar) else NullNode.getInstance())
+      )
+      EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
+    })
+
+    userInfo
+  }
 }
