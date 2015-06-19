@@ -33,11 +33,11 @@ class UserInfo {
   var signature: String = null
 
   @BeanProperty
-  var avatar: String = ""
+  var avatar: String = null
 
   @BeanProperty
   @Size(min = 6, max = 11)
-  var tel: String = ""
+  var tel: String = null
 
   @BeanProperty
   var contacts: Seq[Int] = null
