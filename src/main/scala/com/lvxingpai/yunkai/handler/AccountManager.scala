@@ -3,17 +3,19 @@ package com.lvxingpai.yunkai.handler
 import java.security.MessageDigest
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.LongNode
+import com.fasterxml.jackson.databind.node.{ TextNode, NullNode, LongNode }
 import com.lvxingpai.yunkai
-import com.lvxingpai.yunkai.model.{Credential, Relationship, UserInfo}
-import com.lvxingpai.yunkai.{AuthException, NotFoundException, UserInfoProp}
-import com.twitter.util.{Future, FuturePool}
+import com.lvxingpai.yunkai.model.{ Credential, Relationship, UserInfo }
+import com.lvxingpai.yunkai._
+import com.mongodb.DuplicateKeyException
+import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.CriteriaContainer
 
 import scala.collection.JavaConversions._
 import scala.collection.Map
-import scala.language.{implicitConversions, postfixOps}
+import scala.language.{ implicitConversions, postfixOps }
+import scala.util.Random
 
 /**
  * 用户账户管理。包括但不限于：
@@ -258,4 +260,57 @@ object AccountManager {
     })
   }
 
+  // 新用户注册
+  def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+    // 取得用户ID
+    val futureUserId = IdGenerator.generateId("yunkai.newUserId")
+
+    // 创建用户并保存
+    val userInfo = for {
+      userId <- futureUserId
+    } yield {
+      val newUser = UserInfo(userId, nickName)
+      newUser.tel = tel.orNull
+      try {
+        ds.save[UserInfo](newUser)
+        newUser
+      } catch {
+        case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId is existed")
+      }
+    }
+    // 生成64个字节的salt
+    val md5 = MessageDigest.getInstance("MD5")
+    //使用指定的字节更新摘要
+    md5.update(Random.nextLong().toString.getBytes)
+    val salt = md5.digest().toString
+
+    // 将密码与salt一起生成密文
+    val msg = salt + password
+    val bytes = MessageDigest.getInstance("SHA-256").digest(msg.getBytes)
+    val digest = bytes map ("%02x".format(_)) mkString
+
+    // 创建并保存新用户Credential实例
+    for {
+      userId <- futureUserId
+    } yield {
+      val credential = Credential(userId, salt, digest)
+      try {
+        ds.save[Credential](credential)
+      } catch {
+        case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId credential is existed")
+      }
+    }
+
+    // 触发创建新用户的事件
+    userInfo map (v => {
+      val eventArgs = scala.collection.immutable.Map(
+        "userId" -> LongNode.valueOf(v.userId),
+        "nickName" -> TextNode.valueOf(v.nickName),
+        "avatar" -> (if (v.avatar != null && v.avatar.nonEmpty) TextNode.valueOf(v.avatar) else NullNode.getInstance())
+      )
+      EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
+    })
+
+    userInfo
+  }
 }

@@ -15,7 +15,6 @@ import org.mongodb.morphia.query.{ CriteriaContainer, Query, UpdateOperations }
 import scala.collection.JavaConversions._
 import scala.collection.Map
 import scala.language.{ implicitConversions, postfixOps }
-import scala.util.Random
 
 /**
  * 提供Yunkai服务
@@ -87,8 +86,11 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def createUser(nickName: String, password: String, tel: Option[String]): Future[yunkai.UserInfo] = {
-    UserServiceHandler.createUser(nickName, password, tel) map (userInfo => {
-      if (userInfo == null) throw new NotFoundException("Create user failure") else UserServiceHandler.userInfoConversion(userInfo)
+    AccountManager.createUser(nickName, password, tel) map (userInfo => {
+      if (userInfo == null)
+        throw new NotFoundException("Create user failure")
+      else
+        UserServiceHandler.userInfoConversion(userInfo)
     })
   }
 
@@ -291,66 +293,12 @@ object UserServiceHandler {
   implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
     val userId = user.userId
     val nickName = user.nickName
-    val avatar = if (user.avatar == null) None else Some(user.avatar)
+    val avatar = Option(user.avatar)
     val gender = None
-    val signature = None
-    val tel = None
+    val signature = Option(user.signature)
+    val tel = Option(user.tel)
 
     yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
-  }
-
-  // 新用户注册
-  def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
-    // 取得用户ID
-    val newUserId = populateId(Sequence.userId)(ds, futurePool)
-    val tempTel: String = tel.orNull
-    // 创建用户并保存
-    val userInfo = for {
-      userId <- newUserId
-    } yield {
-      val newUser = UserInfo(userId, nickName)
-      newUser.tel = tempTel
-      try {
-        ds.save[UserInfo](newUser)
-        newUser
-      } catch {
-        case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId is existed")
-      }
-    }
-    // 生成64个字节的salt
-    val md5 = MessageDigest.getInstance("MD5")
-    //使用指定的字节更新摘要
-    md5.update(Random.nextLong().toString.getBytes)
-    val salt = md5.digest().toString
-
-    // 将密码与salt一起生成密文
-    val msg = salt + password
-    val bytes = MessageDigest.getInstance("SHA-256").digest(msg.getBytes)
-    val digest = bytes map ("%02x".format(_)) mkString
-
-    // 创建并保存新用户Credential实例
-    for {
-      userId <- newUserId
-    } yield {
-      val credential = Credential(userId, salt, digest)
-      try {
-        ds.save[Credential](credential)
-      } catch {
-        case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId credential is existed")
-      }
-    }
-
-    // 触发创建新用户的事件
-    userInfo map (v => {
-      val eventArgs = scala.collection.immutable.Map(
-        "userId" -> LongNode.valueOf(v.userId),
-        "nickName" -> TextNode.valueOf(v.nickName),
-        "avatar" -> (if (v.avatar != null && v.avatar.nonEmpty) TextNode.valueOf(v.avatar) else NullNode.getInstance())
-      )
-      EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
-    })
-
-    userInfo
   }
 
   // 取用户ID

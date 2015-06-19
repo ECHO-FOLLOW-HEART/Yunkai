@@ -25,7 +25,7 @@ object Global {
       }
       rl
     } else
-      "dev"
+      "test"
 
     val backendKeys = defaultConf.getConfig(s"backendKeys.$runLevel")
     val confKeys = defaultConf.getConfig(s"confKeys.$runLevel")

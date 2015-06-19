@@ -3,15 +3,27 @@ package com.lvxingpai.yunkai
 import com.redis.RedisClientPool
 import com.twitter.util.{ Future, FuturePool }
 
+import scala.collection.JavaConversions._
+
 /**
  * 自增长ID生成器
  *
  */
 object IdGenerator {
   lazy val redisPool = {
-    val host = Global.conf.getString("backends.redis.host")
-    val port = Global.conf.getInt("backends.redis.port")
+
+    val conf = Global.conf
+    val redisEndpoints = conf.getConfig("backends.redis").entrySet().toSeq map (backend => {
+      val tmp = backend.getValue.unwrapped().toString.split(":")
+      val host = tmp(0)
+      val port = tmp(1).toInt
+      host -> port
+    })
+
+    val host = redisEndpoints.head._1
+    val port = redisEndpoints.head._2
     val redisDB = Global.conf.getInt("yunkai.redis.db")
+
     new RedisClientPool(host, port, database = redisDB)
   }
 
