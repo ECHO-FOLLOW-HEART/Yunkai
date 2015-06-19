@@ -281,22 +281,14 @@ object AccountManager {
         case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId is existed")
       }
     }
-    // 生成64个字节的salt
-    val md5 = MessageDigest.getInstance("MD5")
-    //使用指定的字节更新摘要
-    md5.update(Random.nextLong().toString.getBytes)
-    val salt = md5.digest().toString
 
-    // 将密码与salt一起生成密文
-    val msg = salt + password
-    val bytes = MessageDigest.getInstance("SHA-256").digest(msg.getBytes)
-    val digest = bytes map ("%02x".format(_)) mkString
+    val (salt, crypted) = saltPassword(password)
 
     // 创建并保存新用户Credential实例
     for {
       userId <- futureUserId
     } yield {
-      val credential = Credential(userId, salt, digest)
+      val credential = Credential(userId, salt, crypted)
       try {
         ds.save[Credential](credential)
       } catch {
@@ -315,5 +307,34 @@ object AccountManager {
     })
 
     userInfo
+  }
+
+  def updatePassword(userId: Long, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
+    val query = ds.find(classOf[Credential], Credential.fdUserId, userId)
+    if (query isEmpty) throw new NotFoundException(s"User userId=$userId credential is not found")
+    else {
+      val (salt, crypted) = saltPassword(newPassword)
+      // 更新Credential
+      val updateOps = ds.createUpdateOperations(classOf[Credential]).set(Credential.fdSalt, salt)
+        .set(Credential.fdPasswdHash, crypted)
+      ds.updateFirst(query, updateOps)
+    }
+
+    // 触发重置用户密码的事件
+    val eventArgs = scala.collection.immutable.Map(
+      "userId" -> LongNode.valueOf(userId)
+    )
+    EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
+  }
+
+  /**
+   * 返回salt和密文
+   * @return
+   */
+  private def saltPassword(password: String): (String, String) = {
+    // 生成64个字节的salt
+    val salt = MessageDigest.getInstance("MD5").update(Random.nextLong().toString.getBytes).toString
+    val bytes = MessageDigest.getInstance("SHA-256").digest((salt + password).getBytes)
+    salt -> (bytes map ("%02x" format _) mkString)
   }
 }

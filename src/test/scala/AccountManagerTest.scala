@@ -101,7 +101,6 @@ class AccountManagerTest extends Specification with BeforeAfterAll {
         |This is a specification to check AccountManager
         |
         |The AccountManager should:
-        |
         |can login                     $login
         |can reset passwords           $resetPasswords
         |can get user info             $userInfo

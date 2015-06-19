@@ -2,24 +2,21 @@ package com.lvxingpai.yunkai.handler
 
 import java.security.MessageDigest
 
-import com.fasterxml.jackson.databind.node.{ LongNode, NullNode, TextNode }
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.{BooleanNode, LongNode, NullNode, TextNode}
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits._
-import com.lvxingpai.yunkai.model.{ ChatGroup, Conversation, Credential, Relationship, Sequence, UserInfo }
-import com.lvxingpai.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice, _ }
-
-import scala.util.Random
-
-import com.fasterxml.jackson.databind.node.{ BooleanNode, LongNode, NullNode, TextNode }
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.lvxingpai.yunkai.model.{ChatGroup, Conversation, Credential, Sequence, UserInfo}
+import com.lvxingpai.yunkai.{NotFoundException, UserInfoProp, Userservice, _}
 import com.mongodb.DuplicateKeyException
-import com.twitter.util.{ Future, FuturePool }
+import com.twitter.util.{Future, FuturePool}
 import org.mongodb.morphia.Datastore
-import org.mongodb.morphia.query.{ CriteriaContainer, Query, UpdateOperations }
+import org.mongodb.morphia.query.{Query, UpdateOperations}
 
 import scala.collection.JavaConversions._
 import scala.collection.Map
-import scala.language.{ implicitConversions, postfixOps }
+import scala.language.{implicitConversions, postfixOps}
+import scala.util.Random
 
 /**
  * 提供Yunkai服务
@@ -91,7 +88,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def updatePassword(userId: Long, newPassword: String): Future[Unit] =
-    UserServiceHandler.updatePassword(userId, newPassword)
+    AccountManager.updatePassword(userId, newPassword)
 
   override def createUser(nickName: String, password: String, tel: Option[String]): Future[yunkai.UserInfo] = {
     AccountManager.createUser(nickName, password, tel) map (userInfo => {
