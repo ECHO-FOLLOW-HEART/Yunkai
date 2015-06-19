@@ -2,8 +2,6 @@ import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.UserInfoProp
 import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
 import com.lvxingpai.yunkai.model._
-import com.twitter.util.TimeConversions._
-import com.twitter.util.{Await, Duration, Future}
 import org.specs2.specification.core.SpecStructure
 
 import scala.util.Random
@@ -45,8 +43,6 @@ class AccountManagerTest extends YunkaiBaseTest {
       userInfo.nickName must_=== nickName
     })
   }
-
-  def invoke[T](future: Future[T], timeout: Duration = 100 seconds): T = Await.result(future, timeout)
 
   override def is: SpecStructure =
     s2"""
@@ -141,15 +137,5 @@ class AccountManagerTest extends YunkaiBaseTest {
     invoke(client.removeContacts(targetUser.userId, removedUserIds))
     val contacts3 = invoke(client.getContactList(targetUser.userId, Some(fields), None, None))
     helperFunc(contacts3) must_=== helperFunc(finalUsers.values.toSeq)
-  }
-
-  override def afterAll(): Unit = {
-    if (client != null) {
-      client.service.close()
-    }
-
-    if (server != null) {
-      server.close()
-    }
   }
 }

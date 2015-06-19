@@ -24,12 +24,12 @@ object GroupManager {
     for {
       gid <- futureGid
     } yield {
-      val cg = ChatGroup(creator, gid, name, participants.toSeq)
+      val cg = ChatGroup(creator, gid, participants.toSeq)
       chatGroupProps foreach (item => {
         item._1 match {
           case ChatGroupProp.GroupDesc => cg.groupDesc = item._2
           case ChatGroupProp.Avatar => cg.avatar = item._2
-          case ChatGroupProp.GroupType => cg.groupType = item._2
+          //          case ChatGroupProp.GroupType => cg.groupType = item._2
           case _ => ""
         }
       })
@@ -44,7 +44,7 @@ object GroupManager {
           "chatGroupId" -> LongNode.valueOf(cg.chatGroupId),
           "name" -> TextNode.valueOf(cg.name),
           "groupDesc" -> (if (cg.groupDesc != null && cg.groupDesc.nonEmpty) TextNode.valueOf(cg.groupDesc) else NullNode.getInstance()),
-          "groupType" -> TextNode.valueOf(cg.groupType),
+          //          "groupType" -> TextNode.valueOf(cg.groupType),
           "avatar" -> (if (cg.avatar != null && cg.avatar.nonEmpty) TextNode.valueOf(cg.avatar) else NullNode.getInstance()),
           "tags" -> (new ObjectMapper).valueToTree(cg.tags),
           "admin" -> (new ObjectMapper).valueToTree(cg.admin),
@@ -110,7 +110,7 @@ object GroupManager {
       case ChatGroupProp.Avatar => ChatGroup.fdAvatar
       case ChatGroupProp.Creator => ChatGroup.fdCreator
       case ChatGroupProp.GroupDesc => ChatGroup.fdGroupDesc
-      case ChatGroupProp.GroupType => ChatGroup.fdGroupType
+      //      case ChatGroupProp.GroupType => ChatGroup.fdGroupType
       case ChatGroupProp.MaxUsers => ChatGroup.fdMaxUsers
       case ChatGroupProp.Tags => ChatGroup.fdTags
       case ChatGroupProp.Visible => ChatGroup.fdVisible

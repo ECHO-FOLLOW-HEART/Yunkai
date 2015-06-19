@@ -239,14 +239,11 @@ object AccountManager {
     // 验证
     val result = complex map (v => {
       val (user, credential) = v
-      val salt = credential.salt
-      val encrypted = credential.passwdHash
-      val msg = salt + password
-      val bytes = MessageDigest.getInstance("SHA-256").digest(msg.getBytes)
-      val digest = bytes map ("%02x".format(_)) mkString
-
-      if (digest == encrypted) user
-      else throw new AuthException("")
+      val crypted = saltPassword(password, Some(credential.salt))._2
+      if (crypted == credential.passwdHash)
+        user
+      else
+        throw new AuthException("")
     })
 
     // 触发登录事件
@@ -331,10 +328,11 @@ object AccountManager {
    * 返回salt和密文
    * @return
    */
-  private def saltPassword(password: String): (String, String) = {
+  private def saltPassword(password: String, salt: Option[String] = None): (String, String) = {
     // 生成64个字节的salt
-    val salt = MessageDigest.getInstance("MD5").update(Random.nextLong().toString.getBytes).toString
-    val bytes = MessageDigest.getInstance("SHA-256").digest((salt + password).getBytes)
-    salt -> (bytes map ("%02x" format _) mkString)
+    val theSalt = salt.getOrElse(MessageDigest.getInstance("MD5").digest(Random.nextLong().toString.getBytes).toString)
+
+    val bytes = MessageDigest.getInstance("SHA-256").digest((theSalt + password).getBytes)
+    theSalt -> (bytes map ("%02x" format _) mkString)
   }
 }

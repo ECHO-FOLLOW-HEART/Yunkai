@@ -172,12 +172,12 @@ object UserServiceHandler {
     val chatGroupId = chatGroup.chatGroupId
     val name = chatGroup.name
     val groupDesc = chatGroup.groupDesc
-    val tempGroupType = chatGroup.groupType
-    val groupType = tempGroupType match {
-      case "ChatGroup" => GroupType.ChatGroup
-      case "Group" => GroupType.Group
-      case _ => throw new NoSuchElementException(tempGroupType.toString)
-    }
+    //    val tempGroupType = chatGroup.groupType
+    //    val groupType = tempGroupType match {
+    //      case "chatgroup" => GroupType.Chatgroup
+    //      case "forum" => GroupType.Forum
+    //      case _ => throw new NoSuchElementException(tempGroupType.toString)
+    //    }
     val avatar = chatGroup.avatar
     val tags = chatGroup.tags
     val creator = chatGroup.creator
@@ -188,7 +188,7 @@ object UserServiceHandler {
     val updateTime = chatGroup.updateTime
     val visible = chatGroup.visible
 
-    yunkai.ChatGroup(chatGroupId, name, Option(groupDesc), groupType, Option(avatar), Option(tags),
+    yunkai.ChatGroup(chatGroupId, name, Option(groupDesc), Option(avatar), Option(tags),
       creator, admin, participants, maxUsers, createTime, updateTime, visible)
   }
 

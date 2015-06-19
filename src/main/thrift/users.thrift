@@ -25,7 +25,7 @@ struct ChatGroup{
   1: i64 chatGroupId,
   2: string name,
   3: optional string groupDesc,
-  4: GroupType groupType,
+//  4: GroupType groupType,
   5: optional string avatar,
   6: optional list<string> tags,
   7: i64 creator,

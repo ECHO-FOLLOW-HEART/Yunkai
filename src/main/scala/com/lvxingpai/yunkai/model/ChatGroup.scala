@@ -15,7 +15,7 @@ import scala.beans.BeanProperty
 class ChatGroup {
   @BeanProperty
   @Id
-  var id: ObjectId = null
+  var id: ObjectId = new ObjectId()
 
   @BeanProperty
   @NotNull
@@ -29,11 +29,11 @@ class ChatGroup {
 
   @BeanProperty
   @Size(min = 0, max = 1024)
-  var groupDesc: String = null
+  var groupDesc: String = ""
 
-  @BeanProperty
-  @Size(min = 2, max = 32)
-  var groupType: String = ""
+  //  @BeanProperty
+  //  @Size(min = 2, max = 32)
+  //  var groupType: String = ""
 
   @BeanProperty
   @Size(min = 0, max = 128)
@@ -81,7 +81,7 @@ object ChatGroup {
   val fdChatGroupId = "chatGroupId"
   val fdName = "name"
   val fdGroupDesc = "groupDesc"
-  val fdGroupType = "groupType"
+  //  val fdGroupType = "groupType"
   val fdTypeCommon = "common"
   val fdAvatar = "avatar"
   val fdTags = "tags"
@@ -91,12 +91,12 @@ object ChatGroup {
   val fdParticipants = "participants"
   //val fdParticipantCnt = "participantCnt"
 
-  def apply(creator: Long, chatGroupId: Long, name: String, members: Seq[Long]): ChatGroup = {
+  def apply(creator: Long, chatGroupId: Long, members: Seq[Long]): ChatGroup = {
     val result = new ChatGroup
     result.id = new ObjectId
     result.creator = creator
+    result.admin = Seq(creator)
     result.chatGroupId = chatGroupId
-    result.name = name
     result.participants = members
     result
   }
