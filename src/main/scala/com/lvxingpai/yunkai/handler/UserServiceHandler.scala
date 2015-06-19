@@ -355,10 +355,12 @@ object UserServiceHandler {
   implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
     val userId = user.userId
     val nickName = user.nickName
-    val avatar = if (user.avatar == null) None else Some(user.avatar)
+    val avatar = {
+      Option(user.avatar)
+    }
     val gender = None
-    val signature = None
-    val tel = None
+    val signature = Option(user.signature)
+    val tel = Option(user.tel)
 
     yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
   }
