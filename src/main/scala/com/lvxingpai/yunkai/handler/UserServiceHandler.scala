@@ -2,23 +2,19 @@ package com.lvxingpai.yunkai.handler
 
 import java.security.MessageDigest
 
+import com.fasterxml.jackson.databind.node.{ LongNode, NullNode, TextNode }
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits._
 import com.lvxingpai.yunkai.model.{ ChatGroup, Conversation, Credential, Relationship, Sequence, UserInfo }
 import com.lvxingpai.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice, _ }
-import com.fasterxml.jackson.databind.node.{ LongNode, NullNode, TextNode }
 import com.mongodb.DuplicateKeyException
 import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.{ CriteriaContainer, Query, UpdateOperations }
-import scala.language.postfixOps
-import scala.language.implicitConversions
+
 import scala.collection.JavaConversions._
 import scala.collection.Map
-import scala.util.Random
-
-import scala.language.postfixOps
-import scala.language.implicitConversions
+import scala.language.{ implicitConversions, postfixOps }
 
 /**
  * 提供Yunkai服务
@@ -27,33 +23,55 @@ import scala.language.implicitConversions
  */
 class UserServiceHandler extends Userservice.FutureIface {
 
+  import UserServiceHandler.userInfoConversion
+
   override def getUserById(userId: Long): Future[yunkai.UserInfo] = {
-    UserServiceHandler.getUserById(userId) map (userInfo => {
-      if (userInfo == null) throw new NotFoundException(s"User not found for userId=$userId")
-      else {
-        UserServiceHandler.userInfoConversion(userInfo)
-      }
+
+    AccountManager.getUserById(userId, fields = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar,
+      UserInfoProp.Avatar, UserInfoProp.Tel, UserInfoProp.Signature)) map (userInfo => {
+      if (userInfo nonEmpty)
+        userInfo.get
+      else
+        throw NotFoundException(s"Cannot find user: $userId")
     })
   }
 
-  override def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String]): Future[Unit] =
-    UserServiceHandler.updateUserInfo(userId, userInfo)
+  override def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String]): Future[Unit] = {
+    val updateData = userInfo map (entry => {
+      val (propName, propStr) = entry
 
-  override def isContact(userA: Long, userB: Long): Future[Boolean] = UserServiceHandler.isContact(userA, userB)
+      val propVal = propName match {
+        case UserInfoProp.UserId => propStr.toLong
+        case UserInfoProp.Gender => propStr match {
+          case "m" => Gender.Male
+          case "f" => Gender.Female
+          case null => null
+          case _ => throw InvalidArgsException("Invalid gender")
+        }
+        case _ => if (propStr != null) propStr.trim else null
+      }
 
-  override def addContact(userA: Long, userB: Long): Future[Unit] = UserServiceHandler.addContact(userA, userB)
+      propName -> propVal
+    })
 
-  override def addContacts(userA: Long, userB: Seq[Long]): Future[Unit] =
-    UserServiceHandler.addContact(userA, userB: _*)
+    AccountManager.updateUserInfo(userId, updateData)
+  }
 
-  override def removeContact(userA: Long, userB: Long): Future[Unit] = UserServiceHandler.removeContacts(userA, userB)
+  override def isContact(userA: Long, userB: Long): Future[Boolean] = AccountManager.isContact(userA, userB)
+
+  override def addContact(userA: Long, userB: Long): Future[Unit] = AccountManager.addContact(userA, userB)
+
+  override def addContacts(userA: Long, userB: Seq[Long]): Future[Unit] = AccountManager.addContact(userA, userB: _*)
+
+  override def removeContact(userA: Long, userB: Long): Future[Unit] = AccountManager.removeContacts(userA, userB)
 
   override def removeContacts(userA: Long, userList: Seq[Long]): Future[Unit] =
-    UserServiceHandler.removeContacts(userA, userList: _*)
+    AccountManager.removeContacts(userA, userList: _*)
 
   override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]],
     offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
-    UserServiceHandler.getContactList(userId, fields, offset, count) map (_ map UserServiceHandler.userInfoConversion)
+    AccountManager.getContactList(userId, fields = fields.getOrElse(Seq())) map
+      (_ map UserServiceHandler.userInfoConversion)
   }
 
   /**
@@ -63,12 +81,16 @@ class UserServiceHandler extends Userservice.FutureIface {
    * @param password  密码
    * @return 用户的详细资料
    */
-  override def login(loginName: String, password: String): Future[yunkai.UserInfo] =
-    UserServiceHandler.login(loginName, password) map UserServiceHandler.userInfoConversion
+  override def login(loginName: String, password: String): Future[yunkai.UserInfo] = {
+    AccountManager.login(loginName, password) map UserServiceHandler.userInfoConversion
+  }
 
   override def createUser(nickName: String, password: String, tel: Option[String]): Future[yunkai.UserInfo] = {
-    UserServiceHandler.createUser(nickName, password, tel) map (userInfo => {
-      if (userInfo == null) throw new NotFoundException("Create user failure") else UserServiceHandler.userInfoConversion(userInfo)
+    AccountManager.createUser(nickName, password, tel) map (userInfo => {
+      if (userInfo == null)
+        throw new NotFoundException("Create user failure")
+      else
+        UserServiceHandler.userInfoConversion(userInfo)
     })
   }
 
@@ -126,13 +148,15 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def range(start: Int, end: Int, step: Option[Int]): Future[Seq[Int]] = Future {
     Range(start, end, step.getOrElse(1))
   }
+
+  override def getMultipleUsers(userIdList: Seq[Long], fields: Seq[UserInfoProp]): Future[Map[Long, yunkai.UserInfo]] = {
+    AccountManager.getUsersByIdList(true, fields, userIdList: _*) map (resultMap => {
+      resultMap mapValues (value => (value map userInfoConversion).orNull)
+    })
+  }
 }
 
 object UserServiceHandler {
-  def getUserById(userId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] =
-    futurePool {
-      ds.find(classOf[UserInfo], "userId", userId).get()
-    }
 
   def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
     val query = ds.find(classOf[UserInfo], "userId", userId)
@@ -269,66 +293,24 @@ object UserServiceHandler {
   implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
     val userId = user.userId
     val nickName = user.nickName
-    val avatar = if (user.avatar == null) None else Some(user.avatar)
+    val avatar = Option(user.avatar)
     val gender = None
-    val signature = None
-    val tel = None
+    val signature = Option(user.signature)
+    val tel = Option(user.tel)
 
     yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
   }
 
-  // 新用户注册
-  def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
-    // 取得用户ID
-    val newUserId = populateId(Sequence.userId)(ds, futurePool)
-    val tempTel: String = tel.orNull
-    // 创建用户并保存
-    val userInfo = for {
-      userId <- newUserId
-    } yield {
-      val newUser = UserInfo(userId, nickName)
-      newUser.tel = tempTel
-      try {
-        ds.save[UserInfo](newUser)
-        newUser
-      } catch {
-        case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId is existed")
-      }
+  // 取用户ID
+  def populateId(sequenceType: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Long] = {
+    futurePool {
+      val query: Query[Sequence] = ds.createQuery(classOf[Sequence])
+      query.field(Sequence.fdColumn).equal(sequenceType)
+      val ops: UpdateOperations[Sequence] = ds.createUpdateOperations(classOf[Sequence]).inc(Sequence.fdCount)
+      //查询或者修改异常, 参数4如果查找不存在, 则新建一个对象, 参数3表示返回新建的对象的count
+      ds.findAndModify(query, ops, false, true).count
+      //if (ret != null) ret.count else throw new NotFoundException(s"Sequence $sequenceType not found")
     }
-    // 生成64个字节的salt
-    val md5 = MessageDigest.getInstance("MD5")
-    //使用指定的字节更新摘要
-    md5.update(Random.nextLong().toString.getBytes)
-    val salt = md5.digest().toString
-
-    // 将密码与salt一起生成密文
-    val msg = salt + password
-    val bytes = MessageDigest.getInstance("SHA-256").digest(msg.getBytes)
-    val digest = bytes map ("%02x".format(_)) mkString
-
-    // 创建并保存新用户Credential实例
-    for {
-      userId <- newUserId
-    } yield {
-      val credential = Credential(userId, salt, digest)
-      try {
-        ds.save[Credential](credential)
-      } catch {
-        case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId credential is existed")
-      }
-    }
-
-    // 触发创建新用户的事件
-    userInfo map (v => {
-      val eventArgs = scala.collection.immutable.Map(
-        "userId" -> LongNode.valueOf(v.userId),
-        "nickName" -> TextNode.valueOf(v.nickName),
-        "avatar" -> (if (v.avatar != null && v.avatar.nonEmpty) TextNode.valueOf(v.avatar) else NullNode.getInstance())
-      )
-      EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
-    })
-
-    userInfo
   }
 
   //  // 创建讨论组
@@ -358,18 +340,6 @@ object UserServiceHandler {
       } catch {
         case ex: DuplicateKeyException => throw new InvalidArgsException(s"Chat group $gid duplicated")
       }
-    }
-  }
-
-  // 取用户ID
-  def populateId(sequenceType: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Long] = {
-    futurePool {
-      val query: Query[Sequence] = ds.createQuery(classOf[Sequence])
-      query.field(Sequence.fdColumn).equal(sequenceType)
-      val ops: UpdateOperations[Sequence] = ds.createUpdateOperations(classOf[Sequence]).inc(Sequence.fdCount)
-      //查询或者修改异常, 参数4如果查找不存在, 则新建一个对象, 参数3表示返回新建的对象的count
-      ds.findAndModify(query, ops, false, true).count
-      //if (ret != null) ret.count else throw new NotFoundException(s"Sequence $sequenceType not found")
     }
   }
 
