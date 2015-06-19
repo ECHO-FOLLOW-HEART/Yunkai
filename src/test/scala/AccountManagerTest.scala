@@ -103,6 +103,7 @@ class AccountManagerTest extends Specification with BeforeAfterAll {
         |The AccountManager should:
         |
         |can login                     $login
+        |can reset passwords           $resetPasswords
         |can get user info             $userInfo
         |can update user info          $updateUserInfo
         |can manipulate contacts       $checkContacts
@@ -119,6 +120,19 @@ class AccountManagerTest extends Specification with BeforeAfterAll {
       user.userId.toString must_=== userId.toString
       user.nickName must_=== name
     })
+  }
+
+  def resetPasswords = {
+    val (nickName, userInfo) = userPreset.toSeq.head
+    val userId = userInfo("userId").toLong
+    val loginName = userInfo("tel")
+    val newPassword = Random.nextString(8)
+
+    invoke(client.updatePassword(userId, newPassword))
+    val newUser = invoke(client.login(loginName, newPassword))
+
+    newUser.userId must_=== userId
+    newUser.nickName must_=== nickName
   }
 
   def userInfo = {
