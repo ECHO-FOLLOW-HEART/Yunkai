@@ -7,8 +7,8 @@ enum Gender {
 }
 
 enum GroupType{
-  CHAT_GROUP
-  GROUP
+  CHATGROUP,
+  FORUM
 }
 
 struct UserInfo {

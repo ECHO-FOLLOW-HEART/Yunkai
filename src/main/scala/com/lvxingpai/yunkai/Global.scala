@@ -17,8 +17,8 @@ object Global {
     val defaultConf = AppConfig.defaultConfig
 
     // 运行模式: "production", "dev", "test"
-    val runLevel = if (defaultConf.hasPath("runLevel")) {
-      val rl = defaultConf.getString("runLevel")
+    val runLevel = if (defaultConf.hasPath("runlevel")) {
+      val rl = defaultConf.getString("runlevel")
       rl match {
         case "production" | "dev" | "test" =>
         case _ => throw new IllegalArgumentException(s"Invalid run level: $rl")
