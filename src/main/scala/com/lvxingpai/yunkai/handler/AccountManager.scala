@@ -3,10 +3,10 @@ package com.lvxingpai.yunkai.handler
 import java.security.MessageDigest
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.{ TextNode, NullNode, LongNode }
+import com.fasterxml.jackson.databind.node.{ LongNode, NullNode, TextNode }
 import com.lvxingpai.yunkai
-import com.lvxingpai.yunkai.model.{ Credential, Relationship, UserInfo }
 import com.lvxingpai.yunkai._
+import com.lvxingpai.yunkai.model.{ Credential, Relationship, UserInfo }
 import com.mongodb.DuplicateKeyException
 import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
@@ -61,41 +61,6 @@ object AccountManager {
       val user = query.retrievedFields(include, fieldNames: _*).get()
       if (user == null) None else Some(user)
     }
-
-  /**
-   * 将UserInfoProp转换为字段名称
-   *
-   * @param prop
-   * @return
-   */
-  implicit def userInfoPropToFieldName(prop: UserInfoProp): String = {
-    prop match {
-      case UserInfoProp.UserId => UserInfo.fdUserId
-      case UserInfoProp.NickName => UserInfo.fdNickName
-      case UserInfoProp.Signature => UserInfo.fdSignature
-      case UserInfoProp.Avatar => UserInfo.fdAvatar
-      case UserInfoProp.Tel => UserInfo.fdTel
-      case _ => throw new IllegalArgumentException("Illegal arguemnt: %s" format prop.toString)
-    }
-  }
-
-  /**
-   * 批量获得多个用户的信息
-   *
-   * @param include 和fields配合使用。表示是返回fields字段的内容，还是排除fields字段的内容
-   * @param userIds 需要查找的用户的ID
-   * @return
-   */
-  def getUsersByIdList(include: Boolean, fields: Seq[UserInfoProp], userIds: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[UserInfo]]] = {
-    val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(userIds)
-    val retrievedFields = fields map userInfoPropToFieldName
-    query.retrievedFields(include, retrievedFields: _*)
-
-    futurePool {
-      val results = Map(query.asList() map (v => v.userId -> v): _*)
-      Map(userIds map (v => v -> (results get v)): _*)
-    }
-  }
 
   /**
    * 更新用户信息
@@ -210,6 +175,44 @@ object AccountManager {
       ids <- contactIds
       contactsMap <- getUsersByIdList(include, fields, ids: _*)
     } yield (contactsMap.values.toSeq map (_.orNull)) filter (_ != null)
+  }
+
+  /**
+   * 批量获得多个用户的信息
+   *
+   * @param include 和fields配合使用。表示是返回fields字段的内容，还是排除fields字段的内容
+   * @param userIds 需要查找的用户的ID
+   * @return
+   */
+  def getUsersByIdList(include: Boolean, fields: Seq[UserInfoProp], userIds: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[UserInfo]]] = {
+    futurePool {
+      if (userIds isEmpty) {
+        Map[Long, Option[UserInfo]]()
+      } else {
+        val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(userIds)
+        val retrievedFields = fields map userInfoPropToFieldName
+        query.retrievedFields(include, retrievedFields: _*)
+        val results = Map(query.asList() map (v => v.userId -> v): _*)
+        Map(userIds map (v => v -> (results get v)): _*)
+      }
+    }
+  }
+
+  /**
+   * 将UserInfoProp转换为字段名称
+   *
+   * @param prop
+   * @return
+   */
+  implicit def userInfoPropToFieldName(prop: UserInfoProp): String = {
+    prop match {
+      case UserInfoProp.UserId => UserInfo.fdUserId
+      case UserInfoProp.NickName => UserInfo.fdNickName
+      case UserInfoProp.Signature => UserInfo.fdSignature
+      case UserInfoProp.Avatar => UserInfo.fdAvatar
+      case UserInfoProp.Tel => UserInfo.fdTel
+      case _ => throw new IllegalArgumentException("Illegal arguemnt: %s" format prop.toString)
+    }
   }
 
   /**
