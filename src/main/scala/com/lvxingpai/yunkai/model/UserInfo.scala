@@ -1,4 +1,4 @@
-package com.aizou.yunkai.model
+package com.lvxingpai.yunkai.model
 
 import javax.validation.constraints.{ Min, NotNull, Size }
 
@@ -36,7 +36,11 @@ class UserInfo {
   var avatar: String = ""
 
   @BeanProperty
-  var contacts: java.util.List[Int] = null
+  @Size(min = 6, max = 11)
+  var tel: String = ""
+
+  @BeanProperty
+  var contacts: Seq[Int] = null
 
   @Version
   var version: Long = 0
@@ -49,13 +53,14 @@ object UserInfo {
   val fdAvatar = "avatar"
   val fdContacts = "contacts"
   val fdSignature = "signature"
+  val fdTel = "tel"
 
-  def apply(userId: Long, nickName: String, avatar: String): UserInfo = {
+  def apply(userId: Long, nickName: String): UserInfo = {
     val result = new UserInfo
-    result.setId(new ObjectId)
-    result.setUserId(userId)
-    result.setNickName(nickName)
-    result.setAvatar(avatar)
+    result.id = new ObjectId
+    result.userId = userId
+    result.nickName = nickName
     result
   }
 }
+
