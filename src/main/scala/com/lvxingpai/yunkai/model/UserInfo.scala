@@ -1,5 +1,6 @@
 package com.lvxingpai.yunkai.model
 
+import java.util.UUID
 import javax.validation.constraints.{ Min, NotNull, Size }
 
 import org.bson.types.ObjectId
@@ -36,8 +37,13 @@ class UserInfo {
   var avatar: String = null
 
   @BeanProperty
-  @Size(min = 6, max = 11)
-  var tel: String = null
+  @Size(max = 1)
+  var gender: String = null
+
+  @BeanProperty
+  @Indexed(unique = true)
+  @Size(min = 6, max = 32)
+  var tel: String = UUID.randomUUID().toString
 
   @BeanProperty
   var contacts: Seq[Int] = null
@@ -54,6 +60,7 @@ object UserInfo {
   val fdContacts = "contacts"
   val fdSignature = "signature"
   val fdTel = "tel"
+  val fdGender = "gender"
 
   def apply(userId: Long, nickName: String): UserInfo = {
     val result = new UserInfo

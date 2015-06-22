@@ -68,40 +68,46 @@ enum ChatGroupProp{
 }
 
 exception NotFoundException {
-    1: string message;
+  1:string message;
 }
 
 exception InvalidArgsException {
-    1: string message;
+  1:string message;
 }
 
 exception AuthException {
-    1: string message
+  1:string message
+}
+
+exception UserExistsException {
+  1:string message
 }
 
 service userservice {
-  i32 add(1:i32 val1, 2:i32 val2)
+  // 获得单个用户信息
+  UserInfo getUserById(1:i64 userId, 2:list<UserInfoProp> fields) throws (1:NotFoundException ex)
 
-  list<i32> range(1:i32 start, 2:i32 end, 3:optional i32 step)
-
-  UserInfo getUserById(1:i64 userId) throws (1:NotFoundException ex)
-
+  // 获得多个用户的信息
   map<i64, UserInfo> getMultipleUsers(1:list<i64> userIdList, 2:list<UserInfoProp> fields)
 
-  void updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo)
+  // 更新用户的信息
+  UserInfo updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
 
-  bool isContact(1:i64 userA, 2:i64 userB)
+  bool isContact(1:i64 userA, 2:i64 userB) throws (1:NotFoundException ex)
 
-  void addContact(1:i64 userA, 2:i64 userB)
+  void addContact(1:i64 userA, 2:i64 userB) throws (1:NotFoundException ex)
 
-  void addContacts(1:i64 userA, 2:list<i64> targets)
+  void addContacts(1:i64 userA, 2:list<i64> targets) throws (1:NotFoundException ex)
 
-  void removeContact(1:i64 userA, 2:i64 userB)
+  void removeContact(1:i64 userA, 2:i64 userB) throws (1:NotFoundException ex)
 
-  void removeContacts(1:i64 userA, 2:list<i64> targets)
+  void removeContacts(1:i64 userA, 2:list<i64> targets) throws (1:NotFoundException ex)
 
-  list<UserInfo> getContactList(1:i64 userId, 2: optional list<UserInfoProp> fields,
-    3: optional i32 offset, 4: optional i32 count)
+  list<UserInfo> getContactList(1:i64 userId, 2:list<UserInfoProp> fields, 3:optional i32 offset,
+    4:optional i32 count) throws (1:NotFoundException ex)
+
+  // 获得用户的好友个数
+  i32 getContactCount(1:i64 userId) throws (1:NotFoundException ex)
 
   UserInfo login(1:string loginName, 2:string password) throws (1:AuthException ex)
 
@@ -111,7 +117,7 @@ service userservice {
   // Created by pengyt on 2015/5/26.
   // 群名称备注（和群成员id关联，某个群成员将群备注修改了）和群成员备注后面再做
   // 新用户注册
-  UserInfo createUser(1:string nickName, 2:string password, 3:optional string tel) throws (1: InvalidArgsException ex)
+  UserInfo createUser(1:string nickName, 2:string password, 3:optional string tel) throws (1: UserExistsException ex)
 
   // 用户退出登录
   // void logout(1: i64 userId)

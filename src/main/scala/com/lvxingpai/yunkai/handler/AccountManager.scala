@@ -51,16 +51,29 @@ object AccountManager {
    *
    * @return 用户信息
    */
-  def getUserById(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp])(implicit ds: Datastore, futurePool: FuturePool): Future[Option[UserInfo]] =
-    futurePool {
-      val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).equal(userId)
+  def getUserById(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq())(implicit ds: Datastore, futurePool: FuturePool): Future[Option[UserInfo]] = {
+    for {
+      userMap <- getUsersByIdList(include = include, fields = fields, userId)
+    } yield userMap.toSeq.head._2
+  }
 
-      // 获得需要处理的字段名
-      val fieldNames = fields map userInfoPropToFieldName
-
-      val user = query.retrievedFields(include, fieldNames: _*).get()
-      if (user == null) None else Some(user)
+  /**
+   * 将UserInfoProp转换为字段名称
+   *
+   * @param prop
+   * @return
+   */
+  implicit def userInfoPropToFieldName(prop: UserInfoProp): String = {
+    prop match {
+      case UserInfoProp.UserId => UserInfo.fdUserId
+      case UserInfoProp.NickName => UserInfo.fdNickName
+      case UserInfoProp.Signature => UserInfo.fdSignature
+      case UserInfoProp.Avatar => UserInfo.fdAvatar
+      case UserInfoProp.Tel => UserInfo.fdTel
+      case UserInfoProp.Gender => UserInfo.fdGender
+      case _ => throw new IllegalArgumentException("Illegal arguemnt: %s" format prop.toString)
     }
+  }
 
   /**
    * 更新用户信息
@@ -69,22 +82,37 @@ object AccountManager {
    * @param userInfo  需要更新的用户信息
    * @return
    */
-  def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, Any])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
+  def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, Any])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = futurePool {
     // 只允许更新一小部分字段信息
-    val allowedFields = Seq(UserInfoProp.NickName, UserInfoProp.Signature)
+    val allowedFields = Seq(UserInfoProp.NickName, UserInfoProp.Signature, UserInfoProp.Gender, UserInfoProp.Avatar)
     val filteredUserInfo = userInfo filter (item => allowedFields contains item._1)
 
+    // The value of a gender should be among ["m", "f", null]
+    if (userInfo.contains(UserInfoProp.Gender)) {
+      val gender = userInfo(UserInfoProp.Gender)
+      if (gender != null && gender != "f" && gender != "m")
+        throw new InvalidArgsException(s"Invalid gender $gender")
+    }
+
+    // 获得需要处理的字段名
+    val fieldNames = filteredUserInfo.keys.toSeq map userInfoPropToFieldName
+
     if (filteredUserInfo nonEmpty) {
-      val query = ds.find(classOf[UserInfo], "userId", userId)
+      val query = ds.find(classOf[UserInfo], "userId", userId).retrievedFields(true, fieldNames: _*)
       val updateOps = filteredUserInfo.foldLeft(ds.createUpdateOperations(classOf[UserInfo]))((ops, entry) => {
         val (key, value) = entry
-        ops.set(key, value)
+        if (value != null)
+          ops.set(key, value)
+        else
+          ops.unset(key)
       })
 
-      val updateResult = ds.updateFirst(query, updateOps)
-      if (!updateResult.getUpdatedExisting)
+      val result = ds.findAndModify(query, updateOps)
+      if (result == null)
         throw NotFoundException(s"Cannot find user: $userId")
-    }
+      result
+    } else
+      throw new InvalidArgsException("Invalid updated fields")
   }
 
   /**
@@ -106,18 +134,25 @@ object AccountManager {
    * @param targetUsers 需要被添加的好友的ID
    * @return
    */
-  def addContact(userId: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] =
-    futurePool {
-      val cls = classOf[Relationship]
+  def addContact(userId: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    val targetUsersFiltered = (targetUsers filter (_ != userId)).toSet.toSeq
+    getUsersByIdList(true, Seq(UserInfoProp.UserId), userId +: targetUsersFiltered: _*) map (m => {
+      // 相应的用户必须存在
+      if ((m filter (_._2 isEmpty)).toSeq.length != 0)
+        throw NotFoundException("")
+      else {
+        val cls = classOf[Relationship]
 
-      for (target <- targetUsers) {
-        val (user1, user2) = if (userId <= target) (userId, target) else (target, userId)
-        val op = ds.createUpdateOperations(cls).set(Relationship.fdUserA, user1).set(Relationship.fdUserB, user2)
-        val query = ds.createQuery(cls).field(Relationship.fdUserA).equal(user1)
-          .field(Relationship.fdUserB).equal(user2)
-        ds.updateFirst(query, op, true)
+        for (target <- targetUsersFiltered) {
+          val (user1, user2) = if (userId <= target) (userId, target) else (target, userId)
+          val op = ds.createUpdateOperations(cls).set(Relationship.fdUserA, user1).set(Relationship.fdUserB, user2)
+          val query = ds.createQuery(cls).field(Relationship.fdUserA).equal(user1)
+            .field(Relationship.fdUserB).equal(user2)
+          ds.updateFirst(query, op, true)
+        }
       }
-    }
+    })
+  }
 
   /**
    * 删除好友
@@ -127,18 +162,25 @@ object AccountManager {
    *
    * @return
    */
-  def removeContacts(userId: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] =
-    futurePool {
-      def buildQuery(user1: Long, user2: Long): CriteriaContainer = {
-        val l = Seq(user1, user2).sorted
-        ds.createQuery(classOf[Relationship]).criteria(Relationship.fdUserA).equal(l head)
-          .criteria(Relationship.fdUserB).equal(l last)
-      }
+  def removeContacts(userId: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    val targetUsersFiltered = (targetUsers filter (_ != userId)).toSet.toSeq
+    getUsersByIdList(true, Seq(UserInfoProp.UserId), userId +: targetUsersFiltered: _*) map (m => {
+      // 相应的用户必须存在
+      if ((m filter (_._2 isEmpty)).toSeq.length != 0)
+        throw NotFoundException("")
+      else {
+        def buildQuery(user1: Long, user2: Long): CriteriaContainer = {
+          val l = Seq(user1, user2).sorted
+          ds.createQuery(classOf[Relationship]).criteria(Relationship.fdUserA).equal(l head)
+            .criteria(Relationship.fdUserB).equal(l last)
+        }
 
-      val query = ds.createQuery(classOf[Relationship])
-      query.or(targetUsers map (buildQuery(userId, _)): _*)
-      ds.delete(query)
-    }
+        val query = ds.createQuery(classOf[Relationship])
+        query.or(targetUsersFiltered map (buildQuery(userId, _)): _*)
+        ds.delete(query)
+      }
+    })
+  }
 
   /**
    * 获得用户的好友列表
@@ -151,7 +193,7 @@ object AccountManager {
    *
    * @return
    */
-  def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp], offset: Option[Int] = None,
+  def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq(), offset: Option[Int] = None,
     count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
     val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
       (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
@@ -178,6 +220,28 @@ object AccountManager {
   }
 
   /**
+   * 获得用户的好友个数
+   *
+   * @param userId    用户ID
+   * @return
+   */
+  def getContactCount(userId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Int] = {
+    val userFuture = getUserById(userId)
+
+    userFuture map (userInfo => {
+      if (userInfo isEmpty)
+        throw NotFoundException(s"User not find $userId")
+      else {
+        val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
+          (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
+        val query = ds.createQuery(classOf[Relationship])
+        query.or(criteria: _*)
+        query.countAll().toInt
+      }
+    })
+  }
+
+  /**
    * 批量获得多个用户的信息
    *
    * @param include 和fields配合使用。表示是返回fields字段的内容，还是排除fields字段的内容
@@ -189,29 +253,19 @@ object AccountManager {
       if (userIds isEmpty) {
         Map[Long, Option[UserInfo]]()
       } else {
-        val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(userIds)
-        val retrievedFields = fields map userInfoPropToFieldName
+        val query = userIds length match {
+          case 1 => ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).equal(userIds head)
+          case _ => ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(userIds)
+        }
+        // 获得需要处理的字段名
+        val allowedProperties = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar,
+          UserInfoProp.Signature, UserInfoProp.Gender, UserInfoProp.Tel)
+        val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ UserInfoProp.UserId map userInfoPropToFieldName
+
         query.retrievedFields(include, retrievedFields: _*)
         val results = Map(query.asList() map (v => v.userId -> v): _*)
         Map(userIds map (v => v -> (results get v)): _*)
       }
-    }
-  }
-
-  /**
-   * 将UserInfoProp转换为字段名称
-   *
-   * @param prop
-   * @return
-   */
-  implicit def userInfoPropToFieldName(prop: UserInfoProp): String = {
-    prop match {
-      case UserInfoProp.UserId => UserInfo.fdUserId
-      case UserInfoProp.NickName => UserInfo.fdNickName
-      case UserInfoProp.Signature => UserInfo.fdSignature
-      case UserInfoProp.Avatar => UserInfo.fdAvatar
-      case UserInfoProp.Tel => UserInfo.fdTel
-      case _ => throw new IllegalArgumentException("Illegal arguemnt: %s" format prop.toString)
     }
   }
 
@@ -275,7 +329,7 @@ object AccountManager {
         ds.save[UserInfo](newUser)
         newUser
       } catch {
-        case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId is existed")
+        case ex: DuplicateKeyException => throw new UserExistsException(s"User $userId is existed")
       }
     }
 

@@ -18,10 +18,8 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   import UserServiceHandler.userInfoConversion
 
-  override def getUserById(userId: Long): Future[yunkai.UserInfo] = {
-
-    AccountManager.getUserById(userId, fields = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar,
-      UserInfoProp.Avatar, UserInfoProp.Tel, UserInfoProp.Signature)) map (userInfo => {
+  override def getUserById(userId: Long, fields: Seq[UserInfoProp]): Future[yunkai.UserInfo] = {
+    AccountManager.getUserById(userId, fields = fields) map (userInfo => {
       if (userInfo nonEmpty)
         userInfo.get
       else
@@ -29,25 +27,16 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String]): Future[Unit] = {
+  override def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String]): Future[yunkai.UserInfo] = {
     val updateData = userInfo map (entry => {
       val (propName, propStr) = entry
-
       val propVal = propName match {
         case UserInfoProp.UserId => propStr.toLong
-        case UserInfoProp.Gender => propStr match {
-          case "m" => Gender.Male
-          case "f" => Gender.Female
-          case null => null
-          case _ => throw InvalidArgsException("Invalid gender")
-        }
         case _ => if (propStr != null) propStr.trim else null
       }
-
       propName -> propVal
     })
-
-    AccountManager.updateUserInfo(userId, updateData)
+    AccountManager.updateUserInfo(userId, updateData) map UserServiceHandler.userInfoConversion
   }
 
   override def isContact(userA: Long, userB: Long): Future[Boolean] = AccountManager.isContact(userA, userB)
@@ -61,11 +50,12 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def removeContacts(userA: Long, userList: Seq[Long]): Future[Unit] =
     AccountManager.removeContacts(userA, userList: _*)
 
-  override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]],
-    offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
-    AccountManager.getContactList(userId, fields = fields.getOrElse(Seq())) map
+  override def getContactList(userId: Long, fields: Seq[UserInfoProp], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
+    AccountManager.getContactList(userId, fields = fields, offset = offset, count = count) map
       (_ map UserServiceHandler.userInfoConversion)
   }
+
+  override def getContactCount(userId: Long): Future[Int] = AccountManager.getContactCount(userId)
 
   /**
    * 用户登录
@@ -140,19 +130,12 @@ class UserServiceHandler extends Userservice.FutureIface {
     }
   }
 
-  override def add(val1: Int, val2: Int): Future[Int] = Future {
-    val1 + val2
-  }
-
-  override def range(start: Int, end: Int, step: Option[Int]): Future[Seq[Int]] = Future {
-    Range(start, end, step.getOrElse(1))
-  }
-
   override def getMultipleUsers(userIdList: Seq[Long], fields: Seq[UserInfoProp]): Future[Map[Long, yunkai.UserInfo]] = {
     AccountManager.getUsersByIdList(true, fields, userIdList: _*) map (resultMap => {
       resultMap mapValues (value => (value map userInfoConversion).orNull)
     })
   }
+
 }
 
 object UserServiceHandler {
@@ -161,7 +144,12 @@ object UserServiceHandler {
     val userId = user.userId
     val nickName = user.nickName
     val avatar = Option(user.avatar)
-    val gender = None
+    val gender = Option(user.gender match {
+      case "m" => Gender.Male
+      case "f" => Gender.Female
+      case null => null
+      case _ => throw new IllegalArgumentException("Invalid gender")
+    })
     val signature = Option(user.signature)
     val tel = Option(user.tel)
 

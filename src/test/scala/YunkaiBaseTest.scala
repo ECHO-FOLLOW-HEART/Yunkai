@@ -2,7 +2,9 @@ import java.net.InetSocketAddress
 
 import com.lvxingpai.yunkai.Gender
 import com.lvxingpai.yunkai.Userservice.{ FinagledClient, FinagledService }
+import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
 import com.lvxingpai.yunkai.handler.UserServiceHandler
+import com.lvxingpai.yunkai.model._
 import com.twitter.finagle.builder.{ ClientBuilder, Server, ServerBuilder }
 import com.twitter.finagle.thrift.{ ThriftClientFramedCodec, ThriftServerFramedCodec }
 import org.apache.thrift.protocol.TBinaryProtocol.Factory
@@ -68,5 +70,38 @@ abstract class YunkaiBaseTest extends Specification with BeforeAfterAll {
     if (server != null) {
       server.close()
     }
+  }
+
+  def cleanDatabase(): Unit = {
+    val ds = MorphiaFactory.datastore
+    Seq(classOf[UserInfo], classOf[ChatGroup], classOf[Conversation], classOf[Credential],
+      classOf[Relationship], classOf[Sequence]) foreach (cls => {
+        ds.delete(ds.createQuery(cls))
+      })
+  }
+
+  override def beforeAll(): Unit = {
+    cleanDatabase()
+    server = createServer()
+    client = createClient()
+    createUser
+  }
+
+  def createUser = {
+    val userInfoList = userPreset.toSeq map (entry => {
+      val name = entry._1
+      val data = entry._2
+      val password = data("password")
+      val tel = data("tel")
+      val user = invoke(client.createUser(name, password, Some(tel)))
+      userPreset(name)("userId") = user.userId.toString
+      name -> user
+    })
+
+    userInfoList map (entry => {
+      val (nickName, userInfo) = entry
+      userInfo.userId.toInt must beGreaterThan(1)
+      userInfo.nickName must_=== nickName
+    })
   }
 }

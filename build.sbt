@@ -32,6 +32,7 @@ libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-log4j12" % "1.7.12",
   "com.typesafe" % "config" % "1.2.1",
   //  "com.google.code.findbugs" % "jsr305" % "3.0.0",
+  "org.scalatest" %% "scalatest" % "2.2.4" % "test",
   "org.specs2" %% "specs2-core" % "3.6",
   "com.fasterxml.jackson.module" % "jackson-module-scala_2.10" % "2.5.2",
   "com.fasterxml.jackson.core" % "jackson-core" % "2.5.3",
