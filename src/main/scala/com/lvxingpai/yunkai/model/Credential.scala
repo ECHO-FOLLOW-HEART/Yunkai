@@ -42,6 +42,8 @@ class Credential {
 
 object Credential {
   val fdUserId = "userId"
+  val fdSalt = "salt"
+  val fdPasswdHash = "passwdHash"
 
   def apply(userId: Long, salt: String, passwdHash: String): Credential = {
     val result = new Credential

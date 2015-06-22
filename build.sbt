@@ -51,6 +51,25 @@ publishTo := {
     Some("publishReleases" at nexus + "releases")
 }
 
+lazy val thriftJava = taskKey[Unit]("Generating thrift Java codes")
+lazy val thriftPython = taskKey[Unit]("Generating thrift Python codes")
+lazy val thriftGen = taskKey[Unit]("Generating thrift codes")
+val cmdTemplate = "thrift -r -gen %s -o src/main/thrift src/main/thrift/users.thrift"
+
+thriftJava := {
+  Process(cmdTemplate format "java:beans,private-members,fullcamel") !
+}
+
+thriftPython := {
+  Process(cmdTemplate format "py:utf8strings,new_style") !
+}
+
+thriftGen := {
+  thriftPython.value
+  thriftJava.value
+}
+
+
 val root = project.in(file(".")).enablePlugins(JavaAppPackaging)
 
 scalacOptions ++= Seq("-feature", "-deprecation")

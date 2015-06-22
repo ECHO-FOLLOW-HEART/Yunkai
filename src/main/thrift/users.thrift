@@ -7,8 +7,8 @@ enum Gender {
 }
 
 enum GroupType{
-  CHAT_GROUP
-  GROUP
+  CHATGROUP,
+  FORUM
 }
 
 struct UserInfo {
@@ -25,7 +25,7 @@ struct ChatGroup{
   1: i64 chatGroupId,
   2: string name,
   3: optional string groupDesc,
-  4: GroupType groupType,
+//  4: GroupType groupType,
   5: optional string avatar,
   6: optional list<string> tags,
   7: i64 creator,
@@ -80,7 +80,13 @@ exception AuthException {
 }
 
 service userservice {
+  i32 add(1:i32 val1, 2:i32 val2)
+
+  list<i32> range(1:i32 start, 2:i32 end, 3:optional i32 step)
+
   UserInfo getUserById(1:i64 userId) throws (1:NotFoundException ex)
+
+  map<i64, UserInfo> getMultipleUsers(1:list<i64> userIdList, 2:list<UserInfoProp> fields)
 
   void updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo)
 
@@ -98,6 +104,9 @@ service userservice {
     3: optional i32 offset, 4: optional i32 count)
 
   UserInfo login(1:string loginName, 2:string password) throws (1:AuthException ex)
+
+  // 用户修改密码
+  void updatePassword(1:i64 userId, 2:string newPassword) throws (1: InvalidArgsException ex)
 
   // Created by pengyt on 2015/5/26.
   // 群名称备注（和群成员id关联，某个群成员将群备注修改了）和群成员备注后面再做

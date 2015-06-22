@@ -35,9 +35,14 @@ object EventEmitter {
   val evtLogout = "logout"
 
   /**
-   * 添加/删除联系人的事件
+   * 添加联系人的事件
    */
-  val evtModContacts = "modContacts"
+  val evtAddContacts = "addContacts"
+
+  /**
+   * 删除联系人的事件
+   */
+  val evtRemoveContacts = "removeContacts"
 
   /**
    * 发送好友申请的事件
@@ -45,9 +50,14 @@ object EventEmitter {
   val evtContactReq = "contactReq"
 
   /**
-   * 添加/移除黑名单的事件
+   * 添加黑名单的事件
    */
-  val evtModBlockList = "modBlocList"
+  val evtAddBlockList = "addBlocList"
+
+  /**
+   * 移除黑名单的事件
+   */
+  val evtRemoveBlockList = "removeBlocList"
 
   /**
    * 关注某个用户的事件
@@ -55,14 +65,24 @@ object EventEmitter {
   val evtFollow = "follow"
 
   /**
+   * 修改个人信息事件
+   */
+  val evtModUserInfo = "modUserInfo"
+
+  /**
    * 创建讨论组的事件
    */
   val evtCreateChatGroup = "createChatGroup"
 
   /**
-   * 添加/删除讨论组成员的事件
+   * 添加讨论组成员的事件
    */
-  val evtModGroupMembers = "modGroupMembers"
+  val evtAddGroupMembers = "addGroupMembers"
+
+  /**
+   * 删除讨论组成员的事件
+   */
+  val evtRemoveGroupMembers = "removeGroupMembers"
 
   /**
    * 修改讨论组属性的事件
@@ -83,7 +103,7 @@ object EventEmitter {
     val password = conf.getString("yunkai.rabbitmq.password")
     val virtualHost = conf.getString("yunkai.rabbitmq.virtualhost")
     ApiumPlant(ConnectionParam(host, port, username, password, virtualHost), "yunkai",
-      Seq(evtCreateUser, evtLogin, evtResetPassword))
+      Seq(evtCreateUser, evtLogin, evtResetPassword, evtAddContacts, evtRemoveContacts, evtModUserInfo, evtCreateChatGroup, evtAddGroupMembers, evtRemoveGroupMembers))
   }
 
   /**
