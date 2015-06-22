@@ -18,6 +18,9 @@ import scala.util.Random
 class AccountManagerTest extends FeatureSpec with ShouldMatchers with GivenWhenThen with BeforeAndAfter {
   var initialUsers: Seq[(UserInfo, String)] = Seq()
 
+  // basic user info properties
+  val properties = Seq(UserInfoProp.UserId, UserInfoProp.NickName)
+
   /**
    * Drop all the account-related collections
    */
@@ -361,20 +364,53 @@ class AccountManagerTest extends FeatureSpec with ShouldMatchers with GivenWhenT
     }
     scenario("a single contact is removed") {
       val service = new UserServiceHandler()
+      val properties = Seq(UserInfoProp.UserId, UserInfoProp.NickName)
       val allUsers = initialUsers map (_._1)
       val (self, targets) = (allUsers last, allUsers init)
+
       waitFuture(service.addContacts(self.userId, targets map (_.userId)))
-      val originalContacts = waitFuture(service.getContactList(self.userId, Seq(UserInfoProp.UserId), None, None))
+      val originalContacts = waitFuture(service.getContactList(self.userId, properties, None, None))
+      Given("that %s has %s as the contact list" format (self.nickName, originalContacts map (_.nickName) mkString ", "))
+
       val userToDel = originalContacts.head
+      When("%s is removed from %s's contact list" format (userToDel.nickName, self.nickName))
       waitFuture(service.removeContact(self.userId, userToDel.userId))
 
+      Then("%s's contact list should not contain %s, and vice versa" format (self.nickName, userToDel.nickName))
       // retrieve the contact lists of self and userToDel
-      val ret = waitFuture(Future.collect(Seq(self, userToDel) map (u => service.getContactList(u.userId,
-        Seq(UserInfoProp.UserId), None, None))))
+      val ret = waitFuture(Future.collect(Seq(self, userToDel) map (u => service.getContactList(u.userId, properties,
+        None, None))))
       val idListSelf = (ret head) map (_.userId)
       val idListTarget = (ret last) map (_.userId)
       idListSelf should not contain userToDel.userId
       idListTarget should not contain self.userId
+    }
+  }
+
+  feature("the AccountManager can test if two users are contacts") {
+    scenario("default") {
+      val service = new UserServiceHandler()
+      val properties = Seq(UserInfoProp.UserId, UserInfoProp.NickName)
+
+      val self = (initialUsers head)._1
+      val targets = Map((initialUsers tail) map (u => u._1.userId -> u._1): _*)
+      val contacts = Map(waitFuture(service.getContactList(self.userId, properties, None, None)) map (u => u.userId -> u): _*)
+      val outsiders = targets filterKeys (userId => !(contacts contains userId))
+
+      Given("%s and its contact list %s" format (self.nickName, contacts.values map (_.nickName) mkString ", "))
+      When("testing their relationship")
+      Then("bolean results should be returned")
+
+      // contact userId pairs and stranger pairs
+      def mkPairs(idList: Seq[Long]): Seq[(Long, Long)] = idList flatMap (v => Seq(self.userId -> v, v -> self.userId))
+      val (contactPairs, strangerPairs) = (mkPairs(contacts.keySet.toSeq), mkPairs(outsiders.keySet.toSeq))
+
+      Seq(contactPairs -> true, strangerPairs -> false) foreach (entry => {
+        val pairs = entry._1
+        val relation = entry._2
+        val future = Future.collect(pairs map (p => service.isContact(p._1, p._2)))
+        waitFuture(future) should contain only relation
+      })
     }
   }
 }
