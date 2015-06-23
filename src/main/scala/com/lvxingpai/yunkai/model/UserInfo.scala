@@ -1,6 +1,6 @@
 package com.lvxingpai.yunkai.model
 
-import java.util.UUID
+import java.util.{List => JList, UUID}
 import javax.validation.constraints.{Min, NotNull, Size}
 
 import org.bson.types.ObjectId
@@ -49,7 +49,7 @@ class UserInfo {
   //  var contacts: Seq[Long] = null
 
   @BeanProperty
-  var chatGroups: Seq[Long] = null
+  var chatGroups: JList[Long] = null
 
   @Version
   var version: Long = 0

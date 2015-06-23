@@ -1,11 +1,13 @@
 package com.lvxingpai.yunkai.model
 
+import java.util.{List => JList}
 import javax.validation.constraints.{Max, Min, NotNull, Size}
 
 import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.NotBlank
 import org.mongodb.morphia.annotations.{Entity, Id, Indexed}
 
+import scala.collection.JavaConversions._
 import scala.beans.BeanProperty
 
 /**
@@ -40,17 +42,17 @@ class ChatGroup {
   var avatar: String = ""
 
   @BeanProperty
-  var tags: Seq[String] = null
+  var tags: JList[String] = null
 
   @BeanProperty
   @NotNull
   var creator: Long = 0
 
   @BeanProperty
-  var admin: Seq[Long] = null
+  var admin: JList[Long] = null
 
   @BeanProperty
-  var participants: Seq[Long] = null
+  var participants: JList[Long] = null
 
   //  @BeanProperty
   //  var participantCnt: Int = 0

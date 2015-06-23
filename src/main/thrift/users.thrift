@@ -55,17 +55,12 @@ enum ChatGroupProp{
   CHAT_GROUP_ID,
   NAME,
   GROUP_DESC,
-  GROUP_TYPE,
   AVATAR,
   TAGS,
   CREATOR,
   ADMIN,
   PARTICIPANTS,
-  //PARTICIPANTCNT,
-  //MSG_COUNTER,
   MAX_USERS,
-  CREATE_TIME,
-  UPDATE_TIME,
   VISIBLE
 }
 
@@ -131,7 +126,7 @@ service userservice {
   // void logout(1: i64 userId)
 
   // 创建讨论组
-  ChatGroup createChatGroup(1: i64 creator, 2: list<i64> participants, 3: map<ChatGroupProp, string> chatGroupProps)
+  ChatGroup createChatGroup(1: i64 creator, 2: list<i64> participants, 3: optional map<ChatGroupProp, string> chatGroupProps)
     throws (1: InvalidArgsException ex1, 2: NotFoundException ex2)
 
   // 搜索讨论组
@@ -142,7 +137,7 @@ service userservice {
     throws (1: InvalidArgsException ex1, 2: NotFoundException ex2)
 
   // 获取讨论组信息
-  ChatGroup getChatGroup(1: i64 chatGroupId, 2: list<ChatGroupProp> fields) throws (1:NotFoundException ex)
+  ChatGroup getChatGroup(1: i64 chatGroupId, 2: optional list<ChatGroupProp> fields) throws (1:NotFoundException ex)
 
   // 获取用户所参加的讨论组列表
   list<ChatGroup> getUserChatGroups(1: i64 userId 2: optional list<ChatGroupProp> fields, 3: optional i32 offset,

@@ -104,9 +104,16 @@ object GroupManager {
 
   // 获取讨论组信息
   def getChatGroup(chatGroupId: Long, fields: Seq[ChatGroupProp] = Seq[ChatGroupProp]())(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ChatGroup]] = futurePool {
-    val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId)
-      .retrievedFields(true, (fields :+ ChatGroupProp.ChatGroupId) map chatGroupPropToFieldName: _*)
-    Option(query.get())
+    val allowedProperties = Seq(ChatGroupProp.Name, ChatGroupProp.GroupDesc, ChatGroupProp.ChatGroupId,
+      ChatGroupProp.Avatar, ChatGroupProp.Tags, ChatGroupProp.Creator, ChatGroupProp.Admin, ChatGroupProp.Participants,
+      ChatGroupProp.MaxUsers, ChatGroupProp.Visible)
+    val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ ChatGroupProp.ChatGroupId map
+      chatGroupPropToFieldName
+
+    val group = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId)
+      .retrievedFields(true, retrievedFields: _*).get()
+
+    Option(group)
   }
 
   //TODO 实现
@@ -166,9 +173,10 @@ object GroupManager {
       val idList = if ((offset nonEmpty) || (limit nonEmpty)) {
         val s = offset.getOrElse(0)
         val e = s + limit.getOrElse(maxCount)
-        groupIdList.slice(s, e)
-      } else
-        groupIdList
+        groupIdList.slice(s, e).toSeq
+      } else {
+        groupIdList.toSeq
+      }
       getChatGroups(fields, idList: _*)
     }) map (groupMap => {
       (groupMap filter (_._2 nonEmpty) map (_._2.get)).toSeq

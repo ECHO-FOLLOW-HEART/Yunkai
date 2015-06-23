@@ -6,6 +6,7 @@ import com.lvxingpai.yunkai.model.{ChatGroup, UserInfo}
 import com.lvxingpai.yunkai.{NotFoundException, UserInfoProp, Userservice, _}
 import com.twitter.util.Future
 
+import scala.collection.JavaConversions._
 import scala.collection.Map
 import scala.language.{implicitConversions, postfixOps}
 
@@ -81,8 +82,8 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def getChatGroup(chatGroupId: Long, fields: Seq[ChatGroupProp] = Seq[ChatGroupProp]()): Future[yunkai.ChatGroup] = {
-    GroupManager.getChatGroup(chatGroupId, fields) map (item => {
+  override def getChatGroup(chatGroupId: Long, fields: Option[Seq[ChatGroupProp]]): Future[yunkai.ChatGroup] = {
+    GroupManager.getChatGroup(chatGroupId, fields.getOrElse(Seq())) map (item => {
       if (item isEmpty)
         throw NotFoundException("Chat group not found")
       else
@@ -131,8 +132,23 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def createChatGroup(creator: Long, participants: Seq[Long], chatGroupProps: Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
-    GroupManager.createChatGroup(creator, participants, chatGroupProps) map UserServiceHandler.chatGroupConversion
+  override def createChatGroup(creator: Long, participants: Seq[Long], chatGroupProps: Option[Map[ChatGroupProp, String]]): Future[yunkai.ChatGroup] = {
+    // 处理额外信息
+    val miscInfo = chatGroupProps.getOrElse(Map()) map (entry => {
+      val prop = entry._1
+      val value = entry._2
+      val value2 = prop match {
+        case ChatGroupProp.Name => value
+        case ChatGroupProp.GroupDesc => value
+        case ChatGroupProp.Avatar => value
+        case ChatGroupProp.MaxUsers => value.toInt
+        case ChatGroupProp.Visible => value.toBoolean
+        case _ => null
+      }
+      prop -> value2
+    }) filter (_._2 != null)
+
+    GroupManager.createChatGroup(creator, participants, miscInfo) map UserServiceHandler.chatGroupConversion
   }
 
   override def getUserChatGroupCount(userId: Long): Future[Int] = GroupManager.getUserChatGroupCount(userId)
