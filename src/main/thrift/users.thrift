@@ -86,10 +86,10 @@ exception UserExistsException {
 
 service userservice {
   // 获得单个用户信息
-  UserInfo getUserById(1:i64 userId, 2:list<UserInfoProp> fields) throws (1:NotFoundException ex)
+  UserInfo getUserById(1:i64 userId, 2: optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
 
   // 获得多个用户的信息
-  map<i64, UserInfo> getMultipleUsers(1:list<i64> userIdList, 2:list<UserInfoProp> fields)
+  map<i64, UserInfo> getMultipleUsers(1:list<i64> userIdList, 2: optional list<UserInfoProp> fields)
 
   // 更新用户的信息
   UserInfo updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
@@ -110,7 +110,7 @@ service userservice {
   void removeContacts(1:i64 userA, 2:list<i64> targets) throws (1:NotFoundException ex)
 
   // 获得用户的好友列表
-  list<UserInfo> getContactList(1:i64 userId, 2:list<UserInfoProp> fields, 3:optional i32 offset,
+  list<UserInfo> getContactList(1:i64 userId, 2: optional list<UserInfoProp> fields, 3:optional i32 offset,
     4:optional i32 count) throws (1:NotFoundException ex)
 
   // 获得用户的好友个数

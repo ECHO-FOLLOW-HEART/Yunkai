@@ -1,8 +1,8 @@
 package com.lvxingpai.yunkai.database.mongo
 
 import com.lvxingpai.yunkai.Global
-import com.lvxingpai.yunkai.model.{ ChatGroup, Credential, Relationship, UserInfo }
-import com.mongodb.{ MongoClient, MongoClientOptions, MongoCredential, ServerAddress }
+import com.lvxingpai.yunkai.model.{ChatGroup, Credential, Relationship, UserInfo}
+import com.mongodb.{MongoClient, MongoClientOptions, MongoCredential, ServerAddress}
 import org.mongodb.morphia.Morphia
 
 import scala.collection.JavaConversions._

@@ -3,18 +3,18 @@ package com.lvxingpai.yunkai.handler
 import java.security.MessageDigest
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.{ LongNode, NullNode, TextNode }
+import com.fasterxml.jackson.databind.node.{LongNode, NullNode, TextNode}
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai._
-import com.lvxingpai.yunkai.model.{ Credential, Relationship, UserInfo }
+import com.lvxingpai.yunkai.model.{Credential, Relationship, UserInfo}
 import com.mongodb.DuplicateKeyException
-import com.twitter.util.{ Future, FuturePool }
+import com.twitter.util.{Future, FuturePool}
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.CriteriaContainer
 
 import scala.collection.JavaConversions._
 import scala.collection.Map
-import scala.language.{ implicitConversions, postfixOps }
+import scala.language.{implicitConversions, postfixOps}
 import scala.util.Random
 
 /**
@@ -193,7 +193,7 @@ object AccountManager {
    * @return
    */
   def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq(), offset: Option[Int] = None,
-    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
+                     count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
     val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
       (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
     val queryRel = ds.createQuery(classOf[Relationship])
@@ -321,15 +321,15 @@ object AccountManager {
     val userInfo = for {
       userId <- futureUserId
     } yield {
-      val newUser = UserInfo(userId, nickName)
-      newUser.tel = tel.orNull
-      try {
-        ds.save[UserInfo](newUser)
-        newUser
-      } catch {
-        case ex: DuplicateKeyException => throw new UserExistsException(s"User $userId is existed")
+        val newUser = UserInfo(userId, nickName)
+        newUser.tel = tel.orNull
+        try {
+          ds.save[UserInfo](newUser)
+          newUser
+        } catch {
+          case ex: DuplicateKeyException => throw new UserExistsException(s"User $userId is existed")
+        }
       }
-    }
 
     val (salt, crypted) = saltPassword(password)
 

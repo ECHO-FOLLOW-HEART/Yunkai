@@ -1,11 +1,11 @@
 package com.lvxingpai.yunkai.model
 
 import java.util.UUID
-import javax.validation.constraints.{ Min, NotNull, Size }
+import javax.validation.constraints.{Min, NotNull, Size}
 
 import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.NotBlank
-import org.mongodb.morphia.annotations.{ Entity, Id, Indexed, Version }
+import org.mongodb.morphia.annotations.{Entity, Id, Indexed, Version}
 
 import scala.beans.BeanProperty
 

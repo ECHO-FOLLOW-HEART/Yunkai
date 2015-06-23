@@ -1,18 +1,17 @@
 import java.net.InetSocketAddress
 
 import com.lvxingpai.yunkai.Gender
-import com.lvxingpai.yunkai.Userservice.{ FinagledClient, FinagledService }
+import com.lvxingpai.yunkai.Userservice.{FinagledClient, FinagledService}
 import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
 import com.lvxingpai.yunkai.handler.UserServiceHandler
 import com.lvxingpai.yunkai.model._
-import com.twitter.finagle.builder.{ ClientBuilder, Server, ServerBuilder }
-import com.twitter.finagle.thrift.{ ThriftClientFramedCodec, ThriftServerFramedCodec }
+import com.twitter.finagle.builder.{ClientBuilder, Server, ServerBuilder}
+import com.twitter.finagle.thrift.{ThriftClientFramedCodec, ThriftServerFramedCodec}
+import com.twitter.util.TimeConversions._
+import com.twitter.util.{Await, Duration, Future}
 import org.apache.thrift.protocol.TBinaryProtocol.Factory
 import org.specs2.Specification
 import org.specs2.specification.BeforeAfterAll
-
-import com.twitter.util.{ Future, Await, Duration }
-import com.twitter.util.TimeConversions._
 
 import scala.util.Random
 
@@ -76,8 +75,8 @@ abstract class YunkaiBaseTest extends Specification with BeforeAfterAll {
     val ds = MorphiaFactory.datastore
     Seq(classOf[UserInfo], classOf[ChatGroup], classOf[Conversation], classOf[Credential],
       classOf[Relationship], classOf[Sequence]) foreach (cls => {
-        ds.delete(ds.createQuery(cls))
-      })
+      ds.delete(ds.createQuery(cls))
+    })
   }
 
   override def beforeAll(): Unit = {

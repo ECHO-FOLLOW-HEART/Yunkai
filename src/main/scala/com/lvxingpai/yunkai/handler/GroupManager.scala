@@ -1,15 +1,15 @@
 package com.lvxingpai.yunkai.handler
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.{ BooleanNode, LongNode, NullNode, TextNode }
+import com.fasterxml.jackson.databind.node.{BooleanNode, LongNode, NullNode, TextNode}
 import com.lvxingpai.yunkai._
-import com.lvxingpai.yunkai.model.{ ChatGroup, Conversation, UserInfo }
-import com.twitter.util.{ Future, FuturePool }
+import com.lvxingpai.yunkai.model.{ChatGroup, Conversation, UserInfo}
+import com.twitter.util.{Future, FuturePool}
 import org.mongodb.morphia.Datastore
 
 import scala.collection.JavaConversions._
 import scala.collection.Map
-import scala.language.{ implicitConversions, postfixOps }
+import scala.language.{implicitConversions, postfixOps}
 
 /**
  * Created by zephyre on 6/19/15.
@@ -58,38 +58,38 @@ object GroupManager {
     val cgFuture = for {
       gid <- futureGid
     } yield {
-      val cg = ChatGroup(creator, gid, participants)
-      chatGroupProps foreach (item => {
-        item._1 match {
-          case ChatGroupProp.Name => cg.name = item._2.toString
-          case ChatGroupProp.GroupDesc => cg.groupDesc = item._2.toString
-          case ChatGroupProp.Avatar => cg.avatar = item._2.toString
-          case ChatGroupProp.Tags => cg.tags = item._2.asInstanceOf[Seq[String]]
-          case ChatGroupProp.MaxUsers => cg.maxUsers = item._2.asInstanceOf[Int]
-          case ChatGroupProp.Visible => cg.visible = item._2.asInstanceOf[Boolean]
-          case _ => ""
-        }
-      })
-      cg.admin = Seq(creator)
-      cg.createTime = java.lang.System.currentTimeMillis()
+        val cg = ChatGroup(creator, gid, participants)
+        chatGroupProps foreach (item => {
+          item._1 match {
+            case ChatGroupProp.Name => cg.name = item._2.toString
+            case ChatGroupProp.GroupDesc => cg.groupDesc = item._2.toString
+            case ChatGroupProp.Avatar => cg.avatar = item._2.toString
+            case ChatGroupProp.Tags => cg.tags = item._2.asInstanceOf[Seq[String]]
+            case ChatGroupProp.MaxUsers => cg.maxUsers = item._2.asInstanceOf[Int]
+            case ChatGroupProp.Visible => cg.visible = item._2.asInstanceOf[Boolean]
+            case _ => ""
+          }
+        })
+        cg.admin = Seq(creator)
+        cg.createTime = java.lang.System.currentTimeMillis()
 
-      // 1. gid重复 2. 数据库通信异常  3. 切面
-      ds.save[ChatGroup](cg)
+        // 1. gid重复 2. 数据库通信异常  3. 切面
+        ds.save[ChatGroup](cg)
 
-      // 触发创建讨论组的事件
-      val eventArgs = scala.collection.immutable.Map(
-        "chatGroupId" -> LongNode.valueOf(cg.chatGroupId),
-        "name" -> TextNode.valueOf(cg.name),
-        "groupDesc" -> (if (cg.groupDesc != null && cg.groupDesc.nonEmpty) TextNode.valueOf(cg.groupDesc) else NullNode.getInstance()),
-        "avatar" -> (if (cg.avatar != null && cg.avatar.nonEmpty) TextNode.valueOf(cg.avatar) else NullNode.getInstance()),
-        "tags" -> (new ObjectMapper).valueToTree(cg.tags),
-        "admin" -> (new ObjectMapper).valueToTree(cg.admin),
-        "participants" -> (new ObjectMapper).valueToTree(cg.participants),
-        "visible" -> BooleanNode.valueOf(cg.visible)
-      )
-      EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
-      cg
-    }
+        // 触发创建讨论组的事件
+        val eventArgs = scala.collection.immutable.Map(
+          "chatGroupId" -> LongNode.valueOf(cg.chatGroupId),
+          "name" -> TextNode.valueOf(cg.name),
+          "groupDesc" -> (if (cg.groupDesc != null && cg.groupDesc.nonEmpty) TextNode.valueOf(cg.groupDesc) else NullNode.getInstance()),
+          "avatar" -> (if (cg.avatar != null && cg.avatar.nonEmpty) TextNode.valueOf(cg.avatar) else NullNode.getInstance()),
+          "tags" -> (new ObjectMapper).valueToTree(cg.tags),
+          "admin" -> (new ObjectMapper).valueToTree(cg.admin),
+          "participants" -> (new ObjectMapper).valueToTree(cg.participants),
+          "visible" -> BooleanNode.valueOf(cg.visible)
+        )
+        EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
+        cg
+      }
 
     cgFuture map (cg => {
       // 在每个参与用户的chatGroups字段中，添加本ChatGroup的信息
@@ -151,7 +151,7 @@ object GroupManager {
 
   // 获取用户讨论组信息
   def getUserChatGroups(userId: Long, fields: Seq[ChatGroupProp] = Seq(), offset: Option[Int] = None,
-    limit: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ChatGroup]] = {
+                        limit: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ChatGroup]] = {
     // 默认最大的获取数量
     val maxCount = 100
 

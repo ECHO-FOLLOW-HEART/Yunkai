@@ -2,12 +2,12 @@ package com.lvxingpai.yunkai.handler
 
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits._
-import com.lvxingpai.yunkai.model.{ ChatGroup, UserInfo }
-import com.lvxingpai.yunkai.{ NotFoundException, UserInfoProp, Userservice, _ }
+import com.lvxingpai.yunkai.model.{ChatGroup, UserInfo}
+import com.lvxingpai.yunkai.{NotFoundException, UserInfoProp, Userservice, _}
 import com.twitter.util.Future
 
 import scala.collection.Map
-import scala.language.{ implicitConversions, postfixOps }
+import scala.language.{implicitConversions, postfixOps}
 
 /**
  * 提供Yunkai服务
@@ -18,8 +18,8 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   import UserServiceHandler.userInfoConversion
 
-  override def getUserById(userId: Long, fields: Seq[UserInfoProp]): Future[yunkai.UserInfo] = {
-    AccountManager.getUserById(userId, fields = fields) map (userInfo => {
+  override def getUserById(userId: Long, fields: Option[Seq[UserInfoProp]]): Future[yunkai.UserInfo] = {
+    AccountManager.getUserById(userId, fields.getOrElse(Seq())) map (userInfo => {
       if (userInfo nonEmpty)
         userInfo.get
       else
@@ -50,8 +50,9 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def removeContacts(userA: Long, userList: Seq[Long]): Future[Unit] =
     AccountManager.removeContacts(userA, userList: _*)
 
-  override def getContactList(userId: Long, fields: Seq[UserInfoProp], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
-    AccountManager.getContactList(userId, fields = fields, offset = offset, count = count) map
+  override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]], offset: Option[Int],
+                              count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
+    AccountManager.getContactList(userId, fields = fields.getOrElse(Seq()), offset = offset, count = count) map
       (_ map UserServiceHandler.userInfoConversion)
   }
 
@@ -98,7 +99,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def getUserChatGroups(userId: Long, fields: Option[Seq[ChatGroupProp]], offset: Option[Int],
-    count: Option[Int]): Future[Seq[yunkai.ChatGroup]] = {
+                                 count: Option[Int]): Future[Seq[yunkai.ChatGroup]] = {
     val result = GroupManager.getUserChatGroups(userId, fields.getOrElse(Seq()))
     for {
       items <- result
@@ -124,13 +125,15 @@ class UserServiceHandler extends Userservice.FutureIface {
     }
   }
 
-  override def getMultipleUsers(userIdList: Seq[Long], fields: Seq[UserInfoProp]): Future[Map[Long, yunkai.UserInfo]] = {
-    AccountManager.getUsersByIdList(fields, userIdList: _*) map (resultMap => {
+  override def getMultipleUsers(userIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[UserInfoProp]]): Future[Map[Long, yunkai.UserInfo]] = {
+    AccountManager.getUsersByIdList(fields.getOrElse(Seq()), userIdList: _*) map (resultMap => {
       resultMap mapValues (value => (value map userInfoConversion).orNull)
     })
   }
 
-  override def createChatGroup(creator: Long, participants: Seq[Long], chatGroupProps: Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = ???
+  override def createChatGroup(creator: Long, participants: Seq[Long], chatGroupProps: Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
+    GroupManager.createChatGroup(creator, participants, chatGroupProps) map UserServiceHandler.chatGroupConversion
+  }
 
   override def getUserChatGroupCount(userId: Long): Future[Int] = GroupManager.getUserChatGroupCount(userId)
 }

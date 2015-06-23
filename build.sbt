@@ -8,7 +8,7 @@ scalaVersion := "2.10.4"
 
 com.twitter.scrooge.ScroogeSBT.newSettings
 
-scalariformSettings
+//scalariformSettings
 
 val finagleVersion = "6.14.0"
 

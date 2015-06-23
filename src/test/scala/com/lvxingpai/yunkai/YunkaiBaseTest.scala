@@ -2,10 +2,10 @@ package com.lvxingpai.yunkai
 
 import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
 import com.lvxingpai.yunkai.handler.UserServiceHandler
-import com.lvxingpai.yunkai.model.{ ChatGroup => ChatGroupMorphia, Conversation, Credential, Relationship, Sequence, UserInfo => UserInfoMorphia }
-import com.twitter.util.{ Await, Duration, Future }
-import org.scalatest.{ BeforeAndAfter, GivenWhenThen, ShouldMatchers, FeatureSpec }
+import com.lvxingpai.yunkai.model.{ChatGroup => ChatGroupMorphia, Conversation, Credential, Relationship, Sequence, UserInfo => UserInfoMorphia}
 import com.twitter.util.TimeConversions._
+import com.twitter.util.{Await, Duration, Future}
+import org.scalatest.{BeforeAndAfter, FeatureSpec, GivenWhenThen, ShouldMatchers}
 
 import scala.language.postfixOps
 
@@ -25,8 +25,8 @@ class YunkaiBaseTest extends FeatureSpec with ShouldMatchers with GivenWhenThen 
     val ds = MorphiaFactory.datastore
     Seq(classOf[UserInfoMorphia], classOf[ChatGroupMorphia], classOf[Conversation], classOf[Credential],
       classOf[Relationship], classOf[Sequence]) foreach (cls => {
-        ds.delete(ds.createQuery(cls))
-      })
+      ds.delete(ds.createQuery(cls))
+    })
   }
 
   def createInitUsers(): Seq[(UserInfo, String)] = {
