@@ -3,7 +3,8 @@ namespace java com.lvxingpai.yunkai
 
 enum Gender {
   MALE,
-  FEMALE
+  FEMALE,
+  SECRET
 }
 
 enum GroupType{

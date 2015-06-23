@@ -145,9 +145,10 @@ object UserServiceHandler {
     val nickName = user.nickName
     val avatar = Option(user.avatar)
     val gender = Option(user.gender match {
-      case "m" => Gender.Male
-      case "f" => Gender.Female
-      case null => null
+      case "m" | "M" => Gender.Male
+      case "f" | "F" => Gender.Female
+      case "s" | "S" => Gender.Secret
+      case "u" | "U" | null => null
       case _ => throw new IllegalArgumentException("Invalid gender")
     })
     val signature = Option(user.signature)
