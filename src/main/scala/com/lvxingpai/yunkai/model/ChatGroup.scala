@@ -86,6 +86,7 @@ object ChatGroup {
   val fdAvatar = "avatar"
   val fdTags = "tags"
   val fdCreator = "creator"
+  val fdAdmin = "admin"
   val fdMaxUsers = "maxUsers"
   val fdVisible = "visible"
   val fdParticipants = "participants"

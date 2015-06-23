@@ -103,7 +103,8 @@ object EventEmitter {
     val password = conf.getString("yunkai.rabbitmq.password")
     val virtualHost = conf.getString("yunkai.rabbitmq.virtualhost")
     ApiumPlant(ConnectionParam(host, port, username, password, virtualHost), "yunkai",
-      Seq(evtCreateUser, evtLogin, evtResetPassword, evtAddContacts, evtRemoveContacts, evtModUserInfo, evtCreateChatGroup, evtAddGroupMembers, evtRemoveGroupMembers))
+      Seq(evtCreateUser, evtLogin, evtResetPassword, evtAddContacts, evtRemoveContacts, evtModUserInfo,
+        evtCreateChatGroup, evtAddGroupMembers, evtRemoveGroupMembers))
   }
 
   /**

@@ -47,13 +47,11 @@ object AccountManager {
   /**
    * 获得用户信息
    *
-   * @param include 和fields配合使用。表示是返回fields字段的内容，还是排除fields字段的内容
-   *
    * @return 用户信息
    */
-  def getUserById(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq())(implicit ds: Datastore, futurePool: FuturePool): Future[Option[UserInfo]] = {
+  def getUserById(userId: Long, fields: Seq[UserInfoProp] = Seq())(implicit ds: Datastore, futurePool: FuturePool): Future[Option[UserInfo]] = {
     for {
-      userMap <- getUsersByIdList(include = include, fields = fields, userId)
+      userMap <- getUsersByIdList(fields, userId)
     } yield userMap.toSeq.head._2
   }
 
@@ -71,6 +69,7 @@ object AccountManager {
       case UserInfoProp.Avatar => UserInfo.fdAvatar
       case UserInfoProp.Tel => UserInfo.fdTel
       case UserInfoProp.Gender => UserInfo.fdGender
+      case UserInfoProp.ChatGroups => UserInfo.fdChatGroups
       case _ => throw new IllegalArgumentException("Illegal arguemnt: %s" format prop.toString)
     }
   }
@@ -136,7 +135,7 @@ object AccountManager {
    */
   def addContact(userId: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
     val targetUsersFiltered = (targetUsers filter (_ != userId)).toSet.toSeq
-    getUsersByIdList(true, Seq(UserInfoProp.UserId), userId +: targetUsersFiltered: _*) map (m => {
+    getUsersByIdList(Seq(UserInfoProp.UserId), userId +: targetUsersFiltered: _*) map (m => {
       // 相应的用户必须存在
       if ((m filter (_._2 isEmpty)).toSeq.length != 0)
         throw NotFoundException("")
@@ -164,7 +163,7 @@ object AccountManager {
    */
   def removeContacts(userId: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
     val targetUsersFiltered = (targetUsers filter (_ != userId)).toSet.toSeq
-    getUsersByIdList(true, Seq(UserInfoProp.UserId), userId +: targetUsersFiltered: _*) map (m => {
+    getUsersByIdList(Seq(UserInfoProp.UserId), userId +: targetUsersFiltered: _*) map (m => {
       // 相应的用户必须存在
       if ((m filter (_._2 isEmpty)).toSeq.length != 0)
         throw NotFoundException("")
@@ -215,7 +214,7 @@ object AccountManager {
 
     for {
       ids <- contactIds
-      contactsMap <- getUsersByIdList(include, fields, ids: _*)
+      contactsMap <- getUsersByIdList(fields, ids: _*)
     } yield (contactsMap.values.toSeq map (_.orNull)) filter (_ != null)
   }
 
@@ -244,11 +243,10 @@ object AccountManager {
   /**
    * 批量获得多个用户的信息
    *
-   * @param include 和fields配合使用。表示是返回fields字段的内容，还是排除fields字段的内容
    * @param userIds 需要查找的用户的ID
    * @return
    */
-  def getUsersByIdList(include: Boolean, fields: Seq[UserInfoProp], userIds: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[UserInfo]]] = {
+  def getUsersByIdList(fields: Seq[UserInfoProp], userIds: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[UserInfo]]] = {
     futurePool {
       if (userIds isEmpty) {
         Map[Long, Option[UserInfo]]()
@@ -262,7 +260,7 @@ object AccountManager {
           UserInfoProp.Signature, UserInfoProp.Gender, UserInfoProp.Tel)
         val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ UserInfoProp.UserId map userInfoPropToFieldName
 
-        query.retrievedFields(include, retrievedFields: _*)
+        query.retrievedFields(true, retrievedFields: _*)
         val results = Map(query.asList() map (v => v.userId -> v): _*)
         Map(userIds map (v => v -> (results get v)): _*)
       }

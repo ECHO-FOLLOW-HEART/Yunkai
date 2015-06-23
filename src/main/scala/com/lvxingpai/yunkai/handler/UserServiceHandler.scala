@@ -80,19 +80,12 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def createChatGroup(creator: Long, name: String, members: Seq[Long], chatGroupProps: Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
-    GroupManager.createChatGroup(creator, name, members, chatGroupProps) map (chatGroup => {
-      if (chatGroup == null)
-        throw new NotFoundException("Create chatGroup failure")
+  override def getChatGroup(chatGroupId: Long, fields: Seq[ChatGroupProp] = Seq[ChatGroupProp]()): Future[yunkai.ChatGroup] = {
+    GroupManager.getChatGroup(chatGroupId, fields) map (item => {
+      if (item isEmpty)
+        throw NotFoundException("Chat group not found")
       else
-        UserServiceHandler.chatGroupConversion(chatGroup)
-    })
-  }
-
-  override def getChatGroup(chatGroupId: Long): Future[yunkai.ChatGroup] = {
-    val result = GroupManager.getChatGroup(chatGroupId)
-    result map (item => {
-      if (item == null) throw NotFoundException("Chat group not found") else UserServiceHandler.chatGroupConversion(item)
+        UserServiceHandler.chatGroupConversion(item.get)
     })
   }
 
@@ -104,8 +97,9 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   }
 
-  override def getUserChatGroups(userId: Long, fields: Option[Seq[ChatGroupProp]]): Future[Seq[yunkai.ChatGroup]] = {
-    val result = GroupManager.getUserChatGroups(userId, fields)
+  override def getUserChatGroups(userId: Long, fields: Option[Seq[ChatGroupProp]], offset: Option[Int],
+    count: Option[Int]): Future[Seq[yunkai.ChatGroup]] = {
+    val result = GroupManager.getUserChatGroups(userId, fields.getOrElse(Seq()))
     for {
       items <- result
     } yield {
@@ -131,11 +125,14 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def getMultipleUsers(userIdList: Seq[Long], fields: Seq[UserInfoProp]): Future[Map[Long, yunkai.UserInfo]] = {
-    AccountManager.getUsersByIdList(true, fields, userIdList: _*) map (resultMap => {
+    AccountManager.getUsersByIdList(fields, userIdList: _*) map (resultMap => {
       resultMap mapValues (value => (value map userInfoConversion).orNull)
     })
   }
 
+  override def createChatGroup(creator: Long, participants: Seq[Long], chatGroupProps: Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = ???
+
+  override def getUserChatGroupCount(userId: Long): Future[Int] = GroupManager.getUserChatGroupCount(userId)
 }
 
 object UserServiceHandler {

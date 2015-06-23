@@ -2,12 +2,9 @@ package com.lvxingpai.yunkai
 
 import java.util.UUID
 
-import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
 import com.lvxingpai.yunkai.handler.UserServiceHandler
-import com.lvxingpai.yunkai.model.{ ChatGroup => ChatGroupMorphia, Conversation, Credential, Relationship, Sequence, UserInfo => UserInfoMorphia }
-import com.twitter.util.TimeConversions._
-import com.twitter.util.{ Await, Duration, Future }
-import org.scalatest.{ BeforeAndAfter, FeatureSpec, GivenWhenThen, ShouldMatchers }
+import com.lvxingpai.yunkai.model.{ ChatGroup => ChatGroupMorphia, UserInfo => UserInfoMorphia }
+import com.twitter.util.Future
 
 import scala.language.postfixOps
 import scala.util.Random
@@ -15,45 +12,13 @@ import scala.util.Random
 /**
  * Created by zephyre on 6/21/15.
  */
-class AccountManagerTest extends FeatureSpec with ShouldMatchers with GivenWhenThen with BeforeAndAfter {
-  var initialUsers: Seq[(UserInfo, String)] = Seq()
-
-  // basic user info properties
-  val properties = Seq(UserInfoProp.UserId, UserInfoProp.NickName)
-
-  /**
-   * Drop all the account-related collections
-   */
-  def cleanDatabase(): Unit = {
-    val ds = MorphiaFactory.datastore
-    Seq(classOf[UserInfoMorphia], classOf[ChatGroupMorphia], classOf[Conversation], classOf[Credential],
-      classOf[Relationship], classOf[Sequence]) foreach (cls => {
-        ds.delete(ds.createQuery(cls))
-      })
-  }
-
-  def createInitUsers(): Seq[(UserInfo, String)] = {
-    val userNames = Seq("Lorienna", "Thomas", "Manon", "Vivien")
-    val service = new UserServiceHandler()
-    val future = Future.collect(userNames.zipWithIndex map (entry => {
-      val (name, index) = entry
-      val password = f"password$index%02d"
-      val tel = f"138001380$index%02d"
-      service.createUser(name, password, Some(tel)) map (_ -> password)
-    }))
-    waitFuture(future)
-  }
+class AccountManagerTest extends YunkaiBaseTest {
 
   def defineContacts(userList: Seq[(UserInfo, String)]): Unit = {
     val selfId = (userList head)._1.userId
     val contactIds = userList.slice(1, 3) map (_._1.userId)
     waitFuture(new UserServiceHandler().addContacts(selfId, contactIds))
   }
-
-  /**
-   * Wait for a future object and return its result
-   */
-  def waitFuture[T](future: Future[T], timeout: Duration = 60 seconds): T = Await.result(future, timeout)
 
   before {
     cleanDatabase()

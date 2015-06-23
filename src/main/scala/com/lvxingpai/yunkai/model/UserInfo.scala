@@ -45,8 +45,11 @@ class UserInfo {
   @Size(min = 6, max = 32)
   var tel: String = UUID.randomUUID().toString
 
+  //  @BeanProperty
+  //  var contacts: Seq[Long] = null
+
   @BeanProperty
-  var contacts: Seq[Int] = null
+  var chatGroups: Seq[Long] = null
 
   @Version
   var version: Long = 0
@@ -61,6 +64,7 @@ object UserInfo {
   val fdSignature = "signature"
   val fdTel = "tel"
   val fdGender = "gender"
+  val fdChatGroups = "chatGroups"
 
   def apply(userId: Long, nickName: String): UserInfo = {
     val result = new UserInfo
