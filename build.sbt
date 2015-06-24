@@ -77,4 +77,6 @@ scalacOptions ++= Seq("-feature", "-deprecation")
 
 Keys.mainClass in Compile := Some("com.lvxingpai.yunkai.YunkaiServer")
 
+parallelExecution in Test := false
+
 fork in run := true

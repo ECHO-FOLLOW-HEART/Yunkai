@@ -87,7 +87,7 @@ service userservice {
   // 获得多个用户的信息
   map<i64, UserInfo> getUsersById(1:list<i64> userIdList, 2: optional list<UserInfoProp> fields)
 
-  // 更新用户的信息
+  // 更新用户的信息。支持的UserInfoProp有：nickName, signature, gender和avatar
   UserInfo updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
 
   // 判断两个用户是否为好友关系
@@ -117,22 +117,20 @@ service userservice {
   // 用户修改密码
   void resetPassword(1:i64 userId, 2:string oldPassword, 3:string newPassword) throws (1: InvalidArgsException ex1, 2: AuthException ex2)
 
-  // Created by pengyt on 2015/5/26.
-  // 群名称备注（和群成员id关联，某个群成员将群备注修改了）和群成员备注后面再做
-  // 新用户注册
+  // 新用户注册。支持的UserInfoProp暂时只有tel
   UserInfo createUser(1:string nickName, 2:string password, 3:optional map<UserInfoProp, string> miscInfo) throws (1: UserExistsException ex1, 2: InvalidArgsException ex2)
 
   // 用户退出登录
   // void logout(1: i64 userId)
 
-  // 创建讨论组
+  // 创建讨论组。支持的ChatGroupProp有：name, groupDesc, avatar, maxUsers以及visible
   ChatGroup createChatGroup(1: i64 creator, 2: list<i64> participants, 3: optional map<ChatGroupProp, string> chatGroupProps)
     throws (1: InvalidArgsException ex1, 2: NotFoundException ex2)
 
   // 搜索讨论组
   // list<ChatGroup> searchChatGroup(1: string keyword)
 
-  // 修改讨论组信息（比如名称、描述等）
+  // 修改讨论组信息（比如名称、描述等）。支持的ChatGroupProp有：name, groupDesc, avatar和visible
   ChatGroup updateChatGroup(1: i64 chatGroupId, 2: map<ChatGroupProp, string> chatGroupProps) throws (1: InvalidArgsException ex1, 2: NotFoundException ex2)
 
   // 获取讨论组信息
@@ -155,5 +153,5 @@ service userservice {
   void removeChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
 
   // 获得讨论组成员
-  list<UserInfo> getChatGroupMembers(1:i64 chatGroupId, 2:optional list<UserInfoProp> fields, 3:optional i32 offset, 4:optional i32 count) throws (1:NotFoundException ex)
+  list<UserInfo> getChatGroupMembers(1:i64 chatGroupId, 2:optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
 }

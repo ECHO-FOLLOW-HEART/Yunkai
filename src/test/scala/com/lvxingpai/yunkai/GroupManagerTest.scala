@@ -20,7 +20,6 @@ class GroupManagerTest extends YunkaiBaseTest {
   }
 
   before {
-    info("cleaning database")
     cleanDatabase()
     initialUsers = createInitUsers()
     initialChatGroups = createChatGroups()

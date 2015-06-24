@@ -74,7 +74,6 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.updatePassword(userId, newPassword)
 
   override def createUser(nickName: String, password: String, miscInfo: Option[Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
-//  override def createUser(nickName: String, password: String, tel: Option[String]): Future[yunkai.UserInfo] = {
     val tel = miscInfo.getOrElse(Map()).get(UserInfoProp.Tel)
     AccountManager.createUser(nickName, password, tel) map (userInfo => {
       if (userInfo == null)
@@ -133,7 +132,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Unit] =
     GroupManager.removeChatGroupMembers(chatGroupId, userIds)
 
-  override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
+  override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]]): Future[Seq[yunkai.UserInfo]] = {
     val result = GroupManager.getChatGroupMembers(chatGroupId, fields)
     for {
       items <- result
