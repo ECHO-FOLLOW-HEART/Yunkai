@@ -25,7 +25,7 @@ object Global {
       }
       rl
     } else
-      "test"
+      throw new IllegalArgumentException(s"The run level does not exist")
 
     val backendKeys = defaultConf.getConfig(s"backendKeys.$runLevel")
     val confKeys = defaultConf.getConfig(s"confKeys.$runLevel")
