@@ -92,12 +92,14 @@ class GroupManagerTest extends YunkaiBaseTest {
       val desc = "New group desc"
       val avatar = "123456abcdef"
       val visible = "true"
+      val maxUsers = "200"
       When("updateChatGroup is invoked")
 
       val updated = waitFuture(service.updateChatGroup(groupId, Map(
         ChatGroupProp.Name -> name,
         ChatGroupProp.GroupDesc -> desc,
         ChatGroupProp.Avatar -> avatar,
+        ChatGroupProp.MaxUsers -> maxUsers,
         ChatGroupProp.Visible -> visible)))
 
       Then("these properties should be updated successfully")
@@ -106,6 +108,7 @@ class GroupManagerTest extends YunkaiBaseTest {
       desc should be(updated.groupDesc.get)
       avatar should be(updated.avatar.get)
       visible.toBoolean should be(updated.visible)
+      maxUsers.toInt should be(updated.maxUsers)
     }
   }
 
@@ -134,7 +137,15 @@ class GroupManagerTest extends YunkaiBaseTest {
       updated.participants should contain allOf(initMembers.head, initMembers(1), others: _*)
     }
     scenario("the number of members exceeds the maxium") {
-      pending
+      val group = waitFuture(service.getChatGroup(initialChatGroups.head._1, Some(Seq(ChatGroupProp.Participants))))
+      val maxUser = group.participants.length
+      waitFuture(service.updateChatGroup(group.chatGroupId, Map(ChatGroupProp.MaxUsers -> maxUser.toString)))
+      intercept[GroupMembersLimitException] {
+        waitFuture(service.addChatGroupMembers(group.chatGroupId, initialUsers map (_._1.userId)))
+      }
+      val newGroup = waitFuture(service.getChatGroup(initialChatGroups.head._1, Some(Seq(ChatGroupProp.Participants))))
+      val oldMembers = group.participants
+      newGroup.participants should contain inOrderOnly(oldMembers.head, oldMembers(1), oldMembers.drop(2): _*)
     }
   }
 

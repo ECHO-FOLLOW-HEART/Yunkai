@@ -102,6 +102,7 @@ class UserServiceHandler extends Userservice.FutureIface {
       val (prop, value) = entry
       prop -> (prop match {
         case ChatGroupProp.Name | ChatGroupProp.GroupDesc | ChatGroupProp.Avatar => value.trim
+        case ChatGroupProp.MaxUsers => value.toInt
         case ChatGroupProp.Visible => value.toBoolean
         case _ => null
       })
