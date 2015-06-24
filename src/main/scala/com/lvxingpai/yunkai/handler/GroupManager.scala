@@ -122,9 +122,13 @@ object GroupManager {
   }
 
   // 修改讨论组信息（比如名称、描述等）
-  def updateChatGroup(chatGroupId: Long, chatGroupProps: Map[ChatGroupProp, String])(implicit ds: Datastore, futurePool: FuturePool): Future[ChatGroup] = futurePool {
-    val query = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId)
-    if (query isEmpty) throw new NotFoundException(s"ChatGroup chatGroupId=$chatGroupId not found, update failure")
+  def updateChatGroup(chatGroupId: Long, chatGroupProps: Map[ChatGroupProp, Any])(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ChatGroup]] = futurePool {
+    // 所有被修改的字段都需要返回
+    val retrievedFields = chatGroupProps.keySet.toSeq :+ ChatGroupProp.ChatGroupId map chatGroupPropToFieldName
+    val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId)
+      .retrievedFields(true, retrievedFields: _*)
+    val result = if (query isEmpty)
+      throw new NotFoundException(s"ChatGroup chatGroupId=$chatGroupId not found, update failure")
     else {
       val updateOps = chatGroupProps.foldLeft(ds.createUpdateOperations(classOf[ChatGroup]))((ops, entry) => {
         val (key, value) = entry
@@ -137,9 +141,8 @@ object GroupManager {
           case _ => ops
         }
       })
-      ds.updateFirst(query, updateOps)
+      ds.findAndModify(query, updateOps)
     }
-    val result = query.get()
 
     // 触发修改讨论组属性的事件
     val eventArgs = scala.collection.immutable.Map(
@@ -153,7 +156,7 @@ object GroupManager {
     )
     EventEmitter.emitEvent(EventEmitter.evtModChatGroup, eventArgs)
 
-    result
+    Option(result)
   }
 
   // 获取用户讨论组信息
@@ -184,28 +187,36 @@ object GroupManager {
   }
 
   // 批量添加讨论组成员
-  def addChatGroupMembers(chatGroupId: Long, userIds: Seq[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] =
-    futurePool {
-      // 更新讨论组的成员列表
-      val queryChatGroup = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId)
-      val chatGroupUpdateOps = ds.createUpdateOperations(classOf[ChatGroup]).addAll(ChatGroup.fdParticipants, userIds, false)
-      ds.updateFirst(queryChatGroup, chatGroupUpdateOps)
+  def addChatGroupMembers(chatGroupId: Long, userIds: Seq[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    // 查看是否所有的userId都有效
+    AccountManager.getUsersByIdList(Seq(UserInfoProp.UserId), userIds:_*) map (m =>{
+      if (m filter(_._2.isEmpty) nonEmpty)
+        throw NotFoundException("Cannot find all the users: %s" format (userIds mkString ", "))
+      else {
+        // 更新讨论组的成员列表
+        val queryChatGroup = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId)
+          .retrievedFields(true, ChatGroup.fdChatGroupId)
+        val chatGroupUpdateOps = ds.createUpdateOperations(classOf[ChatGroup]).addAll(ChatGroup.fdParticipants, userIds, false)
+        val group = ds.findAndModify(queryChatGroup, chatGroupUpdateOps)
+        if (group==null)
+          throw NotFoundException(s"Cannot find chat group $chatGroupId")
 
-      // 更新Conversation的成员列表
-      // 目前先这么做，后面给成观察者模式
-      val queryConversation = ds.find(classOf[Conversation], Conversation.fdId, queryChatGroup.get().getId)
-      val conversationUpdateOps = ds.createUpdateOperations(classOf[Conversation]).addAll(Conversation.fdParticipants, userIds, false)
-      ds.updateFirst(queryConversation, conversationUpdateOps)
+        // 更新Conversation的成员列表
+        // 目前先这么做，后面给成观察者模式
+        val queryConversation = ds.find(classOf[Conversation], Conversation.fdId, queryChatGroup.get().getId)
+        val conversationUpdateOps = ds.createUpdateOperations(classOf[Conversation]).addAll(Conversation.fdParticipants, userIds, false)
+        ds.updateFirst(queryConversation, conversationUpdateOps)
 
-      val chatGroup = queryChatGroup.get
-      // 触发添加讨论组成员的事件
-      val eventArgs = scala.collection.immutable.Map(
-        "chatGroupId" -> LongNode.valueOf(chatGroup.chatGroupId),
-        "participants" -> new ObjectMapper().valueToTree(chatGroup.participants)
-      )
-      EventEmitter.emitEvent(EventEmitter.evtAddGroupMembers, eventArgs)
-
-    }
+        val chatGroup = queryChatGroup.get
+        // 触发添加讨论组成员的事件
+        val eventArgs = scala.collection.immutable.Map(
+          "chatGroupId" -> LongNode.valueOf(chatGroup.chatGroupId),
+          "participants" -> new ObjectMapper().valueToTree(chatGroup.participants)
+        )
+        EventEmitter.emitEvent(EventEmitter.evtAddGroupMembers, eventArgs)
+      }
+    })
+  }
 
   // 批量删除讨论组成员
   def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] =

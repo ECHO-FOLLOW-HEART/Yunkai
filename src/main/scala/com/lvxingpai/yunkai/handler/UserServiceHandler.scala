@@ -70,16 +70,23 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.login(loginName, password) map UserServiceHandler.userInfoConversion
   }
 
-  override def updatePassword(userId: Long, newPassword: String): Future[Unit] =
+  override def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] =
     AccountManager.updatePassword(userId, newPassword)
 
-  override def createUser(nickName: String, password: String, tel: Option[String]): Future[yunkai.UserInfo] = {
+  override def createUser(nickName: String, password: String, miscInfo: Option[Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
+//  override def createUser(nickName: String, password: String, tel: Option[String]): Future[yunkai.UserInfo] = {
+    val tel = miscInfo.getOrElse(Map()).get(UserInfoProp.Tel)
     AccountManager.createUser(nickName, password, tel) map (userInfo => {
       if (userInfo == null)
         throw new NotFoundException("Create user failure")
       else
         UserServiceHandler.userInfoConversion(userInfo)
     })
+  }
+
+  override def getChatGroups(groupIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[ChatGroupProp]]): Future[Map[Long, yunkai.ChatGroup]] = {
+    // TODO To be implemented
+    throw new NotImplementedError()
   }
 
   override def getChatGroup(chatGroupId: Long, fields: Option[Seq[ChatGroupProp]]): Future[yunkai.ChatGroup] = {
@@ -92,11 +99,21 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def updateChatGroup(chatGroupId: Long, chatGroupProps: Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
-    val result = GroupManager.updateChatGroup(chatGroupId, chatGroupProps)
-    result map (item => {
-      if (item == null) throw NotFoundException("Chat group not found") else UserServiceHandler.chatGroupConversion(item)
-    })
+    val updateInfo = chatGroupProps map (entry => {
+      val (prop, value) = entry
+      prop -> (prop match {
+        case ChatGroupProp.Name | ChatGroupProp.GroupDesc | ChatGroupProp.Avatar => value.trim
+        case ChatGroupProp.Visible => value.toBoolean
+        case _ => null
+      })
+    }) filter (_._2 != null)
 
+    GroupManager.updateChatGroup(chatGroupId, updateInfo) map (item => {
+      if (item isEmpty)
+        throw NotFoundException("Chat group not found")
+      else
+        UserServiceHandler.chatGroupConversion(item.get)
+    })
   }
 
   override def getUserChatGroups(userId: Long, fields: Option[Seq[ChatGroupProp]], offset: Option[Int],
@@ -116,7 +133,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Unit] =
     GroupManager.removeChatGroupMembers(chatGroupId, userIds)
 
-  override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]]): Future[Seq[yunkai.UserInfo]] = {
+  override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
     val result = GroupManager.getChatGroupMembers(chatGroupId, fields)
     for {
       items <- result
@@ -126,7 +143,7 @@ class UserServiceHandler extends Userservice.FutureIface {
     }
   }
 
-  override def getMultipleUsers(userIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[UserInfoProp]]): Future[Map[Long, yunkai.UserInfo]] = {
+  override def getUsersById(userIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[UserInfoProp]]): Future[Map[Long, yunkai.UserInfo]] = {
     AccountManager.getUsersByIdList(fields.getOrElse(Seq()), userIdList: _*) map (resultMap => {
       resultMap mapValues (value => (value map userInfoConversion).orNull)
     })
@@ -177,12 +194,6 @@ object UserServiceHandler {
     val chatGroupId = chatGroup.chatGroupId
     val name = chatGroup.name
     val groupDesc = chatGroup.groupDesc
-    //    val tempGroupType = chatGroup.groupType
-    //    val groupType = tempGroupType match {
-    //      case "chatgroup" => GroupType.Chatgroup
-    //      case "forum" => GroupType.Forum
-    //      case _ => throw new NoSuchElementException(tempGroupType.toString)
-    //    }
     val avatar = chatGroup.avatar
     val tags = chatGroup.tags
     val creator = chatGroup.creator

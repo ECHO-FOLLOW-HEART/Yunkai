@@ -85,7 +85,7 @@ service userservice {
   UserInfo getUserById(1:i64 userId, 2: optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
 
   // 获得多个用户的信息
-  map<i64, UserInfo> getMultipleUsers(1:list<i64> userIdList, 2: optional list<UserInfoProp> fields)
+  map<i64, UserInfo> getUsersById(1:list<i64> userIdList, 2: optional list<UserInfoProp> fields)
 
   // 更新用户的信息
   UserInfo updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
@@ -115,12 +115,12 @@ service userservice {
   UserInfo login(1:string loginName, 2:string password) throws (1:AuthException ex)
 
   // 用户修改密码
-  void updatePassword(1:i64 userId, 2:string newPassword) throws (1: InvalidArgsException ex)
+  void resetPassword(1:i64 userId, 2:string oldPassword, 3:string newPassword) throws (1: InvalidArgsException ex1, 2: AuthException ex2)
 
   // Created by pengyt on 2015/5/26.
   // 群名称备注（和群成员id关联，某个群成员将群备注修改了）和群成员备注后面再做
   // 新用户注册
-  UserInfo createUser(1:string nickName, 2:string password, 3:optional string tel) throws (1: UserExistsException ex)
+  UserInfo createUser(1:string nickName, 2:string password, 3:optional map<UserInfoProp, string> miscInfo) throws (1: UserExistsException ex1, 2: InvalidArgsException ex2)
 
   // 用户退出登录
   // void logout(1: i64 userId)
@@ -133,11 +133,13 @@ service userservice {
   // list<ChatGroup> searchChatGroup(1: string keyword)
 
   // 修改讨论组信息（比如名称、描述等）
-  ChatGroup updateChatGroup(1: i64 chatGroupId, 2: map<ChatGroupProp, string> chatGroupProps)
-    throws (1: InvalidArgsException ex1, 2: NotFoundException ex2)
+  ChatGroup updateChatGroup(1: i64 chatGroupId, 2: map<ChatGroupProp, string> chatGroupProps) throws (1: InvalidArgsException ex1, 2: NotFoundException ex2)
 
   // 获取讨论组信息
   ChatGroup getChatGroup(1: i64 chatGroupId, 2: optional list<ChatGroupProp> fields) throws (1:NotFoundException ex)
+
+  // 批量获取讨论组信息
+  map<i64, ChatGroup> getChatGroups(1:list<i64> groupIdList, 2:optional list<ChatGroupProp> fields)
 
   // 获取用户所参加的讨论组列表
   list<ChatGroup> getUserChatGroups(1: i64 userId 2: optional list<ChatGroupProp> fields, 3: optional i32 offset,
@@ -150,8 +152,8 @@ service userservice {
   void addChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
 
   // 批量删除讨论组成员
-  void removeChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds)
+  void removeChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
 
   // 获得讨论组成员
-  list<UserInfo> getChatGroupMembers(1: i64 chatGroupId, 2: optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
+  list<UserInfo> getChatGroupMembers(1:i64 chatGroupId, 2:optional list<UserInfoProp> fields, 3:optional i32 offset, 4:optional i32 count) throws (1:NotFoundException ex)
 }

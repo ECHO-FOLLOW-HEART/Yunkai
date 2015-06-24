@@ -36,7 +36,7 @@ class YunkaiBaseTest extends FeatureSpec with ShouldMatchers with GivenWhenThen 
       val (name, index) = entry
       val password = f"password$index%02d"
       val tel = f"138001380$index%02d"
-      service.createUser(name, password, Some(tel)) map (_ -> password)
+      service.createUser(name, password, Some(Map(UserInfoProp.Tel -> tel))) map (_ -> password)
     }))
     waitFuture(future)
   }

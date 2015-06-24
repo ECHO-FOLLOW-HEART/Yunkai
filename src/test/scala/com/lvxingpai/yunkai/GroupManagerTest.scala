@@ -80,25 +80,59 @@ class GroupManagerTest extends YunkaiBaseTest {
 
   feature("the GroupManager can update chat group information") {
     scenario("the chat group ID is incorrect") {
-      pending
+      val fakeId = initialChatGroups.keySet.max + 1
+      intercept[NotFoundException] {
+        waitFuture(service.updateChatGroup(fakeId, Map(ChatGroupProp.Name -> "new name")))
+      }
     }
     scenario("a correct chat group ID is provided") {
-      pending
+      val (groupId, group) = initialChatGroups.head
+      Given(s"a chat group $groupId")
+
+      val name = "New group name"
+      val desc = "New group desc"
+      val avatar = "123456abcdef"
+      val visible = "true"
+      When("updateChatGroup is invoked")
+
+      val updated = waitFuture(service.updateChatGroup(groupId, Map(
+        ChatGroupProp.Name -> name,
+        ChatGroupProp.GroupDesc -> desc,
+        ChatGroupProp.Avatar -> avatar,
+        ChatGroupProp.Visible -> visible)))
+
+      Then("these properties should be updated successfully")
+      group.chatGroupId should be(updated.chatGroupId)
+      name should be(updated.name)
+      desc should be(updated.groupDesc.get)
+      avatar should be(updated.avatar.get)
+      visible.toBoolean should be(updated.visible)
     }
   }
 
   feature("the GroupManager can add users to a chat group") {
     scenario("the chat group ID is incorrect") {
-      pending
+      val fakeId = initialChatGroups.keySet.max + 1
+      intercept[NotFoundException] {
+        waitFuture(service.addChatGroupMembers(fakeId, Seq(1, 2, 3)))
+      }
     }
     scenario("the user's ID is incorrect") {
-      pending
+      val groupId = initialChatGroups.keys.head
+      val fakeId = (initialUsers map (_._1.userId) max) + 1
+      intercept[NotFoundException] {
+        waitFuture(service.addChatGroupMembers(groupId, Seq(fakeId, fakeId + 1)))
+      }
     }
-    scenario("a single user is added") {
-      pending
-    }
-    scenario("multiple users are added at the same time") {
-      pending
+    scenario("users are added to a chat group") {
+      val initialUserIds = initialUsers map (_._1.userId)
+      val creator = initialUserIds.head
+      val initMembers = initialUserIds take 2
+      val others = initialUserIds drop 2
+      val group = waitFuture(service.createChatGroup(creator, initMembers, None))
+      waitFuture(service.addChatGroupMembers(group.chatGroupId, others))
+      val updated = waitFuture(service.getChatGroup(group.chatGroupId, Some(Seq(ChatGroupProp.Participants))))
+      updated.participants should contain allOf(initMembers.head, initMembers(1), others: _*)
     }
     scenario("the number of members exceeds the maxium") {
       pending

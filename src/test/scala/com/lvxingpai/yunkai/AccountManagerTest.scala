@@ -38,7 +38,8 @@ class AccountManagerTest extends YunkaiBaseTest {
 
       When("createUser is invoked")
       intercept[UserExistsException] {
-        waitFuture(new UserServiceHandler().createUser(userInfo.nickName, password, userInfo.tel))
+        waitFuture(new UserServiceHandler().createUser(userInfo.nickName, password,
+          Some(Map(UserInfoProp.Tel -> userInfo.tel.get))))
       }
     }
 
@@ -49,7 +50,7 @@ class AccountManagerTest extends YunkaiBaseTest {
       val tel = "13800139000"
 
       When("createUser is invoked")
-      val newUser = waitFuture(new UserServiceHandler().createUser(nickName, password, Some(tel)))
+      val newUser = waitFuture(new UserServiceHandler().createUser(nickName, password, Some(Map(UserInfoProp.Tel -> tel))))
 
       Then("the user should be created")
       newUser.userId should be > 0L
@@ -184,7 +185,7 @@ class AccountManagerTest extends YunkaiBaseTest {
 
       When("retrive the users' details according to the user ID lsit")
       val properties = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar, UserInfoProp.Tel)
-      val userMap = waitFuture(new UserServiceHandler().getMultipleUsers(userIdList, Some(properties)))
+      val userMap = waitFuture(new UserServiceHandler().getUsersById(userIdList, Some(properties)))
 
       Then("the user corresponding to the fake user ID should be null")
       userMap(fakeUserId) should be(null)
