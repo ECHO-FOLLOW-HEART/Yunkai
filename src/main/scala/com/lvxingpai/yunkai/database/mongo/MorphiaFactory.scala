@@ -1,8 +1,10 @@
 package com.lvxingpai.yunkai.database.mongo
 
+import java.util.UUID
+
 import com.lvxingpai.yunkai.Global
-import com.lvxingpai.yunkai.model.{ ChatGroup, Credential, Relationship, UserInfo }
-import com.mongodb.{ MongoClient, MongoClientOptions, MongoCredential, ServerAddress }
+import com.lvxingpai.yunkai.model.{ChatGroup, Credential, Relationship, UserInfo}
+import com.mongodb.{MongoClient, MongoClientOptions, MongoCredential, ServerAddress}
 import org.mongodb.morphia.Morphia
 
 import scala.collection.JavaConversions._
@@ -49,6 +51,14 @@ object MorphiaFactory {
   lazy val datastore = {
     val dbName = Global.conf.getString("yunkai.mongo.db")
     val ds = morphia.createDatastore(client, dbName)
+
+    // 对于没有使用手机号码注册的用户，使用UUID生成placeholder
+    ds.createQuery(classOf[UserInfo]).field(UserInfo.fdTel).equal(null).retrievedFields(true,
+      UserInfo.fdUserId).asList().toSeq foreach (entry => {
+      val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).equal(entry.userId)
+      val ops = ds.createUpdateOperations(classOf[UserInfo]).set(UserInfo.fdTel, UUID.randomUUID().toString)
+      ds.update(query, ops)
+    })
     ds.ensureIndexes()
     ds.ensureCaps()
     ds

@@ -1,10 +1,10 @@
 package com.lvxingpai.yunkai.model
 
-import javax.validation.constraints.{ Max, Min, NotNull, Size }
+import javax.validation.constraints.{Max, Min, NotNull, Size}
 
 import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.NotBlank
-import org.mongodb.morphia.annotations.{ Entity, Id, Indexed, Property }
+import org.mongodb.morphia.annotations.{Entity, Id, Indexed, Property}
 
 import scala.beans.BeanProperty
 
@@ -42,6 +42,8 @@ class Credential {
 
 object Credential {
   val fdUserId = "userId"
+  val fdSalt = "salt"
+  val fdPasswdHash = "passwdHash"
 
   def apply(userId: Long, salt: String, passwdHash: String): Credential = {
     val result = new Credential

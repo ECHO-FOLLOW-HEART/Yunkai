@@ -1,20 +1,14 @@
 package com.lvxingpai.yunkai.handler
 
-import java.security.MessageDigest
-
-import com.fasterxml.jackson.databind.node.{ LongNode, NullNode, TextNode }
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits._
-import com.lvxingpai.yunkai.model.{ ChatGroup, Conversation, Credential, Relationship, Sequence, UserInfo }
-import com.lvxingpai.yunkai.{ AuthException, NotFoundException, UserInfoProp, Userservice, _ }
-import com.mongodb.DuplicateKeyException
-import com.twitter.util.{ Future, FuturePool }
-import org.mongodb.morphia.Datastore
-import org.mongodb.morphia.query.{ CriteriaContainer, Query, UpdateOperations }
+import com.lvxingpai.yunkai.model.{ChatGroup, UserInfo}
+import com.lvxingpai.yunkai.{NotFoundException, UserInfoProp, Userservice, _}
+import com.twitter.util.Future
 
 import scala.collection.JavaConversions._
 import scala.collection.Map
-import scala.language.{ implicitConversions, postfixOps }
+import scala.language.{implicitConversions, postfixOps}
 
 /**
  * 提供Yunkai服务
@@ -25,10 +19,8 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   import UserServiceHandler.userInfoConversion
 
-  override def getUserById(userId: Long): Future[yunkai.UserInfo] = {
-
-    AccountManager.getUserById(userId, fields = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar,
-      UserInfoProp.Avatar, UserInfoProp.Tel, UserInfoProp.Signature)) map (userInfo => {
+  override def getUserById(userId: Long, fields: Option[Seq[UserInfoProp]]): Future[yunkai.UserInfo] = {
+    AccountManager.getUserById(userId, fields.getOrElse(Seq())) map (userInfo => {
       if (userInfo nonEmpty)
         userInfo.get
       else
@@ -36,25 +28,16 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String]): Future[Unit] = {
+  override def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String]): Future[yunkai.UserInfo] = {
     val updateData = userInfo map (entry => {
       val (propName, propStr) = entry
-
       val propVal = propName match {
         case UserInfoProp.UserId => propStr.toLong
-        case UserInfoProp.Gender => propStr match {
-          case "m" => Gender.Male
-          case "f" => Gender.Female
-          case null => null
-          case _ => throw InvalidArgsException("Invalid gender")
-        }
         case _ => if (propStr != null) propStr.trim else null
       }
-
       propName -> propVal
     })
-
-    AccountManager.updateUserInfo(userId, updateData)
+    AccountManager.updateUserInfo(userId, updateData) map UserServiceHandler.userInfoConversion
   }
 
   override def isContact(userA: Long, userB: Long): Future[Boolean] = AccountManager.isContact(userA, userB)
@@ -68,11 +51,13 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def removeContacts(userA: Long, userList: Seq[Long]): Future[Unit] =
     AccountManager.removeContacts(userA, userList: _*)
 
-  override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]],
-    offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
-    AccountManager.getContactList(userId, fields = fields.getOrElse(Seq())) map
+  override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]], offset: Option[Int],
+                              count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
+    AccountManager.getContactList(userId, fields = fields.getOrElse(Seq()), offset = offset, count = count) map
       (_ map UserServiceHandler.userInfoConversion)
   }
+
+  override def getContactCount(userId: Long): Future[Int] = AccountManager.getContactCount(userId)
 
   /**
    * 用户登录
@@ -85,7 +70,11 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.login(loginName, password) map UserServiceHandler.userInfoConversion
   }
 
-  override def createUser(nickName: String, password: String, tel: Option[String]): Future[yunkai.UserInfo] = {
+  override def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] =
+    AccountManager.updatePassword(userId, newPassword)
+
+  override def createUser(nickName: String, password: String, miscInfo: Option[Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
+    val tel = miscInfo.getOrElse(Map()).get(UserInfoProp.Tel)
     AccountManager.createUser(nickName, password, tel) map (userInfo => {
       if (userInfo == null)
         throw new NotFoundException("Create user failure")
@@ -94,29 +83,41 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def createChatGroup(creator: Long, name: String, members: Seq[Long], chatGroupProps: Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
-    UserServiceHandler.createChatGroup(creator, name, members, chatGroupProps) map (chatGroup => {
-      if (chatGroup == null) throw new NotFoundException("Create chatGroup failure") else UserServiceHandler.chatGroupConversion(chatGroup)
-    })
+  override def getChatGroups(groupIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[ChatGroupProp]]): Future[Map[Long, yunkai.ChatGroup]] = {
+    // TODO To be implemented
+    throw new NotImplementedError()
   }
 
-  override def getChatGroup(chatGroupId: Long): Future[yunkai.ChatGroup] = {
-    val result = UserServiceHandler.getChatGroup(chatGroupId)
-    result map (item => {
-      if (item == null) throw NotFoundException("Chat group not found") else UserServiceHandler.chatGroupConversion(item)
+  override def getChatGroup(chatGroupId: Long, fields: Option[Seq[ChatGroupProp]]): Future[yunkai.ChatGroup] = {
+    GroupManager.getChatGroup(chatGroupId, fields.getOrElse(Seq())) map (item => {
+      if (item isEmpty)
+        throw NotFoundException("Chat group not found")
+      else
+        UserServiceHandler.chatGroupConversion(item.get)
     })
   }
 
   override def updateChatGroup(chatGroupId: Long, chatGroupProps: Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
-    val result = UserServiceHandler.updateChatGroup(chatGroupId, chatGroupProps)
-    result map (item => {
-      if (item == null) throw NotFoundException("Chat group not found") else UserServiceHandler.chatGroupConversion(item)
-    })
+    val updateInfo = chatGroupProps map (entry => {
+      val (prop, value) = entry
+      prop -> (prop match {
+        case ChatGroupProp.Name | ChatGroupProp.GroupDesc | ChatGroupProp.Avatar => value.trim
+        case ChatGroupProp.Visible => value.toBoolean
+        case _ => null
+      })
+    }) filter (_._2 != null)
 
+    GroupManager.updateChatGroup(chatGroupId, updateInfo) map (item => {
+      if (item isEmpty)
+        throw NotFoundException("Chat group not found")
+      else
+        UserServiceHandler.chatGroupConversion(item.get)
+    })
   }
 
-  override def getUserChatGroups(userId: Long, fields: Option[Seq[ChatGroupProp]]): Future[Seq[yunkai.ChatGroup]] = {
-    val result = UserServiceHandler.getUserChatGroups(userId, fields)
+  override def getUserChatGroups(userId: Long, fields: Option[Seq[ChatGroupProp]], offset: Option[Int],
+                                 count: Option[Int]): Future[Seq[yunkai.ChatGroup]] = {
+    val result = GroupManager.getUserChatGroups(userId, fields.getOrElse(Seq()))
     for {
       items <- result
     } yield {
@@ -126,13 +127,13 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def addChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Unit] =
-    UserServiceHandler.addChatGroupMembers(chatGroupId, userIds)
+    GroupManager.addChatGroupMembers(chatGroupId, userIds)
 
   override def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Unit] =
-    UserServiceHandler.removeChatGroupMembers(chatGroupId, userIds)
+    GroupManager.removeChatGroupMembers(chatGroupId, userIds)
 
   override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]]): Future[Seq[yunkai.UserInfo]] = {
-    val result = UserServiceHandler.getChatGroupMembers(chatGroupId, fields)
+    val result = GroupManager.getChatGroupMembers(chatGroupId, fields)
     for {
       items <- result
     } yield {
@@ -141,224 +142,57 @@ class UserServiceHandler extends Userservice.FutureIface {
     }
   }
 
-  override def add(val1: Int, val2: Int): Future[Int] = Future {
-    val1 + val2
-  }
-
-  override def range(start: Int, end: Int, step: Option[Int]): Future[Seq[Int]] = Future {
-    Range(start, end, step.getOrElse(1))
-  }
-
-  override def getMultipleUsers(userIdList: Seq[Long], fields: Seq[UserInfoProp]): Future[Map[Long, yunkai.UserInfo]] = {
-    AccountManager.getUsersByIdList(true, fields, userIdList: _*) map (resultMap => {
+  override def getUsersById(userIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[UserInfoProp]]): Future[Map[Long, yunkai.UserInfo]] = {
+    AccountManager.getUsersByIdList(fields.getOrElse(Seq()), userIdList: _*) map (resultMap => {
       resultMap mapValues (value => (value map userInfoConversion).orNull)
     })
   }
+
+  override def createChatGroup(creator: Long, participants: Seq[Long], chatGroupProps: Option[Map[ChatGroupProp, String]]): Future[yunkai.ChatGroup] = {
+    // 处理额外信息
+    val miscInfo = chatGroupProps.getOrElse(Map()) map (entry => {
+      val prop = entry._1
+      val value = entry._2
+      val value2 = prop match {
+        case ChatGroupProp.Name => value
+        case ChatGroupProp.GroupDesc => value
+        case ChatGroupProp.Avatar => value
+        case ChatGroupProp.MaxUsers => value.toInt
+        case ChatGroupProp.Visible => value.toBoolean
+        case _ => null
+      }
+      prop -> value2
+    }) filter (_._2 != null)
+
+    GroupManager.createChatGroup(creator, participants, miscInfo) map UserServiceHandler.chatGroupConversion
+  }
+
+  override def getUserChatGroupCount(userId: Long): Future[Int] = GroupManager.getUserChatGroupCount(userId)
 }
 
 object UserServiceHandler {
-
-  def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
-    val query = ds.find(classOf[UserInfo], "userId", userId)
-    if (query isEmpty) throw new NotFoundException(s"User userId=$userId is not found")
-    val updateOps = userInfo.foldLeft(ds.createUpdateOperations(classOf[UserInfo]))((ops, entry) => {
-      val (key, value) = entry
-      key match {
-        case UserInfoProp.NickName => ops.set(UserInfo.fdNickName, value)
-        case UserInfoProp.Signature => ops.set(UserInfo.fdSignature, value)
-        case _ => ops
-      }
-    })
-
-    ds.updateFirst(query, updateOps)
-  }
-
-  def isContact(userA: Long, userB: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] =
-    futurePool {
-      val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
-      ds.createQuery(classOf[Relationship]).field("userA").equal(user1).field("userB").equal(user2).get() != null
-    }
-
-  def addContact(userA: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] =
-    futurePool {
-      val cls = classOf[Relationship]
-
-      for (userB <- targetUsers) {
-        val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
-        val op = ds.createUpdateOperations(cls).set("userA", user1).set("userB", user2)
-        val query = ds.createQuery(cls).field("userA").equal(user1).field("userB").equal(user2)
-        ds.updateFirst(query, op, true)
-      }
-    }
-
-  def removeContacts(userA: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] =
-    futurePool {
-      def buildQuery(user1: Long, user2: Long): CriteriaContainer = {
-        val l = Seq(user1, user2).sorted
-        ds.createQuery(classOf[Relationship]).criteria("userA").equal(l head).criteria("userB").equal(l last)
-      }
-
-      val query = ds.createQuery(classOf[Relationship])
-      query.or(targetUsers map (buildQuery(userA, _)): _*)
-      ds.delete(query)
-    }
-
-  def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]] = None, offset: Option[Int] = None,
-    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
-    val criteria = Seq("userA", "userB") map (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
-    val queryRel = ds.createQuery(classOf[Relationship])
-    queryRel.or(criteria: _*)
-    val defaultOffset = 0
-    val defaultCount = 1000
-
-    // 获得好友的userId
-    val contactIds = futurePool {
-      queryRel.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
-      val result = for {
-        rel <- queryRel.asList().toSeq
-        filteredUser <- Seq(rel.getUserA, rel.getUserB) filter (_ != userId)
-      } yield filteredUser
-      result.toSeq
-    }
-
-    // 根据userId，批量获得好友信息
-    def getUsersByIdList(fields: Option[Seq[UserInfoProp]], userIds: Long*): Future[Map[Long, Option[UserInfo]]] = {
-      val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(userIds)
-
-      // 限定字段获取的范围
-      val retrievedFields = fields.getOrElse(Seq()) map {
-        case UserInfoProp.UserId => UserInfo.fdUserId
-        case UserInfoProp.NickName => UserInfo.fdNickName
-        case UserInfoProp.Avatar => UserInfo.fdAvatar
-        case _ => ""
-      } filter (_ nonEmpty)
-
-      if (retrievedFields nonEmpty)
-        query.retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
-
-      futurePool {
-        val result = (for {
-          user <- query.asList().toSeq.filter(_ != null)
-        } yield user.userId -> Some(user)) filter (_._1 != -1)
-
-        Map(result: _*)
-      }
-    }
-
-    for {
-      cid <- contactIds
-      userInfoMap <- getUsersByIdList(fields, cid: _*)
-    } yield userInfoMap.toSeq.filter(_._2.nonEmpty).map(_._2.get)
-  }
-
-  def login(loginName: String, password: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
-    // 获得用户信息
-    val userInfo = futurePool {
-      ds.find(classOf[UserInfo], UserInfo.fdTel, loginName).get()
-    }
-
-    // 获得机密信息
-    val complex = userInfo map (v => {
-      if (v != null) {
-        val userId = v.userId
-        (v, ds.find(classOf[Credential], Credential.fdUserId, userId).get())
-      } else throw new AuthException("")
-    })
-
-    // 验证
-    val result = complex map (v => {
-      val (user, credential) = v
-      val salt = credential.salt
-      val encrypted = credential.passwdHash
-      val msg = salt + password
-      val bytes = MessageDigest.getInstance("SHA-256").digest(msg.getBytes)
-      val digest = bytes map ("%02x".format(_)) mkString
-
-      if (digest == encrypted) user
-      else throw new AuthException("")
-    })
-
-    // 触发登录事件
-    result map (v => {
-      val eventArgs = scala.collection.immutable.Map(
-        "userId" -> LongNode.valueOf(v.userId),
-        "nickName" -> TextNode.valueOf(v.nickName),
-        "avatar" -> (if (v.avatar != null && v.avatar.nonEmpty) TextNode.valueOf(v.avatar) else NullNode.getInstance())
-      )
-      EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
-      v
-    })
-  }
 
   implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
     val userId = user.userId
     val nickName = user.nickName
     val avatar = Option(user.avatar)
-    val gender = None
+    val gender = Option(user.gender match {
+      case "m" | "M" => Gender.Male
+      case "f" | "F" => Gender.Female
+      case "s" | "S" => Gender.Secret
+      case "u" | "U" | null => null
+      case _ => throw new IllegalArgumentException("Invalid gender")
+    })
     val signature = Option(user.signature)
     val tel = Option(user.tel)
 
     yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
   }
 
-  // 取用户ID
-  def populateId(sequenceType: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Long] = {
-    futurePool {
-      val query: Query[Sequence] = ds.createQuery(classOf[Sequence])
-      query.field(Sequence.fdColumn).equal(sequenceType)
-      val ops: UpdateOperations[Sequence] = ds.createUpdateOperations(classOf[Sequence]).inc(Sequence.fdCount)
-      //查询或者修改异常, 参数4如果查找不存在, 则新建一个对象, 参数3表示返回新建的对象的count
-      ds.findAndModify(query, ops, false, true).count
-      //if (ret != null) ret.count else throw new NotFoundException(s"Sequence $sequenceType not found")
-    }
-  }
-
-  //  // 创建讨论组
-  def createChatGroup(creator: Long, name: String, members: Seq[Long], chatGroupProps: Map[ChatGroupProp, String])(implicit ds: Datastore, futurePool: FuturePool): Future[ChatGroup] = {
-    val futureGid = populateId(Sequence.groupId)(ds, futurePool)
-    // 如果讨论组创建人未选择其他的人，那么就创建者自己一个人，如果选择了其他人，那么群成员便是创建者和其他创建者拉进来的人
-    val participants = (members :+ creator).toSet
-    for {
-      gid <- futureGid
-    } yield {
-      val cg = ChatGroup(creator, gid, name, participants.toSeq)
-      chatGroupProps foreach (item => {
-        item._1 match {
-          case ChatGroupProp.GroupDesc => cg.groupDesc = item._2
-          case ChatGroupProp.Avatar => cg.avatar = item._2
-          case ChatGroupProp.GroupType => cg.groupType = item._2
-          case _ => ""
-        }
-      })
-      cg.admin = Seq(creator)
-      cg.createTime = java.lang.System.currentTimeMillis()
-      cg.updateTime = java.lang.System.currentTimeMillis()
-      // 1. gid重复 2. 数据库通信异常  3. 切面
-      try {
-        ds.save[ChatGroup](cg)
-        cg
-      } catch {
-        case ex: DuplicateKeyException => throw new InvalidArgsException(s"Chat group $gid duplicated")
-      }
-    }
-  }
-
-  //  // 获取讨论组信息
-  def getChatGroup(chatGroupId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[ChatGroup] =
-    futurePool {
-      ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId).get()
-    }
-
   implicit def chatGroupConversion(chatGroup: ChatGroup): yunkai.ChatGroup = {
     val chatGroupId = chatGroup.chatGroupId
     val name = chatGroup.name
     val groupDesc = chatGroup.groupDesc
-    val tempGroupType = chatGroup.groupType
-    val groupType = tempGroupType match {
-      case "ChatGroup" => GroupType.ChatGroup
-      case "Group" => GroupType.Group
-      case _ => throw new NoSuchElementException(tempGroupType.toString)
-    }
     val avatar = chatGroup.avatar
     val tags = chatGroup.tags
     val creator = chatGroup.creator
@@ -369,100 +203,8 @@ object UserServiceHandler {
     val updateTime = chatGroup.updateTime
     val visible = chatGroup.visible
 
-    yunkai.ChatGroup(chatGroupId, name, toOption(groupDesc), groupType, toOption(avatar), toOption(tags), creator, admin, participants, maxUsers, createTime, updateTime, visible)
+    yunkai.ChatGroup(chatGroupId, name, Option(groupDesc), Option(avatar), Option(tags),
+      creator, admin, participants, maxUsers, createTime, updateTime, visible)
   }
 
-  def toOption[T](value: T): Option[T] = if (value != null) Some(value) else None
-
-  // 修改讨论组信息（比如名称、描述等）
-  def updateChatGroup(chatGroupId: Long, chatGroupProps: Map[ChatGroupProp, String])(implicit ds: Datastore, futurePool: FuturePool): Future[ChatGroup] = futurePool {
-    val query = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId)
-    if (query isEmpty) throw new NotFoundException(s"ChatGroup chatGroupId=$chatGroupId not found, update failure")
-    else {
-      val updateOps = chatGroupProps.foldLeft(ds.createUpdateOperations(classOf[ChatGroup]))((ops, entry) => {
-        val (key, value) = entry
-        key match {
-          case ChatGroupProp.Name => ops.set(ChatGroup.fdName, value)
-          case ChatGroupProp.GroupDesc => ops.set(ChatGroup.fdGroupDesc, value)
-          case ChatGroupProp.Avatar => ops.set(ChatGroup.fdAvatar, value)
-          case ChatGroupProp.Tags => ops.set(ChatGroup.fdTags, value)
-          case ChatGroupProp.Visible => ops.set(ChatGroup.fdVisible, value)
-          case _ => ops
-        }
-      })
-      ds.updateFirst(query, updateOps)
-    }
-    query.get()
-  }
-
-  // 获取用户讨论组信息
-  def getUserChatGroups(userId: Long, fields: Option[Seq[ChatGroupProp]] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ChatGroup]] = {
-    // 从群组中遍历查找participants中是否含有用户，取出含有用户的groupId
-    val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdParticipants).hasThisOne(userId)
-    // 限定字段获取的范围
-    val retrievedFields = fields.getOrElse(Seq()) map {
-      case ChatGroupProp.ChatGroupId => ChatGroup.fdChatGroupId
-      case ChatGroupProp.Name => ChatGroup.fdName
-      case ChatGroupProp.Avatar => ChatGroup.fdAvatar
-      case ChatGroupProp.Creator => ChatGroup.fdCreator
-      case ChatGroupProp.GroupDesc => ChatGroup.fdGroupDesc
-      case ChatGroupProp.GroupType => ChatGroup.fdGroupType
-      case ChatGroupProp.MaxUsers => ChatGroup.fdMaxUsers
-      case ChatGroupProp.Tags => ChatGroup.fdTags
-      case ChatGroupProp.Visible => ChatGroup.fdVisible
-      case _ => ""
-    } filter (_ nonEmpty)
-
-    if (retrievedFields nonEmpty)
-      query.retrievedFields(true, retrievedFields :+ ChatGroup.fdChatGroupId: _*)
-    futurePool {
-      query.asList().toSeq.filter(_ != null)
-    }
-  }
-
-  // 批量添加讨论组成员
-  def addChatGroupMembers(chatGroupId: Long, userIds: Seq[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] =
-    futurePool {
-      // 更新讨论组的成员列表
-      val queryChatGroup = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId)
-      val chatGroupUpdateOps = ds.createUpdateOperations(classOf[ChatGroup]).addAll(ChatGroup.fdParticipants, userIds, false)
-      ds.updateFirst(queryChatGroup, chatGroupUpdateOps)
-
-      // 更新Conversation的成员列表
-      // 目前先这么做，后面给成观察者模式
-      val queryConversation = ds.find(classOf[Conversation], Conversation.fdId, queryChatGroup.get().getId)
-      val conversationUpdateOps = ds.createUpdateOperations(classOf[Conversation]).addAll(Conversation.fdParticipants, userIds, false)
-      ds.updateFirst(queryConversation, conversationUpdateOps)
-    }
-
-  // 批量删除讨论组成员
-  def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] =
-    futurePool {
-      // 更新讨论组的成员列表
-      val queryChatGroup = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId)
-      val chatGroupUpdateOps = ds.createUpdateOperations(classOf[ChatGroup]).removeAll(ChatGroup.fdParticipants, userIds)
-      ds.updateFirst(queryChatGroup, chatGroupUpdateOps)
-
-      // 更新Conversation的成员列表
-      // 目前先这么做，后面给成观察者模式
-      val queryConversation = ds.find(classOf[Conversation], Conversation.fdId, queryChatGroup.get().getId)
-      val conversationUpdateOps = ds.createUpdateOperations(classOf[Conversation]).removeAll(Conversation.fdParticipants, userIds)
-      ds.updateFirst(queryConversation, conversationUpdateOps)
-    }
-
-  // 获得讨论组成员
-  def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] =
-    futurePool {
-      val query = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId).get().participants
-      val queryUserInfo = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(query)
-      val retrievedFields = fields.getOrElse(Seq()) map {
-        case UserInfoProp.UserId => UserInfo.fdUserId
-        case UserInfoProp.NickName => UserInfo.fdNickName
-        case UserInfoProp.Avatar => UserInfo.fdAvatar
-        case _ => ""
-      } filter (_ nonEmpty)
-      if (retrievedFields nonEmpty)
-        queryUserInfo.retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
-      queryUserInfo.toList
-    }
 }

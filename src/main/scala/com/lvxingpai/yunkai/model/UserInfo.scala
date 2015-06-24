@@ -1,10 +1,11 @@
 package com.lvxingpai.yunkai.model
 
-import javax.validation.constraints.{ Min, NotNull, Size }
+import java.util.{List => JList, UUID}
+import javax.validation.constraints.{Min, NotNull, Size}
 
 import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.NotBlank
-import org.mongodb.morphia.annotations.{ Entity, Id, Indexed, Version }
+import org.mongodb.morphia.annotations.{Entity, Id, Indexed, Version}
 
 import scala.beans.BeanProperty
 
@@ -36,11 +37,19 @@ class UserInfo {
   var avatar: String = null
 
   @BeanProperty
-  @Size(min = 6, max = 11)
-  var tel: String = null
+  @Size(max = 1)
+  var gender: String = null
 
   @BeanProperty
-  var contacts: Seq[Int] = null
+  @Indexed(unique = true)
+  @Size(min = 6, max = 32)
+  var tel: String = UUID.randomUUID().toString
+
+  //  @BeanProperty
+  //  var contacts: Seq[Long] = null
+
+  @BeanProperty
+  var chatGroups: JList[Long] = null
 
   @Version
   var version: Long = 0
@@ -54,6 +63,8 @@ object UserInfo {
   val fdContacts = "contacts"
   val fdSignature = "signature"
   val fdTel = "tel"
+  val fdGender = "gender"
+  val fdChatGroups = "chatGroups"
 
   def apply(userId: Long, nickName: String): UserInfo = {
     val result = new UserInfo

@@ -1,11 +1,13 @@
 package com.lvxingpai.yunkai.model
 
-import javax.validation.constraints.{ Max, Min, NotNull, Size }
+import java.util.{List => JList}
+import javax.validation.constraints.{Max, Min, NotNull, Size}
 
 import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.NotBlank
-import org.mongodb.morphia.annotations.{ Entity, Id, Indexed }
+import org.mongodb.morphia.annotations.{Entity, Id, Indexed}
 
+import scala.collection.JavaConversions._
 import scala.beans.BeanProperty
 
 /**
@@ -15,7 +17,7 @@ import scala.beans.BeanProperty
 class ChatGroup {
   @BeanProperty
   @Id
-  var id: ObjectId = null
+  var id: ObjectId = new ObjectId()
 
   @BeanProperty
   @NotNull
@@ -29,28 +31,28 @@ class ChatGroup {
 
   @BeanProperty
   @Size(min = 0, max = 1024)
-  var groupDesc: String = null
+  var groupDesc: String = ""
 
-  @BeanProperty
-  @Size(min = 2, max = 32)
-  var groupType: String = ""
+  //  @BeanProperty
+  //  @Size(min = 2, max = 32)
+  //  var groupType: String = ""
 
   @BeanProperty
   @Size(min = 0, max = 128)
   var avatar: String = ""
 
   @BeanProperty
-  var tags: Seq[String] = null
+  var tags: JList[String] = null
 
   @BeanProperty
   @NotNull
   var creator: Long = 0
 
   @BeanProperty
-  var admin: Seq[Long] = null
+  var admin: JList[Long] = null
 
   @BeanProperty
-  var participants: Seq[Long] = null
+  var participants: JList[Long] = null
 
   //  @BeanProperty
   //  var participantCnt: Int = 0
@@ -81,22 +83,23 @@ object ChatGroup {
   val fdChatGroupId = "chatGroupId"
   val fdName = "name"
   val fdGroupDesc = "groupDesc"
-  val fdGroupType = "groupType"
+  //  val fdGroupType = "groupType"
   val fdTypeCommon = "common"
   val fdAvatar = "avatar"
   val fdTags = "tags"
   val fdCreator = "creator"
+  val fdAdmin = "admin"
   val fdMaxUsers = "maxUsers"
   val fdVisible = "visible"
   val fdParticipants = "participants"
   //val fdParticipantCnt = "participantCnt"
 
-  def apply(creator: Long, chatGroupId: Long, name: String, members: Seq[Long]): ChatGroup = {
+  def apply(creator: Long, chatGroupId: Long, members: Seq[Long]): ChatGroup = {
     val result = new ChatGroup
     result.id = new ObjectId
     result.creator = creator
+    result.admin = Seq(creator)
     result.chatGroupId = chatGroupId
-    result.name = name
     result.participants = members
     result
   }
