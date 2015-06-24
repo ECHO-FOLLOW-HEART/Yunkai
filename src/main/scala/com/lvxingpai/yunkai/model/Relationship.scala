@@ -1,6 +1,6 @@
-package com.aizou.yunkai.model
+package com.lvxingpai.yunkai.model
 
-import javax.validation.constraints.{ Min, NotNull }
+import javax.validation.constraints.{Min, NotNull}
 
 import org.bson.types.ObjectId
 import org.mongodb.morphia.annotations._
@@ -35,6 +35,12 @@ class Relationship {
 }
 
 object Relationship {
+
+  val fdUserA = "userA"
+  val fdUserB = "userB"
+  val fdMemoA = "memoA"
+  val fdMemoB = "memoB"
+
   def apply(userA: Long, userB: Long): Relationship = {
     val result = new Relationship
     result.userA = userA
