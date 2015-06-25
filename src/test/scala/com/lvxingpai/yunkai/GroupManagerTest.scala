@@ -112,6 +112,24 @@ class GroupManagerTest extends YunkaiBaseTest {
     }
   }
 
+  feature("the GroupManager can get groups that a user participates") {
+    scenario("default") {
+      val user = initialUsers.head._1
+      val groups = waitFuture(service.getUserChatGroups(user.userId,
+        Some(Seq(ChatGroupProp.Name, ChatGroupProp.Participants, ChatGroupProp.Creator)), None, None))
+
+      groups.length should be > 0
+
+      groups foreach (g => {
+        val preset = initialChatGroups(g.chatGroupId)
+        preset.chatGroupId should be(g.chatGroupId)
+        preset.name should be(g.name)
+        preset.creator should be(g.creator)
+        preset.participants should contain allOf(g.participants head, g.participants(1), g.participants drop 2: _*)
+      })
+    }
+  }
+
   feature("the GroupManager can add users to a chat group") {
     scenario("the chat group ID is incorrect") {
       val fakeId = initialChatGroups.keySet.max + 1

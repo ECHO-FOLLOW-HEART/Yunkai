@@ -166,28 +166,31 @@ object GroupManager {
   // 获取用户讨论组信息
   def getUserChatGroups(userId: Long, fields: Seq[ChatGroupProp] = Seq(), offset: Option[Int] = None,
                         limit: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ChatGroup]] = {
+    import ChatGroup._
+
     // 默认最大的获取数量
     val maxCount = 100
 
-    AccountManager.getUserById(userId, Seq(UserInfoProp.ChatGroups)) map (u => {
-      if (u isEmpty)
-        throw NotFoundException(s"Cannot find user $userId")
-      else {
-        u.get.chatGroups
-      }
-    }) flatMap (groupIdList => {
-      // 分页机制
-      val idList = if ((offset nonEmpty) || (limit nonEmpty)) {
-        val s = offset.getOrElse(0)
-        val e = s + limit.getOrElse(maxCount)
-        groupIdList.slice(s, e).toSeq
-      } else {
-        groupIdList.toSeq
-      }
-      getChatGroups(fields, idList: _*)
-    }) map (groupMap => {
-      (groupMap filter (_._2 nonEmpty) map (_._2.get)).toSeq
-    })
+    val retrievedFields = ((fields map {
+      case ChatGroupProp.ChatGroupId=> fdChatGroupId
+      case ChatGroupProp.Name=>fdName
+      case ChatGroupProp.Participants=>fdParticipants
+      case ChatGroupProp.MaxUsers=>fdMaxUsers
+      case ChatGroupProp.Tags=>fdTags
+      case ChatGroupProp.Visible=>fdVisible
+      case ChatGroupProp.Avatar=>fdAvatar
+      case ChatGroupProp.Creator=>fdCreator
+      case ChatGroupProp.GroupDesc=>fdGroupDesc
+      case ChatGroupProp.Admin=>fdAdmin
+      case _ => ""
+    } filter (_.nonEmpty)) :+ fdChatGroupId).toSet.toSeq
+
+    val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdParticipants).hasThisOne(userId)
+      .retrievedFields(true, retrievedFields:_*).offset(offset getOrElse 0).limit(limit getOrElse maxCount)
+
+    futurePool{
+      query.asList().toSeq
+    }
   }
 
   // 批量添加讨论组成员
