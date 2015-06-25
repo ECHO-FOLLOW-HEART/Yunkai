@@ -127,10 +127,10 @@ class UserServiceHandler extends Userservice.FutureIface {
     }
   }
 
-  override def addChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Unit] =
+  override def addChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
     GroupManager.addChatGroupMembers(chatGroupId, userIds)
 
-  override def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Unit] =
+  override def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
     GroupManager.removeChatGroupMembers(chatGroupId, userIds)
 
   override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]]): Future[Seq[yunkai.UserInfo]] = {

@@ -151,13 +151,19 @@ class GroupManagerTest extends YunkaiBaseTest {
 
   feature("the GroupManager can remove users to a chat group") {
     scenario("the chat group ID is incorrect") {
-      pending
+      val fakeId = initialChatGroups.keySet.max + 1
+      intercept[NotFoundException] {
+        waitFuture(service.removeChatGroupMembers(fakeId, Seq(1, 2, 3)))
+      }
     }
-    scenario("a single user is removed") {
-      pending
-    }
-    scenario("multiple users are removed at the same time") {
-      pending
+    scenario("users are removed from the chat group") {
+      val group = initialChatGroups.values.toSeq.head
+      val oldMembers = group.participants
+      val removedUserIds = oldMembers.tail
+      val newMembers = waitFuture(service.removeChatGroupMembers(group.chatGroupId, removedUserIds))
+      val newGroup = waitFuture(service.getChatGroup(group.chatGroupId, Some(Seq(ChatGroupProp.Participants))))
+      newGroup.participants should contain only oldMembers.head
+      newMembers should contain only oldMembers.head
     }
   }
 

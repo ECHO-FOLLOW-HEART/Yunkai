@@ -151,10 +151,10 @@ service userservice {
   i32 getUserChatGroupCount(1: i64 userId) throws (1: NotFoundException ex)
 
   // 批量添加讨论组成员
-  void addChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
+  list<i64> addChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
 
   // 批量删除讨论组成员
-  void removeChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
+  list<i64> removeChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
 
   // 获得讨论组成员
   list<UserInfo> getChatGroupMembers(1:i64 chatGroupId, 2:optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
