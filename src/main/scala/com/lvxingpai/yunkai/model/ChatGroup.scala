@@ -7,8 +7,8 @@ import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.NotBlank
 import org.mongodb.morphia.annotations.{Entity, Id, Indexed}
 
-import scala.collection.JavaConversions._
 import scala.beans.BeanProperty
+import scala.collection.JavaConversions._
 
 /**
  * Created by pengyt on 2015/5/26.

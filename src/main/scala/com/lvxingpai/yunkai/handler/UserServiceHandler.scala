@@ -102,6 +102,7 @@ class UserServiceHandler extends Userservice.FutureIface {
       val (prop, value) = entry
       prop -> (prop match {
         case ChatGroupProp.Name | ChatGroupProp.GroupDesc | ChatGroupProp.Avatar => value.trim
+        case ChatGroupProp.MaxUsers => value.toInt
         case ChatGroupProp.Visible => value.toBoolean
         case _ => null
       })
@@ -126,10 +127,10 @@ class UserServiceHandler extends Userservice.FutureIface {
     }
   }
 
-  override def addChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Unit] =
+  override def addChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
     GroupManager.addChatGroupMembers(chatGroupId, userIds)
 
-  override def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Unit] =
+  override def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
     GroupManager.removeChatGroupMembers(chatGroupId, userIds)
 
   override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]]): Future[Seq[yunkai.UserInfo]] = {
