@@ -195,16 +195,16 @@ object UserServiceHandler {
     val name = chatGroup.name
     val groupDesc = chatGroup.groupDesc
     val avatar = chatGroup.avatar
-    val tags = chatGroup.tags
+    val tags = Option(chatGroup.tags) map (_.toSeq)
     val creator = chatGroup.creator
-    val admin = chatGroup.admin
+    val admin = Option(chatGroup.admin) map (_.toSeq) getOrElse Seq()
     val participants = chatGroup.participants
     val maxUsers = chatGroup.maxUsers
     val createTime = chatGroup.createTime
     val updateTime = chatGroup.updateTime
     val visible = chatGroup.visible
 
-    yunkai.ChatGroup(chatGroupId, name, Option(groupDesc), Option(avatar), Option(tags),
+    yunkai.ChatGroup(chatGroupId, name, Option(groupDesc), Option(avatar), tags,
       creator, admin, participants, maxUsers, createTime, updateTime, visible)
   }
 
