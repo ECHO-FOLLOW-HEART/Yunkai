@@ -28,23 +28,6 @@ import scala.util.Random
 object AccountManager {
 
   /**
-   * 在models.UserInfo和yunkai.UserInfo之间进行类型转换
-   *
-   * @param user
-   * @return
-   */
-  implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
-    val userId = user.userId
-    val nickName = user.nickName
-    val avatar = if (user.avatar == null) None else Some(user.avatar)
-    val gender = None
-    val signature = None
-    val tel = None
-
-    yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
-  }
-
-  /**
    * 获得用户信息
    *
    * @return 用户信息
@@ -86,10 +69,10 @@ object AccountManager {
     val allowedFields = Seq(UserInfoProp.NickName, UserInfoProp.Signature, UserInfoProp.Gender, UserInfoProp.Avatar)
     val filteredUserInfo = userInfo filter (item => allowedFields contains item._1)
 
-    // The value of a gender should be among ["m", "f", null]
+    // The value of a gender should be among ["m", "f", "s", null]
     if (userInfo.contains(UserInfoProp.Gender)) {
       val gender = userInfo(UserInfoProp.Gender)
-      if (gender != null && gender != "f" && gender != "m")
+      if (gender != null && gender != "f" && gender != "m" && gender != "s" && gender != "F" && gender != "M" && gender != "S")
         throw new InvalidArgsException(s"Invalid gender $gender")
     }
 
@@ -109,7 +92,20 @@ object AccountManager {
       val result = ds.findAndModify(query, updateOps)
       if (result == null)
         throw NotFoundException(s"Cannot find user: $userId")
-      result
+      else{
+        // 触发修改个人信息事件
+        // 修改了哪些字段
+        val updated = new ObjectMapper().createObjectNode()
+        val eventArgs = scala.collection.immutable.Map(
+          "userId" -> LongNode.valueOf(result.userId),
+          "nickName" -> TextNode.valueOf(result.nickName),
+          "avatar" -> (if (result.avatar != null && result.avatar.nonEmpty) TextNode.valueOf(result.avatar) else NullNode.getInstance()),
+          "updated" -> updated
+        )
+        EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
+        // 返回userInfo
+        result
+      }
     } else
       throw new InvalidArgsException("Invalid updated fields")
   }
@@ -151,7 +147,30 @@ object AccountManager {
         }
       }
     })
-  }
+    // 触发添加联系人的事件
+    // userB的返回字段
+    val responseFields:Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+    getUsersByIdList(responseFields, targetUsersFiltered: _*) map (item => {
+      val userBInfos = item.values.toSeq
+      for(elem <- userBInfos) {
+        for{
+          userA <- getUserById(userId, responseFields)
+        }yield {
+          val userAInfo = userA.get
+          val userBInfo = elem.get
+          val eventArgs = scala.collection.immutable.Map(
+            "userA" -> LongNode.valueOf(userId),
+            "nickNameA" -> TextNode.valueOf(userAInfo.nickName),
+            "avatarA" -> (if (userAInfo.avatar != null && userAInfo.avatar.nonEmpty) TextNode.valueOf(userAInfo.avatar) else NullNode.getInstance()),
+            "userB" -> LongNode.valueOf(userBInfo.userId),
+            "nickNameB" -> TextNode.valueOf(userBInfo.nickName),
+            "avatarB" -> (if (userBInfo.avatar != null && userBInfo.avatar.nonEmpty) TextNode.valueOf(userBInfo.avatar) else NullNode.getInstance())
+          )
+          EventEmitter.emitEvent(EventEmitter.evtAddContacts, eventArgs)
+          }
+        }
+      })
+    }
 
   /**
    * 删除好友
@@ -177,6 +196,29 @@ object AccountManager {
         val query = ds.createQuery(classOf[Relationship])
         query.or(targetUsersFiltered map (buildQuery(userId, _)): _*)
         ds.delete(query)
+      }
+    })
+    // 触发删除联系人的事件
+    // userB的返回字段
+    val responseFields:Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+    getUsersByIdList(responseFields, targetUsersFiltered: _*) map (item => {
+      val userBInfos = item.values.toSeq
+      for(elem <- userBInfos) {
+        for{
+          userA <- getUserById(userId, responseFields)
+        }yield {
+          val userAInfo = userA.get
+          val userBInfo = elem.get
+          val eventArgs = scala.collection.immutable.Map(
+            "userA" -> LongNode.valueOf(userId),
+            "nickNameA" -> TextNode.valueOf(userAInfo.nickName),
+            "avatarA" -> (if (userAInfo.avatar != null && userAInfo.avatar.nonEmpty) TextNode.valueOf(userAInfo.avatar) else NullNode.getInstance()),
+            "userB" -> LongNode.valueOf(userBInfo.userId),
+            "nickNameB" -> TextNode.valueOf(userBInfo.nickName),
+            "avatarB" -> (if (userBInfo.avatar != null && userBInfo.avatar.nonEmpty) TextNode.valueOf(userBInfo.avatar) else NullNode.getInstance())
+          )
+          EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
+        }
       }
     })
   }
@@ -301,10 +343,10 @@ object AccountManager {
     // 触发登录事件
     result map (v => {
       val miscInfo = new ObjectMapper().createObjectNode()
-      miscInfo.put("nickName", v.nickName)
       miscInfo.put("avatar", v.avatar)
       val eventArgs = scala.collection.immutable.Map(
         "userId" -> LongNode.valueOf(v.userId),
+        "nickName" -> TextNode.valueOf(v.nickName),
         "info" -> miscInfo
       )
       EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
@@ -370,10 +412,19 @@ object AccountManager {
     }
 
     // 触发重置用户密码的事件
-    val eventArgs = scala.collection.immutable.Map(
-      "userId" -> LongNode.valueOf(userId)
-    )
-    EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
+    val responseFields:Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+    val user = getUserById(userId, responseFields)
+    for{
+      elem <- user
+    }yield {
+      val userInfo = elem.get
+      val eventArgs = scala.collection.immutable.Map(
+        "userId" -> LongNode.valueOf(userId),
+        "nickName" -> TextNode.valueOf(userInfo.nickName),
+        "avatar" -> (if (userInfo.avatar != null && userInfo.avatar.nonEmpty) TextNode.valueOf(userInfo.avatar) else NullNode.getInstance())
+      )
+      EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
+      }
   }
 
   /**
@@ -386,5 +437,38 @@ object AccountManager {
 
     val bytes = MessageDigest.getInstance("SHA-256").digest((theSalt + password).getBytes)
     theSalt -> (bytes map ("%02x" format _) mkString)
+  }
+
+  def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int] = None,
+                     count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
+    val query = ds.createQuery(classOf[UserInfo])
+    queryFields foreach (item => {
+      item._1 match {
+        case UserInfoProp.Tel => query.or(ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdTel).startsWith(item._2))
+        case UserInfoProp.NickName => query.or(ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdNickName).contains(item._2))
+        case UserInfoProp.Gender => query.or(ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdGender).contains(item._2))
+        case _ => ""
+      }
+    })
+
+    // 分页
+    val defaultOffset = 0
+    val defaultCount = 20
+
+    // 限定查询返回字段
+    val retrievedFields = fields.getOrElse(Seq()) map {
+      case UserInfoProp.UserId => UserInfo.fdUserId
+      case UserInfoProp.NickName => UserInfo.fdNickName
+      case UserInfoProp.Avatar => UserInfo.fdAvatar
+      case _ => ""
+    } filter (_ nonEmpty)
+
+    // 获得符合条件的userId
+    futurePool {
+      query.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
+      if (retrievedFields nonEmpty)
+        query.retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
+      query.asList().toSeq
+    }
   }
 }
