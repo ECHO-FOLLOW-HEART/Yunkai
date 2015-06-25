@@ -169,6 +169,18 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def getUserChatGroupCount(userId: Long): Future[Int] = GroupManager.getUserChatGroupCount(userId)
+
+  override def sendContactRequest(sender: Long, receiver: Long, message: Option[String]): Future[String] =
+    AccountManager.sendContactRequest(sender, receiver, message) map (_.toString)
+
+  override def rejectContactRequest(requestId: String, message: Option[String]): Future[Unit] =
+    AccountManager.rejectContactRequest(requestId, message)
+
+  override def acceptContactRequest(requestId: String): Future[Unit] =
+    AccountManager.acceptContactRequest(requestId)
+
+  override def cancelContactRequest(requestId: String): Future[Unit] =
+    AccountManager.cancelContactRequest(requestId)
 }
 
 object UserServiceHandler {
@@ -195,17 +207,17 @@ object UserServiceHandler {
     val name = chatGroup.name
     val groupDesc = chatGroup.groupDesc
     val avatar = chatGroup.avatar
-    val tags = chatGroup.tags
+    val tags = Option(chatGroup.tags) map (_.toSeq)
     val creator = chatGroup.creator
-    val admin = chatGroup.admin
+    val admin = Option(chatGroup.admin) map (_.toSeq) getOrElse Seq()
     val participants = chatGroup.participants
     val maxUsers = chatGroup.maxUsers
     val createTime = chatGroup.createTime
     val updateTime = chatGroup.updateTime
     val visible = chatGroup.visible
 
-    yunkai.ChatGroup(chatGroupId, name, Option(groupDesc), Option(avatar), Option(tags),
-      creator, admin, participants, maxUsers, createTime, updateTime, visible)
+    yunkai.ChatGroup(chatGroupId, name, Option(groupDesc), Option(avatar), tags, creator, admin,
+      participants, maxUsers, createTime, updateTime, visible)
   }
 
 }

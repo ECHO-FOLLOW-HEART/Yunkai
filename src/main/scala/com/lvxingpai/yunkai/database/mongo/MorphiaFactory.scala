@@ -3,7 +3,7 @@ package com.lvxingpai.yunkai.database.mongo
 import java.util.UUID
 
 import com.lvxingpai.yunkai.Global
-import com.lvxingpai.yunkai.model.{ChatGroup, Credential, Relationship, UserInfo}
+import com.lvxingpai.yunkai.model._
 import com.mongodb._
 import org.mongodb.morphia.Morphia
 import org.mongodb.morphia.annotations.Property
@@ -18,7 +18,7 @@ object MorphiaFactory {
 
   lazy val morphia = {
     val m = new Morphia()
-    m.map(classOf[ChatGroup], classOf[Credential], classOf[Relationship], classOf[UserInfo])
+    m.map(classOf[ChatGroup], classOf[ContactRequest], classOf[Credential], classOf[Relationship], classOf[UserInfo])
     m
   }
 
