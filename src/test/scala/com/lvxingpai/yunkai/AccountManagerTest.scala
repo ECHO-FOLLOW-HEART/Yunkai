@@ -2,9 +2,12 @@ package com.lvxingpai.yunkai
 
 import java.util.UUID
 
-import com.lvxingpai.yunkai.handler.UserServiceHandler
-import com.lvxingpai.yunkai.model.{ChatGroup => ChatGroupMorphia, UserInfo => UserInfoMorphia}
+import com.lvxingpai.yunkai.Implicits._
+import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
+import com.lvxingpai.yunkai.handler.{AccountManager, UserServiceHandler}
+import com.lvxingpai.yunkai.model.{ChatGroup => ChatGroupMorphia, ContactRequest, UserInfo => UserInfoMorphia}
 import com.twitter.util.Future
+import org.bson.types.ObjectId
 
 import scala.language.postfixOps
 import scala.util.Random
@@ -13,6 +16,17 @@ import scala.util.Random
  * Created by zephyre on 6/21/15.
  */
 class AccountManagerTest extends YunkaiBaseTest {
+  val service = new UserServiceHandler()
+
+  var fakeUserId = 0L
+
+  // 获得某个用户的联系人和陌生人
+  def getSocialMap(uid: Long): (Seq[Long], Seq[Long]) = {
+    val contacts = waitFuture(service.getContactList(uid, Some(Seq(UserInfoProp.UserId)), None, None)) map (_.userId)
+    val strangers = ((initialUsers map (_._1.userId)).toSet -- contacts).toSeq
+    contacts -> strangers
+  }
+
 
   def defineContacts(userList: Seq[(UserInfo, String)]): Unit = {
     val selfId = (userList head)._1.userId
@@ -23,6 +37,7 @@ class AccountManagerTest extends YunkaiBaseTest {
   before {
     cleanDatabase()
     initialUsers = createInitUsers()
+    fakeUserId = (initialUsers map (_._1.userId)).max + 10000
     defineContacts(initialUsers)
   }
 
@@ -377,6 +392,189 @@ class AccountManagerTest extends YunkaiBaseTest {
         val future = Future.collect(pairs map (p => service.isContact(p._1, p._2)))
         waitFuture(future) should contain only relation
       })
+    }
+  }
+
+  feature("the AccountManager can send contact requests") {
+    scenario("the ID of either the sender or the receiver is incorrect") {
+      intercept[NotFoundException] {
+        waitFuture(service.sendContactRequest(fakeUserId, fakeUserId, Some("This is a test")))
+      }
+    }
+    scenario("send a normal contact request") {
+      val sender = initialUsers.last._1.userId
+      val receiver = getSocialMap(sender)._2.head
+      val message = "This is a test"
+
+      val currentTime = System.currentTimeMillis()
+      val tolerance = 2000
+      waitFuture(service.sendContactRequest(sender, receiver, Some(message)))
+      val request = waitFuture(AccountManager.getContactRequest(sender, receiver)).get
+      request.sender should be(sender)
+      request.receiver should be(receiver)
+      request.requestMessage should be(message)
+
+      val timestampDelta = (request.timestamp - currentTime).toInt
+      timestampDelta should be > 0
+      timestampDelta should be < tolerance
+
+      request.expire should be(request.timestamp + 7 * 24 * 3600 * 1000L)
+    }
+    scenario("the sender and the receiver are already contacts") {
+      val sender = initialUsers.head._1.userId
+      val receiver = getSocialMap(sender)._1.head
+
+      Given(s"Two contacts $sender and $receiver")
+      When(s"$sender sends a contact request to $receiver")
+      Then("an InvalidStateException should be raised")
+
+      intercept[InvalidStateException] {
+        waitFuture(service.sendContactRequest(sender, receiver, None))
+      }
+    }
+    scenario("the sender has already sent a request before it expires") {
+      val sender = initialUsers.last._1.userId
+      val receiver = getSocialMap(sender)._2.head
+
+      Given(s"$sender and $receiver, who are strangers to each other")
+      When(s"$sender sends two requests to $receiver in succession")
+      Then("an InvalidStateException should be raised")
+
+      waitFuture(service.sendContactRequest(sender, receiver, None))
+      intercept[InvalidStateException] {
+        waitFuture(service.sendContactRequest(sender, receiver, None))
+      }
+    }
+    scenario("the sender re-sends a request after he cancelled the previous one") {
+      val sender = initialUsers.last._1.userId
+      val receiver = getSocialMap(sender)._2.head
+
+      val requestId = waitFuture(service.sendContactRequest(sender, receiver, None))
+      waitFuture(service.cancelContactRequest(requestId))
+
+      val currentTime = System.currentTimeMillis()
+      val tolerance = 2000
+      val message = "A new message"
+      waitFuture(service.sendContactRequest(sender, receiver, Some(message)))
+
+      val request = waitFuture(AccountManager.getContactRequest(sender, receiver)).get
+      request.sender should be(sender)
+      request.receiver should be(receiver)
+      request.requestMessage should be(message)
+
+      val timestampDelta = (request.timestamp - currentTime).toInt
+      timestampDelta should be > 0
+      timestampDelta should be < tolerance
+
+      request.expire should be(request.timestamp + 7 * 24 * 3600 * 1000L)
+    }
+    scenario("the receiver rejected the sender's request") {
+      val sender = initialUsers.last._1.userId
+      val receiver = getSocialMap(sender)._2.head
+
+      val requestId = waitFuture(service.sendContactRequest(sender, receiver, None))
+      waitFuture(service.rejectContactRequest(requestId, None))
+
+      Given(s"$sender and $receiver, and $receiver has rejected $sender's previous requests")
+      When(s"$sender sends another request to $receiver")
+      Then("an InvalidStateException should be raised")
+      intercept[InvalidStateException] {
+        waitFuture(service.sendContactRequest(sender, receiver, None))
+      }
+    }
+  }
+
+  feature("the AccountManager can reject a contact request") {
+    import com.lvxingpai.yunkai.model.ContactRequest.RequestStatus._
+
+    scenario("the request ID is incorrect") {
+      val requestId = new ObjectId().toString
+      intercept[NotFoundException] {
+        waitFuture(service.rejectContactRequest(requestId, None))
+      }
+    }
+
+    scenario("default") {
+      val sender = initialUsers.last._1.userId
+      val receiver = getSocialMap(sender)._2.head
+      val requestId = waitFuture(service.sendContactRequest(sender, receiver, None))
+      val message = "I don't know you"
+
+      Given(s"the scenario that $sender has sent a contact request to $receiver")
+      When(s"$receiver accept this request")
+      waitFuture(service.rejectContactRequest(requestId, Some(message)))
+
+      Then(s"the status of the request should be ACCEPTED. Furthermore $sender and $receiver are now contacts")
+      val request = waitFuture(AccountManager.getContactRequest(sender, receiver)).get
+      request.status should be(REJECTED.id)
+      request.rejectMessage should be(message)
+      waitFuture(service.isContact(sender, receiver)) should be(right = false)
+    }
+  }
+
+  feature("the AccountManager can cancel a contact request") {
+    import com.lvxingpai.yunkai.model.ContactRequest.RequestStatus._
+
+    scenario("the request ID is incorrect") {
+      intercept[NotFoundException] {
+        waitFuture(service.cancelContactRequest(new ObjectId().toString))
+      }
+    }
+    scenario("default") {
+      val sender = initialUsers.last._1.userId
+      val receiver = getSocialMap(sender)._2.head
+      val requestId = waitFuture(service.sendContactRequest(sender, receiver, None))
+
+      waitFuture(service.cancelContactRequest(requestId))
+
+      val newRequest = waitFuture(AccountManager.getContactRequest(requestId)).get
+      newRequest.status should be(CANCELLED.id)
+      waitFuture(service.isContact(sender, receiver)) should be(right = false)
+    }
+  }
+
+  feature("the AccountManager can accept a contact request") {
+    import com.lvxingpai.yunkai.model.ContactRequest.RequestStatus._
+
+    scenario("the request ID is incorrect") {
+      val requestId = new ObjectId().toString
+      intercept[NotFoundException] {
+        waitFuture(service.acceptContactRequest(requestId))
+      }
+    }
+    scenario("the request has been expired") {
+      val sender = initialUsers.last._1.userId
+      val receiver = getSocialMap(sender)._2.head
+      val requestId = waitFuture(service.sendContactRequest(sender, receiver, None))
+
+      val ds = MorphiaFactory.datastore
+      val cls = classOf[ContactRequest]
+      val query = ds.createQuery(cls).field(ContactRequest.fdContactRequestId).equal(new ObjectId(requestId))
+      val current = System.currentTimeMillis()
+      val updateOps = ds.createUpdateOperations(cls).set(ContactRequest.fdExpire, current)
+      ds.update(query, updateOps)
+
+      Given(s"the scenario that $sender has sent a contact request to $receiver, but the expiration has been passed")
+      When(s"$receiver accept this request")
+      Then("an InvalidStateException should be raised")
+
+      intercept[InvalidStateException] {
+        waitFuture(service.acceptContactRequest(requestId))
+      }
+    }
+    scenario("default") {
+      val sender = initialUsers.last._1.userId
+      val receiver = getSocialMap(sender)._2.head
+      val requestId = waitFuture(service.sendContactRequest(sender, receiver, None))
+
+      Given(s"the scenario that $sender has sent a contact request to $receiver")
+      When(s"$receiver accept this request")
+      waitFuture(service.acceptContactRequest(requestId))
+
+      Then(s"the status of the request should be ACCEPTED. Furthermore $sender and $receiver are now contacts")
+      val request = waitFuture(AccountManager.getContactRequest(sender, receiver)).get
+      request.status should be(ACCEPTED.id)
+      waitFuture(service.isContact(sender, receiver)) should be(right = true)
     }
   }
 }
