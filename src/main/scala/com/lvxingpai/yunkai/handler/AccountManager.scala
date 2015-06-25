@@ -6,11 +6,12 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.{LongNode, NullNode, TextNode}
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai._
-import com.lvxingpai.yunkai.model.{Credential, Relationship, UserInfo}
-import com.mongodb.DuplicateKeyException
+import com.lvxingpai.yunkai.model.{ContactRequest, Credential, Relationship, UserInfo}
+import com.mongodb.{DuplicateKeyException, MongoCommandException}
 import com.twitter.util.{Future, FuturePool}
+import org.bson.types.ObjectId
 import org.mongodb.morphia.Datastore
-import org.mongodb.morphia.query.CriteriaContainer
+import org.mongodb.morphia.query.{CriteriaContainer, UpdateOperations}
 
 import scala.collection.JavaConversions._
 import scala.collection.Map
@@ -259,6 +260,200 @@ object AccountManager {
       contactsMap <- getUsersByIdList(fields, ids: _*)
     } yield (contactsMap.values.toSeq map (_.orNull)) filter (_ != null)
   }
+
+  /**
+   * 给定一个ContactRequest，生成相应的MongoDB update operation
+   * @param req
+   * @param ds
+   * @return
+   */
+  private def buildContactRequestUpdateOps(req: ContactRequest)(implicit ds: Datastore): UpdateOperations[ContactRequest] = {
+    import ContactRequest._
+    val updateOps = ds.createUpdateOperations(classOf[ContactRequest])
+      .set(fdSender, req.sender)
+      .set(fdReceiver, req.receiver)
+      .set(fdTimestamp, req.timestamp)
+      .set(fdExpire, req.expire)
+      .set(fdStatus, req.status)
+    if (req.requestMessage != null)
+      updateOps.set(fdRequestMessage, req.requestMessage)
+    if (req.rejectMessage != null)
+      updateOps.set(fdRejectMessage, req.rejectMessage)
+    updateOps
+  }
+
+  /**
+   * 当产生逐渐冲突时，MongoDB会抛出MongoCommandException异常，在其中的detailedMessage部分。
+   * 该函数判断一个MongoCommandException异常是否为这种情况。
+   * @return
+   */
+  private def isDuplicateKeyException(ex: MongoCommandException): Boolean = ex.getErrorMessage contains "duplicate key"
+
+
+  /**
+   * 发送好友请求
+   * @param sender    请求发送者
+   * @param receiver  请求接收者
+   * @param message   请求附言
+   * @return
+   */
+  def sendContactRequest(sender: Long, receiver: Long, message: Option[String] = None)
+                        (implicit ds: Datastore, futurePool: FuturePool): Future[ObjectId] = {
+    // 检查用户是否存在
+    for {
+      users <- getUsersByIdList(Seq(), sender, receiver)(ds, futurePool)
+      relationship <- isContact(sender, receiver)(ds, futurePool)
+    } yield {
+      if (relationship)
+        throw InvalidStateException(s"$sender and $receiver are already contacts")
+      else if (users filter (_._2 isEmpty) nonEmpty)
+        throw NotFoundException(s"Either $sender or $receiver cannot be found")
+      else {
+        import ContactRequest.RequestStatus._
+        import ContactRequest._
+
+        val req = ContactRequest(sender, receiver, message, None)
+
+        // 只有在下列情况下，可以发送好友申请
+        // * 从未发送过好友申请
+        // * 发送过好友申请，且前一申请的状态CANCELLED
+        // * 发送过好友申请，且前一申请的状态为PENDING，且已经过期
+        val currentTime = req.timestamp
+        val cls = classOf[ContactRequest]
+        val query = ds.createQuery(cls).field(fdSender).equal(sender).field(fdReceiver).equal(receiver)
+
+        val criteria1 = ds.createQuery(cls).criteria(fdStatus).equal(CANCELLED.id)
+        val criteria2 = ds.createQuery(cls).criteria(fdStatus).equal(PENDING.id)
+        val criteria3 = ds.createQuery(cls).criteria(fdExpire).lessThan(currentTime)
+
+        query.and(ds.createQuery(cls).or(
+          criteria1,
+          ds.createQuery(cls).and(criteria2, criteria3)))
+
+        val updateOps = buildContactRequestUpdateOps(req)
+        val newRequest = try {
+          ds.findAndModify(query, updateOps, false, true)
+        } catch {
+          // 如果发生该异常，说明系统中已经存在一个好友请求，且不允许重复发送请求
+          // 比如：前一个请求处于PENDING状态，且未过期，或者前一个请求已经被拒绝等）
+          case ex: MongoCommandException =>
+            if (isDuplicateKeyException(ex))
+              throw InvalidStateException("")
+            else
+              throw ex
+        }
+        newRequest.id
+      }
+    }
+  }
+
+  /**
+   * 拒绝一个好友请求
+   * @param requestId 请求ID
+   * @param message   拒绝请求的附言
+   * @return
+   */
+  def rejectContactRequest(requestId: String, message: Option[String] = None)
+                          (implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    import ContactRequest.RequestStatus._
+    import ContactRequest._
+
+    getContactRequest(requestId)(ds, futurePool) map (oldRequest => {
+      if (oldRequest isEmpty)
+        throw NotFoundException(s"Cannot find the request $requestId")
+      else {
+        val cls = classOf[ContactRequest]
+        val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
+          .field(fdStatus).equal(PENDING.id)
+        val updateOps = ds.createUpdateOperations(cls).set(fdStatus, REJECTED.id)
+        if (message nonEmpty)
+          updateOps.set(fdRejectMessage, message.get)
+
+        val newRequest = ds.findAndModify(query, updateOps, false, false)
+        if (newRequest == null)
+          throw InvalidStateException("")
+      }
+    })
+  }
+
+  /**
+   * 接受一个好友请求
+   * @param requestId 请求ID
+   * @return
+   */
+  def acceptContactRequest(requestId: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    import ContactRequest.RequestStatus._
+    import ContactRequest._
+
+    getContactRequest(requestId = requestId)(ds, futurePool) flatMap (oldRequest => {
+      if (oldRequest isEmpty)
+        throw NotFoundException(s"Cannot find the request $requestId")
+      else {
+        val cls = classOf[ContactRequest]
+
+        val currentTime = System.currentTimeMillis()
+        val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
+          .field(fdStatus).equal(PENDING.id).field(fdExpire).greaterThan(currentTime)
+        val updateOps = ds.createUpdateOperations(cls).set(fdStatus, ACCEPTED.id)
+
+        val newRequest = ds.findAndModify(query, updateOps, false, false)
+        if (newRequest == null)
+          throw InvalidStateException("")
+
+        addContact(newRequest.sender, newRequest.receiver)
+      }
+    })
+  }
+
+  /**
+   * 取消一个好友请求
+   * @param requestId 请求ID
+   * @return
+   */
+  def cancelContactRequest(requestId: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    import ContactRequest.RequestStatus._
+    import ContactRequest._
+
+    getContactRequest(requestId = requestId)(ds, futurePool) map (oldRequest => {
+      if (oldRequest isEmpty)
+        throw NotFoundException(s"Cannot find the request $requestId")
+      else {
+        val cls = classOf[ContactRequest]
+
+        val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
+          .field(fdStatus).equal(PENDING.id)
+        val updateOps = ds.createUpdateOperations(cls).set(fdStatus, CANCELLED.id)
+        ds.updateFirst(query, updateOps)
+      }
+    })
+  }
+
+  /**
+   * 获得一个好友请求的详情
+   * @param sender    请求发送者
+   * @param receiver  请求接收者
+   * @return
+   */
+  def getContactRequest(sender: Long, receiver: Long)(implicit ds: Datastore, futurePool: FuturePool)
+  : Future[Option[ContactRequest]] = futurePool {
+    import ContactRequest._
+    val req = ds.createQuery(classOf[ContactRequest]).field(fdSender).equal(sender).field(fdReceiver).equal(receiver).get()
+    if (req == null)
+      throw NotFoundException("Cannot find the request")
+    else
+      Option(req)
+  }
+
+  /**
+   * 获得好友请求的详情
+   * @param requestId
+   * @return
+   */
+  def getContactRequest(requestId: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ContactRequest]] =
+    futurePool {
+      Option(ds.createQuery(classOf[ContactRequest]).field(ContactRequest.fdContactRequestId)
+        .equal(new ObjectId(requestId)).get())
+    }
 
   /**
    * 获得用户的好友个数

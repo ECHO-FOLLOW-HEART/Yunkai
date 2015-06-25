@@ -84,6 +84,10 @@ exception GroupMembersLimitException {
   1:string message
 }
 
+exception InvalidStateException {
+  1:string message
+}
+
 service userservice {
   // 获得单个用户信息
   UserInfo getUserById(1:i64 userId, 2: optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
@@ -96,6 +100,20 @@ service userservice {
 
   // 判断两个用户是否为好友关系
   bool isContact(1:i64 userA, 2:i64 userB) throws (1:NotFoundException ex)
+
+  // 发送好友请求
+  // sender/receiver: 由谁向谁发起请求
+  // message: 请求附言
+  string sendContactRequest(1:i64 sender, 2:i64 receiver, 3:optional string message) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
+
+  // 接受好友请求
+  void acceptContactRequest(1:string requestId) throws (1:NotFoundException ex)
+
+  // 拒绝好友请求
+  void rejectContactRequest(1:string requestId, 2:optional string message) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
+
+  // 取消好友请求
+  void cancelContactRequest(1:string requestId) throws (1:NotFoundException ex)
 
   // 添加单个好友
   void addContact(1:i64 userA, 2:i64 userB) throws (1:NotFoundException ex)
