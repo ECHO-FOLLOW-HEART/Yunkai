@@ -80,6 +80,10 @@ exception UserExistsException {
   1:string message
 }
 
+exception GroupMembersLimitException {
+  1:string message
+}
+
 service userservice {
   // 获得单个用户信息
   UserInfo getUserById(1:i64 userId, 2: optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
@@ -130,7 +134,7 @@ service userservice {
   // 搜索讨论组
   // list<ChatGroup> searchChatGroup(1: string keyword)
 
-  // 修改讨论组信息（比如名称、描述等）。支持的ChatGroupProp有：name, groupDesc, avatar和visible
+  // 修改讨论组信息（比如名称、描述等）。支持的ChatGroupProp有：name, groupDesc, maxUsers, avatar和visible
   ChatGroup updateChatGroup(1: i64 chatGroupId, 2: map<ChatGroupProp, string> chatGroupProps) throws (1: InvalidArgsException ex1, 2: NotFoundException ex2)
 
   // 获取讨论组信息
@@ -147,10 +151,10 @@ service userservice {
   i32 getUserChatGroupCount(1: i64 userId) throws (1: NotFoundException ex)
 
   // 批量添加讨论组成员
-  void addChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
+  list<i64> addChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
 
   // 批量删除讨论组成员
-  void removeChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
+  list<i64> removeChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
 
   // 获得讨论组成员
   list<UserInfo> getChatGroupMembers(1:i64 chatGroupId, 2:optional list<UserInfoProp> fields) throws (1:NotFoundException ex)

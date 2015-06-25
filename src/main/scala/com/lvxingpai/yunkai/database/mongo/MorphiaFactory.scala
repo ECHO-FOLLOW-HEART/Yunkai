@@ -4,10 +4,12 @@ import java.util.UUID
 
 import com.lvxingpai.yunkai.Global
 import com.lvxingpai.yunkai.model.{ChatGroup, Credential, Relationship, UserInfo}
-import com.mongodb.{MongoClient, MongoClientOptions, MongoCredential, ServerAddress}
+import com.mongodb._
 import org.mongodb.morphia.Morphia
+import org.mongodb.morphia.annotations.Property
 
 import scala.collection.JavaConversions._
+import scala.language.postfixOps
 
 /**
  * Created by zephyre on 5/4/15.
@@ -62,5 +64,15 @@ object MorphiaFactory {
     ds.ensureIndexes()
     ds.ensureCaps()
     ds
+  }
+
+  def getCollection[T](cls: Class[T]): DBCollection = {
+    val annotation = cls.getAnnotation(classOf[Property])
+    val colName = if (annotation != null)
+      annotation.value()
+    else
+      cls.getSimpleName
+    val db = datastore.getDB
+    db.getCollection(colName)
   }
 }
