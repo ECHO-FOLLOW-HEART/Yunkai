@@ -35,6 +35,21 @@ object EventEmitter {
   val evtLogout = "logout"
 
   /**
+   * 发送联系人邀请的事件
+   */
+  val evtSendContactRequest = "sendContactRequest"
+
+  /**
+   * 接受联系人邀请的事件
+   */
+  val evtAcceptContactRequest = "acceptContactRequest"
+
+  /**
+   * 拒绝联系人邀请的事件
+   */
+  val evtRejectContactRequest = "rejectContactRequest"
+
+  /**
    * 添加联系人的事件
    */
   val evtAddContacts = "addContacts"

@@ -2,11 +2,11 @@ package com.lvxingpai.yunkai
 
 import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
 import com.lvxingpai.yunkai.handler.UserServiceHandler
-import com.lvxingpai.yunkai.model.{ChatGroup => ChatGroupMorphia, Conversation, Credential, Relationship, Sequence, UserInfo => UserInfoMorphia}
 import com.twitter.util.TimeConversions._
 import com.twitter.util.{Await, Duration, Future}
 import org.scalatest.{BeforeAndAfter, FeatureSpec, GivenWhenThen, ShouldMatchers}
 
+import scala.collection.JavaConversions._
 import scala.language.postfixOps
 
 /**
@@ -23,8 +23,8 @@ class YunkaiBaseTest extends FeatureSpec with ShouldMatchers with GivenWhenThen 
    */
   def cleanDatabase(): Unit = {
     val ds = MorphiaFactory.datastore
-    Seq(classOf[UserInfoMorphia], classOf[ChatGroupMorphia], classOf[Conversation], classOf[Credential],
-      classOf[Relationship], classOf[Sequence]) foreach (cls => {
+    val morphia = MorphiaFactory.morphia
+    morphia.getMapper.getMappedClasses map (_.getClazz) foreach (cls => {
       ds.delete(ds.createQuery(cls))
     })
   }
