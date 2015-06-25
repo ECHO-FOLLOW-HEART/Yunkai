@@ -44,6 +44,7 @@ libraryDependencies ++= Seq(
   "com.lvxingpai" %% "apium" % "0.1-SNAPSHOT"
 )
 
+
 publishTo := {
   val nexus = "http://nexus.lvxingpai.com/content/repositories/"
   if (isSnapshot.value)
