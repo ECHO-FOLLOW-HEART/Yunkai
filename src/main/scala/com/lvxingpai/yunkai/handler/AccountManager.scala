@@ -622,14 +622,17 @@ object AccountManager {
   def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int] = None,
                      count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
     val query = ds.createQuery(classOf[UserInfo])
-    queryFields foreach (item => {
+
+    val criteriaList = queryFields.toSeq map (item => {
       item._1 match {
-        case UserInfoProp.Tel => query.or(ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdTel).startsWith(item._2))
-        case UserInfoProp.NickName => query.or(ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdNickName).contains(item._2))
-        case UserInfoProp.Gender => query.or(ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdGender).contains(item._2))
-        case _ => ""
+        case UserInfoProp.Tel => ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdTel).startsWith(item._2)
+        case UserInfoProp.NickName => ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdNickName).startsWithIgnoreCase(item._2)
+        //case UserInfoProp.Gender => ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdGender).equal(item._2)
+        case _ => null
       }
-    })
+    })  filter (_!=null)
+
+    query.or(criteriaList:_*)
 
     // 分页
     val defaultOffset = 0
@@ -640,6 +643,7 @@ object AccountManager {
       case UserInfoProp.UserId => UserInfo.fdUserId
       case UserInfoProp.NickName => UserInfo.fdNickName
       case UserInfoProp.Avatar => UserInfo.fdAvatar
+      case UserInfoProp.Tel => UserInfo.fdTel
       case _ => ""
     } filter (_ nonEmpty)
 
