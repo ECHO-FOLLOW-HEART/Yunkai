@@ -10,6 +10,10 @@ import scala.language.postfixOps
 class GroupManagerTest extends YunkaiBaseTest {
   val service = new UserServiceHandler()
 
+  var fakeGroupId = 0L
+
+  var fakeUserId = 0L
+
   var initialChatGroups: Map[Long, ChatGroup] = null
 
   def createChatGroups(): Map[Long, ChatGroup] = {
@@ -23,6 +27,8 @@ class GroupManagerTest extends YunkaiBaseTest {
     cleanDatabase()
     initialUsers = createInitUsers()
     initialChatGroups = createChatGroups()
+    fakeGroupId = (initialChatGroups map (_._1) max) + 10000L
+    fakeUserId = (initialUsers map (_._1.userId)).max + 10000L
   }
 
   after {
@@ -109,6 +115,24 @@ class GroupManagerTest extends YunkaiBaseTest {
       avatar should be(updated.avatar.get)
       visible.toBoolean should be(updated.visible)
       maxUsers.toInt should be(updated.maxUsers)
+    }
+  }
+
+  feature("the GroupManager can get groups that a user participates") {
+    scenario("default") {
+      val user = initialUsers.head._1
+      val groups = waitFuture(service.getUserChatGroups(user.userId,
+        Some(Seq(ChatGroupProp.Name, ChatGroupProp.Participants, ChatGroupProp.Creator)), None, None))
+
+      groups.length should be > 0
+
+      groups foreach (g => {
+        val preset = initialChatGroups(g.chatGroupId)
+        preset.chatGroupId should be(g.chatGroupId)
+        preset.name should be(g.name)
+        preset.creator should be(g.creator)
+        preset.participants should contain allOf(g.participants head, g.participants(1), g.participants drop 2: _*)
+      })
     }
   }
 

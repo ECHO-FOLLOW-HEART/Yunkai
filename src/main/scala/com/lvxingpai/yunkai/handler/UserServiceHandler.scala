@@ -57,6 +57,14 @@ class UserServiceHandler extends Userservice.FutureIface {
       (_ map UserServiceHandler.userInfoConversion)
   }
 
+  override def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
+    for {
+      userList <- AccountManager.searchUserInfo(queryFields, fields, offset, count)
+    } yield {
+      userList map UserServiceHandler.userInfoConversion
+    }
+  }
+
   override def getContactCount(userId: Long): Future[Int] = AccountManager.getContactCount(userId)
 
   /**
@@ -70,8 +78,8 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.login(loginName, password) map UserServiceHandler.userInfoConversion
   }
 
-  override def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] =
-    AccountManager.updatePassword(userId, newPassword)
+  override def resetPassword(userId: Long, newPassword: String): Future[Unit] =
+    AccountManager.resetPassword(userId, newPassword)
 
   override def createUser(nickName: String, password: String, miscInfo: Option[Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
     val tel = miscInfo.getOrElse(Map()).get(UserInfoProp.Tel)
@@ -185,6 +193,12 @@ class UserServiceHandler extends Userservice.FutureIface {
 
 object UserServiceHandler {
 
+  /**
+   * 在models.UserInfo和yunkai.UserInfo之间进行类型转换
+   *
+   * @param user
+   * @return
+   */
   implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
     val userId = user.userId
     val nickName = user.nickName
@@ -210,7 +224,7 @@ object UserServiceHandler {
     val tags = Option(chatGroup.tags) map (_.toSeq)
     val creator = chatGroup.creator
     val admin = Option(chatGroup.admin) map (_.toSeq) getOrElse Seq()
-    val participants = chatGroup.participants
+    val participants = Option(chatGroup.participants) map (_.toSeq) getOrElse Seq()
     val maxUsers = chatGroup.maxUsers
     val createTime = chatGroup.createTime
     val updateTime = chatGroup.updateTime
