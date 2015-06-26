@@ -220,7 +220,7 @@ object UserServiceHandler {
     val tags = Option(chatGroup.tags) map (_.toSeq)
     val creator = chatGroup.creator
     val admin = Option(chatGroup.admin) map (_.toSeq) getOrElse Seq()
-    val participants = chatGroup.participants
+    val participants = Option(chatGroup.participants) map (_.toSeq) getOrElse Seq()
     val maxUsers = chatGroup.maxUsers
     val createTime = chatGroup.createTime
     val updateTime = chatGroup.updateTime

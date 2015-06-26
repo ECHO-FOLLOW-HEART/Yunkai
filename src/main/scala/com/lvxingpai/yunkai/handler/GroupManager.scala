@@ -153,14 +153,18 @@ object GroupManager {
     }
 
     // 触发修改讨论组属性的事件
+    val miscInfo = new ObjectMapper().createObjectNode()
+    miscInfo.put("name", result.name)
+    miscInfo.put("avatar", result.avatar)
     val eventArgs = scala.collection.immutable.Map(
       "chatGroupId" -> LongNode.valueOf(result.chatGroupId),
-      "name" -> TextNode.valueOf(result.name),
-      "groupDesc" -> (if (result.groupDesc != null && result.groupDesc.nonEmpty) TextNode.valueOf(result.groupDesc) else NullNode.getInstance()),
-      "avatar" -> (if (result.avatar != null && result.avatar.nonEmpty) TextNode.valueOf(result.avatar) else NullNode.getInstance()),
-      "tags" -> new ObjectMapper().valueToTree(result.tags),
-      "admin" -> new ObjectMapper().valueToTree(result.admin),
-      "visible" -> BooleanNode.valueOf(result.visible)
+      "fields" -> miscInfo
+//      "name" -> TextNode.valueOf(result.name),
+//      "groupDesc" -> (if (result.groupDesc != null && result.groupDesc.nonEmpty) TextNode.valueOf(result.groupDesc) else NullNode.getInstance()),
+//      "avatar" -> (if (result.avatar != null && result.avatar.nonEmpty) TextNode.valueOf(result.avatar) else NullNode.getInstance()),
+//      "tags" -> new ObjectMapper().valueToTree(result.tags),
+//      "admin" -> new ObjectMapper().valueToTree(result.admin),
+//      "visible" -> BooleanNode.valueOf(result.visible)
     )
     EventEmitter.emitEvent(EventEmitter.evtModChatGroup, eventArgs)
 

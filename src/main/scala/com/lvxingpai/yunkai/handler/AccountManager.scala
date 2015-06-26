@@ -146,7 +146,7 @@ object AccountManager {
           .field(Relationship.fdUserB).equal(user2)
         ds.updateFirst(query, op, true)
 
-        // 添加事件
+        // 触发添加联系人的事件
         val sender = m(userId).get
         val receiver = m(target).get
 
@@ -175,7 +175,7 @@ object AccountManager {
    */
   def removeContacts(userId: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
     val targetUsersFiltered = (targetUsers filter (_ != userId)).toSet.toSeq
-    getUsersByIdList(Seq(UserInfoProp.UserId), userId +: targetUsersFiltered: _*) map (m => {
+    getUsersByIdList(Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar), userId +: targetUsersFiltered: _*) map (m => {
       // 相应的用户必须存在
       if (m exists (_._2 isEmpty))
         throw NotFoundException("")
@@ -189,34 +189,24 @@ object AccountManager {
         val query = ds.createQuery(classOf[Relationship])
         query.or(targetUsersFiltered map (buildQuery(userId, _)): _*)
         ds.delete(query)
+
+        // 触发删除联系人的事件
+        val userAInfo = m(userId).get
+        val userBInfos:Seq[UserInfo] = Seq()
+        for(elem <- targetUsersFiltered) {
+          val userBInfo = m(elem).get
+          val eventArgs = scala.collection.immutable.Map(
+            "userA" -> LongNode.valueOf(userId),
+            "nickNameA" -> TextNode.valueOf(userAInfo.nickName),
+            "avatarA" -> (if (userAInfo.avatar != null && userAInfo.avatar.nonEmpty) TextNode.valueOf(userAInfo.avatar) else NullNode.getInstance()),
+            "userB" -> LongNode.valueOf(userBInfo.userId),
+            "nickNameB" -> TextNode.valueOf(userBInfo.nickName),
+            "avatarB" -> (if (userBInfo.avatar != null && userBInfo.avatar.nonEmpty) TextNode.valueOf(userBInfo.avatar) else NullNode.getInstance())
+          )
+          EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
+        }
       }
     })
-
-    // TODO 重新编写触发事件的代码
-
-//    // 触发删除联系人的事件
-//    // userB的返回字段
-//    val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
-//    getUsersByIdList(responseFields, targetUsersFiltered: _*) map (item => {
-//      val userBInfos = item.values.toSeq
-//      for (elem <- userBInfos) {
-//        for {
-//          userA <- getUserById(userId, responseFields)
-//        } yield {
-//          val userAInfo = userA.get
-//          val userBInfo = elem.get
-//          val eventArgs = scala.collection.immutable.Map(
-//            "userA" -> LongNode.valueOf(userId),
-//            "nickNameA" -> TextNode.valueOf(userAInfo.nickName),
-//            "avatarA" -> (if (userAInfo.avatar != null && userAInfo.avatar.nonEmpty) TextNode.valueOf(userAInfo.avatar) else NullNode.getInstance()),
-//            "userB" -> LongNode.valueOf(userBInfo.userId),
-//            "nickNameB" -> TextNode.valueOf(userBInfo.nickName),
-//            "avatarB" -> (if (userBInfo.avatar != null && userBInfo.avatar.nonEmpty) TextNode.valueOf(userBInfo.avatar) else NullNode.getInstance())
-//          )
-//          EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
-//        }
-//      }
-//    })
   }
 
   /**
