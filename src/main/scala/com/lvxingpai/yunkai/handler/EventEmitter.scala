@@ -1,6 +1,6 @@
 package com.lvxingpai.yunkai.handler
 
-import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.apium.ApiumPlant.ConnectionParam
 import com.lvxingpai.apium.{ApiumPlant, ApiumSeed}
 import com.lvxingpai.yunkai.Global
@@ -129,8 +129,13 @@ object EventEmitter {
    * @param eventArgs 事件参数。要求是一个scala.collection.immutable.Map[String, JsonNode]类型的对象
    */
   def emitEvent(eventName: String, eventArgs: Map[String, JsonNode]) {
-    val eventMap = if (eventArgs != null && (eventArgs nonEmpty)) Some(eventArgs)
-    else None
+    // miscInfo的默认值为{}
+    val eventMap = Option(eventArgs) map (m => {
+      if (m contains "miscInfo")
+        m
+      else
+        m + ("miscInfo" -> new ObjectMapper().createObjectNode())
+    })
     val seed = ApiumSeed(apiumPlant.defaultTaskName(eventName), kwargs = eventMap)
     apiumPlant.sendSeed(eventName, seed)
   }

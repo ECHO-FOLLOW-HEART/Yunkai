@@ -10,6 +10,10 @@ import scala.language.postfixOps
 class GroupManagerTest extends YunkaiBaseTest {
   val service = new UserServiceHandler()
 
+  var fakeGroupId = 0L
+
+  var fakeUserId = 0L
+
   var initialChatGroups: Map[Long, ChatGroup] = null
 
   def createChatGroups(): Map[Long, ChatGroup] = {
@@ -23,6 +27,8 @@ class GroupManagerTest extends YunkaiBaseTest {
     cleanDatabase()
     initialUsers = createInitUsers()
     initialChatGroups = createChatGroups()
+    fakeGroupId = (initialChatGroups map (_._1) max) + 10000L
+    fakeUserId = (initialUsers map (_._1.userId)).max + 10000L
   }
 
   after {

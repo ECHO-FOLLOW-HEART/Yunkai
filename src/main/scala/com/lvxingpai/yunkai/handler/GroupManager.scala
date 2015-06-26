@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node._
 import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
-import com.lvxingpai.yunkai.model.{ChatGroup, Conversation, UserInfo}
+import com.lvxingpai.yunkai.model.{ChatGroup, UserInfo}
 import com.mongodb.{BasicDBList, BasicDBObject, BasicDBObjectBuilder}
-import com.twitter.util.{Await, Future, FuturePool}
+import com.twitter.util.{Future, FuturePool}
 import org.mongodb.morphia.Datastore
 
 import scala.collection.JavaConversions._
@@ -153,18 +153,11 @@ object GroupManager {
     }
 
     // 触发修改讨论组属性的事件
-    val miscInfo = new ObjectMapper().createObjectNode()
-    miscInfo.put("name", result.name)
-    miscInfo.put("avatar", result.avatar)
     val eventArgs = scala.collection.immutable.Map(
       "chatGroupId" -> LongNode.valueOf(result.chatGroupId),
-      "fields" -> miscInfo
-//      "name" -> TextNode.valueOf(result.name),
-//      "groupDesc" -> (if (result.groupDesc != null && result.groupDesc.nonEmpty) TextNode.valueOf(result.groupDesc) else NullNode.getInstance()),
-//      "avatar" -> (if (result.avatar != null && result.avatar.nonEmpty) TextNode.valueOf(result.avatar) else NullNode.getInstance()),
-//      "tags" -> new ObjectMapper().valueToTree(result.tags),
-//      "admin" -> new ObjectMapper().valueToTree(result.admin),
-//      "visible" -> BooleanNode.valueOf(result.visible)
+      "fields" -> new ObjectMapper().createObjectNode()
+        .put("name", result.name)
+        .put("avatar", result.avatar)
     )
     EventEmitter.emitEvent(EventEmitter.evtModChatGroup, eventArgs)
 
