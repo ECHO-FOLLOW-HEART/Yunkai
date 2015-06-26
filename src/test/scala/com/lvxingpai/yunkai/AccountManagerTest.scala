@@ -577,4 +577,27 @@ class AccountManagerTest extends YunkaiBaseTest {
       waitFuture(service.isContact(sender, receiver)) should be(right = true)
     }
   }
+
+  feature("the AccountManager can perform user search") {
+    scenario("Invalid search terms") {
+      val result = waitFuture(service.searchUserInfo(Map(UserInfoProp.Avatar -> ""), None, None, None))
+      result should have size 0
+    }
+    scenario("An invalid user name is provided") {
+      val fakeName = UUID.randomUUID().toString
+      val result = waitFuture(service.searchUserInfo(Map(UserInfoProp.NickName -> fakeName), None, None, None))
+      result should have size 0
+    }
+    scenario("A nick name is provided") {
+      val user = initialUsers.last._1
+      val name = user.nickName
+      val userId = user.userId
+      val result = waitFuture(service.searchUserInfo(Map(UserInfoProp.NickName -> name),
+        Some(Seq(UserInfoProp.NickName)), None, None))
+      result should have size 1
+      val actual = result.head
+      actual.nickName should be(name)
+      actual.userId should be(userId)
+    }
+  }
 }
