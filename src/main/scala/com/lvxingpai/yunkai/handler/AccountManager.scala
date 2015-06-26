@@ -1,6 +1,7 @@
 package com.lvxingpai.yunkai.handler
 
 import java.security.MessageDigest
+import java.util.UUID
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.{LongNode, NullNode, TextNode}
@@ -544,7 +545,7 @@ object AccountManager {
       userId <- futureUserId
     } yield {
         val newUser = UserInfo(userId, nickName)
-        newUser.tel = tel.orNull
+        newUser.tel = tel.getOrElse(UUID.randomUUID().toString)
         try {
           ds.save[UserInfo](newUser)
           newUser
@@ -570,9 +571,9 @@ object AccountManager {
     // 触发创建新用户的事件
     userInfo map (v => {
       val eventArgs = scala.collection.immutable.Map(
-        "userId" -> LongNode.valueOf(v.userId),
+        "id" -> LongNode.valueOf(v.userId),
         "nickName" -> TextNode.valueOf(v.nickName),
-        "avatar" -> (if (v.avatar != null && v.avatar.nonEmpty) TextNode.valueOf(v.avatar) else NullNode.getInstance())
+        "avatar" -> TextNode.valueOf(Option(v.avatar) getOrElse "")
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
     })
