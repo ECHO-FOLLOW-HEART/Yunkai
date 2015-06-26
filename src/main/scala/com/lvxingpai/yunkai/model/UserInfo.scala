@@ -1,6 +1,6 @@
 package com.lvxingpai.yunkai.model
 
-import java.util.{List => JList, UUID}
+import java.util.UUID
 import javax.validation.constraints.{Min, NotNull, Size}
 
 import org.bson.types.ObjectId
@@ -43,13 +43,13 @@ class UserInfo {
   @BeanProperty
   @Indexed(unique = true)
   @Size(min = 6, max = 32)
-  var tel: String = UUID.randomUUID().toString
+  var tel: String = null
 
   //  @BeanProperty
   //  var contacts: Seq[Long] = null
 
-  @BeanProperty
-  var chatGroups: JList[Long] = null
+//  @BeanProperty
+//  var chatGroups: JList[Long] = null
 
   @Version
   var version: Long = 0
@@ -71,6 +71,7 @@ object UserInfo {
     result.id = new ObjectId
     result.userId = userId
     result.nickName = nickName
+    result.tel = UUID.randomUUID().toString
     result
   }
 }
