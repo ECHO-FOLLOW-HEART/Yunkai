@@ -58,7 +58,11 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
-    AccountManager.searchUserInfo(queryFields, fields, offset, count) map (_ map UserServiceHandler.userInfoConversion)
+    for {
+      userList <- AccountManager.searchUserInfo(queryFields, fields, offset, count)
+    } yield {
+      userList map UserServiceHandler.userInfoConversion
+    }
   }
 
   override def getContactCount(userId: Long): Future[Int] = AccountManager.getContactCount(userId)
@@ -75,7 +79,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def resetPassword(userId: Long, newPassword: String): Future[Unit] =
-    AccountManager.updatePassword(userId, newPassword)
+    AccountManager.resetPassword(userId, newPassword)
 
   override def createUser(nickName: String, password: String, miscInfo: Option[Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
     val tel = miscInfo.getOrElse(Map()).get(UserInfoProp.Tel)

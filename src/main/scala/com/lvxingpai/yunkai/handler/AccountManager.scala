@@ -581,7 +581,7 @@ object AccountManager {
     userInfo
   }
 
-  def updatePassword(userId: Long, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
+  def resetPassword(userId: Long, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
     val query = ds.find(classOf[Credential], Credential.fdUserId, userId)
     if (query isEmpty) throw new NotFoundException(s"User userId=$userId credential is not found")
     else {
@@ -620,40 +620,55 @@ object AccountManager {
     theSalt -> (bytes map ("%02x" format _) mkString)
   }
 
+  /**
+   * 根据电话号码和昵称搜索用户。
+   * 
+   * @param queryFields
+   * @param fields
+   * @param offset
+   * @param count
+   * @param ds
+   * @param futurePool
+   * @return
+   */
   def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int] = None,
                      count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
-    val query = ds.createQuery(classOf[UserInfo])
+    val cls = classOf[UserInfo]
 
+    val query = ds.createQuery(cls)
     val criteriaList = queryFields.toSeq map (item => {
       item._1 match {
-        case UserInfoProp.Tel => ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdTel).startsWith(item._2)
-        case UserInfoProp.NickName => ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdNickName).startsWithIgnoreCase(item._2)
-        //case UserInfoProp.Gender => ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdGender).equal(item._2)
+        case UserInfoProp.Tel => ds.createQuery(cls).criteria(UserInfo.fdTel).startsWith(item._2)
+        case UserInfoProp.NickName => ds.createQuery(cls).criteria(UserInfo.fdNickName).startsWithIgnoreCase(item._2)
         case _ => null
       }
-    })  filter (_!=null)
+    }) filter (_!=null)
 
-    query.or(criteriaList:_*)
+    if (criteriaList isEmpty)
+      futurePool(Seq())
+    else {
+      query.or(criteriaList: _*)
 
-    // 分页
-    val defaultOffset = 0
-    val defaultCount = 20
+      // 分页
+      val defaultOffset = 0
+      val defaultCount = 20
 
-    // 限定查询返回字段
-    val retrievedFields = fields.getOrElse(Seq()) map {
-      case UserInfoProp.UserId => UserInfo.fdUserId
-      case UserInfoProp.NickName => UserInfo.fdNickName
-      case UserInfoProp.Avatar => UserInfo.fdAvatar
-      case UserInfoProp.Tel => UserInfo.fdTel
-      case _ => ""
-    } filter (_ nonEmpty)
+      // 限定查询返回字段
+      val retrievedFields = fields.getOrElse(Seq()) map {
+        case UserInfoProp.UserId => UserInfo.fdUserId
+        case UserInfoProp.NickName => UserInfo.fdNickName
+        case UserInfoProp.Avatar => UserInfo.fdAvatar
+        case UserInfoProp.Tel => UserInfo.fdTel
+        case _ => ""
+      } filter (_ nonEmpty)
 
-    // 获得符合条件的userId
-    futurePool {
-      query.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
-      if (retrievedFields nonEmpty)
-        query.retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
-      query.asList().toSeq
+      // 获得符合条件的userId
+      futurePool {
+        query.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
+        if (retrievedFields nonEmpty)
+          query.retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
+        query.asList().toSeq
+      }
     }
   }
 }
