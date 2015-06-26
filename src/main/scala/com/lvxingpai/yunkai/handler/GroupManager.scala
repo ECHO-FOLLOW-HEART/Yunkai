@@ -45,12 +45,7 @@ object GroupManager {
    * @return
    */
   def getUserChatGroupCount(userId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Int] = futurePool {
-    val result = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).equal(userId)
-      .retrievedFields(true, UserInfo.fdChatGroups).get()
-    if (result == null)
-      throw NotFoundException(s"Cannot find user $userId")
-    else
-      result.chatGroups.length
+    ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdParticipants).hasThisOne(userId).countAll().toInt
   }
 
   def createChatGroup(creator: Long, members: Seq[Long], chatGroupProps: Map[ChatGroupProp, Any] = Map())(implicit ds: Datastore, futurePool: FuturePool): Future[ChatGroup] = {
@@ -58,7 +53,7 @@ object GroupManager {
     val futureGid = IdGenerator.generateId("yunkai.newChatGroupId")
     // 如果讨论组创建人未选择其他的人，那么就创建者自己一个人，如果选择了其他人，那么群成员便是创建者和其他创建者拉进来的人
     val participants = (members :+ creator).toSet.toSeq
-    val cgFuture = for {
+    for {
       gid <- futureGid
     } yield {
         val cg = ChatGroup(creator, gid, participants)
@@ -76,10 +71,10 @@ object GroupManager {
         cg.admin = Seq(creator)
         cg.createTime = java.lang.System.currentTimeMillis()
         // 检查创建的群的用户数是否超过最大的上限
-        if(participants.size > cg.maxUsers)
+        if (participants.size > cg.maxUsers)
           throw GroupMembersLimitException("Chat group members' number exceed maximum allowable")
         else
-          ds.save[ChatGroup](cg)// 1. gid重复 2. 数据库通信异常  3. 切面
+          ds.save[ChatGroup](cg) // 1. gid重复 2. 数据库通信异常  3. 切面
 
         // 触发创建讨论组的事件
         val miscInfo = new ObjectMapper().createObjectNode()
@@ -97,16 +92,6 @@ object GroupManager {
         EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
         cg
       }
-
-    cgFuture map (cg => {
-      // 在每个参与用户的chatGroups字段中，添加本ChatGroup的信息
-      cg.participants map (uid => {
-        val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).equal(uid)
-        val ops = ds.createUpdateOperations(classOf[UserInfo]).add(UserInfo.fdChatGroups, cg.chatGroupId, false)
-        ds.updateFirst(query, ops)
-      })
-      cg
-    })
   }
 
   // 获取讨论组信息
@@ -173,23 +158,23 @@ object GroupManager {
     val maxCount = 100
 
     val retrievedFields = ((fields map {
-      case ChatGroupProp.ChatGroupId=> fdChatGroupId
-      case ChatGroupProp.Name=>fdName
-      case ChatGroupProp.Participants=>fdParticipants
-      case ChatGroupProp.MaxUsers=>fdMaxUsers
-      case ChatGroupProp.Tags=>fdTags
-      case ChatGroupProp.Visible=>fdVisible
-      case ChatGroupProp.Avatar=>fdAvatar
-      case ChatGroupProp.Creator=>fdCreator
-      case ChatGroupProp.GroupDesc=>fdGroupDesc
-      case ChatGroupProp.Admin=>fdAdmin
+      case ChatGroupProp.ChatGroupId => fdChatGroupId
+      case ChatGroupProp.Name => fdName
+      case ChatGroupProp.Participants => fdParticipants
+      case ChatGroupProp.MaxUsers => fdMaxUsers
+      case ChatGroupProp.Tags => fdTags
+      case ChatGroupProp.Visible => fdVisible
+      case ChatGroupProp.Avatar => fdAvatar
+      case ChatGroupProp.Creator => fdCreator
+      case ChatGroupProp.GroupDesc => fdGroupDesc
+      case ChatGroupProp.Admin => fdAdmin
       case _ => ""
     } filter (_.nonEmpty)) :+ fdChatGroupId).toSet.toSeq
 
     val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdParticipants).hasThisOne(userId)
-      .retrievedFields(true, retrievedFields:_*).offset(offset getOrElse 0).limit(limit getOrElse maxCount)
+      .retrievedFields(true, retrievedFields: _*).offset(offset getOrElse 0).limit(limit getOrElse maxCount)
 
-    futurePool{
+    futurePool {
       query.asList().toSeq
     }
   }
@@ -226,22 +211,22 @@ object GroupManager {
         val doc = col.findAndModify(query, fields, sort, false, ops, true, false)
         if (doc == null)
           throw GroupMembersLimitException("")
-        else{
-          val remainedParticipants =  doc.get(ChatGroup.fdParticipants).asInstanceOf[BasicDBList].toSeq map (_.asInstanceOf[Long])
+        else {
+          val remainedParticipants = doc.get(ChatGroup.fdParticipants).asInstanceOf[BasicDBList].toSeq map (_.asInstanceOf[Long])
           remainedParticipants -> usersToAdd
         }
       }
     }
 
     /**
-     * 
+     *
      * @param participants  participantes of the chat group
      */
-    def emitEvent(participants:Seq[Long], addedUsers:Seq[UserInfo]): Future[Unit] ={
+    def emitEvent(participants: Seq[Long], addedUsers: Seq[UserInfo]): Future[Unit] = {
       // 触发添加讨论组成员的事件
       // 查找待添加的用户信息
       val userInfos = new ObjectMapper().createObjectNode()
-      for(elem <- addedUsers) {
+      for (elem <- addedUsers) {
         val userInfo = elem
         userInfos.put("userId", userInfo.userId)
         userInfos.put("nickName", userInfo.nickName)
@@ -255,14 +240,14 @@ object GroupManager {
         "participants" -> participantsNode,
         "userInfos" -> userInfos
       )
-      futurePool{
+      futurePool {
         EventEmitter.emitEvent(EventEmitter.evtAddGroupMembers, eventArgs)
       }
     }
 
     for {
       group <- futureGroup
-      users <- futureUsers    // Users to be removed(with both userId and nickName available)
+      users <- futureUsers // Users to be removed(with both userId and nickName available)
       entry <- func1(group, users)
       _ <- emitEvent(entry._1, entry._2)
     } yield {
@@ -290,32 +275,32 @@ object GroupManager {
     }
     // 查看是否所有的userId都有效
     val futureUsers = AccountManager.getUsersByIdList(Seq(UserInfoProp.UserId, UserInfoProp.NickName), userToRemove: _*)
-    val userInfos:Seq[UserInfo] = Seq()
-    for{
+    val userInfos: Seq[UserInfo] = Seq()
+    for {
       users <- futureUsers
     } yield {
-      for(elem <- users.values.toSeq)
+      for (elem <- users.values.toSeq)
         userInfos.add(elem.get)
     }
 
-//    // 更新Conversation
-//    def procConversation(group: ChatGroup): Future[ChatGroup] = {
-//      // 更新Conversation的成员列表
-//      // 目前先这么做，后面给成观察者模式
-//      val queryConversation = ds.createQuery(classOf[Conversation]).field(Conversation.fdId).equal(chatGroupId)
-//      val conversationUpdateOps = ds.createUpdateOperations(classOf[Conversation]).removeAll(Conversation.fdParticipants, userIds)
-//      futurePool {
-//        ds.updateFirst(queryConversation, conversationUpdateOps)
-//        group
-//      }
-//    }
+    //    // 更新Conversation
+    //    def procConversation(group: ChatGroup): Future[ChatGroup] = {
+    //      // 更新Conversation的成员列表
+    //      // 目前先这么做，后面给成观察者模式
+    //      val queryConversation = ds.createQuery(classOf[Conversation]).field(Conversation.fdId).equal(chatGroupId)
+    //      val conversationUpdateOps = ds.createUpdateOperations(classOf[Conversation]).removeAll(Conversation.fdParticipants, userIds)
+    //      futurePool {
+    //        ds.updateFirst(queryConversation, conversationUpdateOps)
+    //        group
+    //      }
+    //    }
 
     // 触发删除讨论组成员的事件
     def procEvtEmitter(group: ChatGroup, removedUsers: Seq[UserInfo]): Future[ChatGroup] = {
       // 触发删除讨论组成员的事件
       // 查找待添加的用户信息
       val userInfos = new ObjectMapper().createObjectNode()
-      for(elem <- removedUsers) {
+      for (elem <- removedUsers) {
         val userInfo = elem
         userInfos.put("userId", userInfo.userId)
         userInfos.put("nickName", userInfo.nickName)
@@ -339,7 +324,7 @@ object GroupManager {
       group <- groupFuture
       group2 <- verify(group)
       users <- futureUsers
-//      _ <- procConversation(group2)
+      //      _ <- procConversation(group2)
       _ <- procEvtEmitter(group2, userInfos)
     } yield {
       group.participants

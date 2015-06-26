@@ -189,6 +189,11 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def cancelContactRequest(requestId: String): Future[Unit] =
     AccountManager.cancelContactRequest(requestId)
+
+  override def verifyCredential(userId: Long, password: String): Future[Boolean] =
+    AccountManager.verifyCredential(userId, password)
+
+  override def updateTelNumber(userId: Long, tel: String): Future[Unit] = AccountManager.updateTelNumber(userId, tel)
 }
 
 object UserServiceHandler {

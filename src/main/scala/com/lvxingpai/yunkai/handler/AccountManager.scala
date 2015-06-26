@@ -193,8 +193,8 @@ object AccountManager {
 
         // 触发删除联系人的事件
         val userAInfo = m(userId).get
-        val userBInfos:Seq[UserInfo] = Seq()
-        for(elem <- targetUsersFiltered) {
+        val userBInfos: Seq[UserInfo] = Seq()
+        for (elem <- targetUsersFiltered) {
           val userBInfo = m(elem).get
           val eventArgs = scala.collection.immutable.Map(
             "userA" -> LongNode.valueOf(userId),
@@ -244,7 +244,7 @@ object AccountManager {
     for {
       ids <- contactIds
       contactsMap <- getUsersByIdList(fields, ids: _*)
-    } yield (contactsMap.values.toSeq map (_.orNull)) filter (_ != null)
+    } yield contactsMap.toSeq.map(_._2.orNull) filter (_ != null)
   }
 
   /**
@@ -491,6 +491,24 @@ object AccountManager {
   }
 
   /**
+   * 验证用户密码是否正确
+   *
+   * @param userId    用户名
+   * @param password  密码
+   * @return
+   */
+  def verifyCredential(userId: Long, password: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+    val query = ds.createQuery(classOf[Credential]).field(Credential.fdUserId).equal(userId)
+    futurePool {
+      val credential = query.get()
+      credential != null && {
+        val crypted = saltPassword(password, Some(credential.salt))._2
+        crypted == credential.passwdHash
+      }
+    }
+  }
+
+  /**
    * 用户登录
    *
    * @param loginName   登录用户名（默认情况下是注册的手机号）
@@ -499,40 +517,36 @@ object AccountManager {
    */
   def login(loginName: String, password: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
     // 获得用户信息
-    val userInfo = futurePool {
-      ds.find(classOf[UserInfo], UserInfo.fdTel, loginName).get()
-    }
+    for {
+      userInfo <- futurePool {
+        val retrievedFields = Seq(UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
+          UserInfo.fdSignature, UserInfo.fdTel)
+        ds.createQuery(classOf[UserInfo]).field(UserInfo.fdTel).equal(loginName)
+          .retrievedFields(true, retrievedFields: _*).get()
+      }
+      verified <- {
+        if (userInfo == null)
+          futurePool(false)
+        else
+          verifyCredential(userInfo.userId, password)
+      }
+    } yield {
+      if (verified) {
+        // 触发登录事件
+        val miscInfo = new ObjectMapper().createObjectNode()
+        miscInfo.put("avatar", userInfo.avatar)
+        val eventArgs = scala.collection.immutable.Map(
+          "userId" -> LongNode.valueOf(userInfo.userId),
+          "nickName" -> TextNode.valueOf(userInfo.nickName),
+          "info" -> miscInfo
+        )
+        EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
 
-    // 获得机密信息
-    val complex = userInfo map (v => {
-      if (v != null) {
-        val userId = v.userId
-        (v, ds.find(classOf[Credential], Credential.fdUserId, userId).get())
-      } else throw new AuthException("")
-    })
-
-    // 验证
-    val result = complex map (v => {
-      val (user, credential) = v
-      val crypted = saltPassword(password, Some(credential.salt))._2
-      if (crypted == credential.passwdHash)
-        user
+        userInfo
+      }
       else
-        throw new AuthException("")
-    })
-
-    // 触发登录事件
-    result map (v => {
-      val miscInfo = new ObjectMapper().createObjectNode()
-      miscInfo.put("avatar", v.avatar)
-      val eventArgs = scala.collection.immutable.Map(
-        "userId" -> LongNode.valueOf(v.userId),
-        "nickName" -> TextNode.valueOf(v.nickName),
-        "info" -> miscInfo
-      )
-      EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
-      v
-    })
+        throw AuthException()
+    }
   }
 
   // 新用户注册
@@ -581,6 +595,12 @@ object AccountManager {
     userInfo
   }
 
+  /**
+   * 重置密码
+   * @param userId
+   * @param newPassword
+   * @return
+   */
   def resetPassword(userId: Long, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
     val query = ds.find(classOf[Credential], Credential.fdUserId, userId)
     if (query isEmpty) throw new NotFoundException(s"User userId=$userId credential is not found")
@@ -593,11 +613,11 @@ object AccountManager {
     }
 
     // 触发重置用户密码的事件
-    val responseFields:Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+    val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     val user = getUserById(userId, responseFields)
-    for{
+    for {
       elem <- user
-    }yield {
+    } yield {
       val userInfo = elem.get
       val eventArgs = scala.collection.immutable.Map(
         "userId" -> LongNode.valueOf(userId),
@@ -605,8 +625,27 @@ object AccountManager {
         "avatar" -> (if (userInfo.avatar != null && userInfo.avatar.nonEmpty) TextNode.valueOf(userInfo.avatar) else NullNode.getInstance())
       )
       EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
-      }
+    }
   }
+
+  /**
+   * 更新用户手机号码
+   *
+   * @param userId
+   * @param tel
+   * @return
+   */
+  def updateTelNumber(userId: Long, tel: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
+    import UserInfo._
+
+    val cls = classOf[UserInfo]
+    val query = ds.createQuery(cls).field(fdUserId).equal(userId)
+    val updateOps = ds.createUpdateOperations(cls).set(fdTel, tel)
+    val updated = ds.findAndModify(query, updateOps)
+    if (updated == null)
+      throw NotFoundException(s"Cannot find user $userId")
+  }
+
 
   /**
    * 返回salt和密文
@@ -622,7 +661,7 @@ object AccountManager {
 
   /**
    * 根据电话号码和昵称搜索用户。
-   * 
+   *
    * @param queryFields
    * @param fields
    * @param offset
@@ -642,7 +681,7 @@ object AccountManager {
         case UserInfoProp.NickName => ds.createQuery(cls).criteria(UserInfo.fdNickName).startsWithIgnoreCase(item._2)
         case _ => null
       }
-    }) filter (_!=null)
+    }) filter (_ != null)
 
     if (criteriaList isEmpty)
       futurePool(Seq())

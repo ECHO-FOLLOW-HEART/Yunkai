@@ -27,7 +27,6 @@ class AccountManagerTest extends YunkaiBaseTest {
     contacts -> strangers
   }
 
-
   def defineContacts(userList: Seq[(UserInfo, String)]): Unit = {
     val selfId = (userList head)._1.userId
     val contactIds = userList.slice(1, 3) map (_._1.userId)
@@ -241,16 +240,23 @@ class AccountManagerTest extends YunkaiBaseTest {
     }
     scenario("the user's contact list is returned") {
       val userId = (initialUsers head)._1.userId
-      val contacts = initialUsers.slice(1, 3) map (_._1)
-      val contactList = waitFuture(new UserServiceHandler().getContactList(userId,
-        Some(Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)), None, None))
-      contactList should have length 2
-      contacts.zipWithIndex foreach (entry => {
-        val (userInfo, index) = entry
-        val actual = contactList(index)
-        actual.userId should be(userInfo.userId)
-        actual.nickName should be(userInfo.nickName)
-        actual.avatar should be(userInfo.avatar)
+      val contacts = Map(initialUsers.slice(1, 3) map (v => {
+        v._1.userId -> v._1
+      }): _*)
+      val actualContacts = Map(waitFuture(new UserServiceHandler().getContactList(userId,
+        Some(Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)), None, None)) map (v => {
+        v.userId -> v
+      }): _*)
+
+      actualContacts.toSeq should have length 2
+
+      // contacts和actualContacts应该一致
+      contacts foreach (entry => {
+        val (uid, user) = entry
+        actualContacts.keys.toSeq should contain(uid)
+        val actual = actualContacts(uid)
+        actual.nickName should be(user.nickName)
+        actual.avatar should be(user.avatar)
       })
     }
     scenario("the number of elements of the user's contact list can be limited") {
@@ -598,6 +604,33 @@ class AccountManagerTest extends YunkaiBaseTest {
       val actual = result.head
       actual.nickName should be(name)
       actual.userId should be(userId)
+    }
+  }
+
+  feature("the AccountManager can test if a user and a password match with each other") {
+    scenario("the user ID is incorrect") {
+      waitFuture(service.verifyCredential(fakeUserId, "")) should be(right = false)
+    }
+    scenario("the user and password match") {
+      val userId = initialUsers.head._1.userId
+      val password = initialUsers.head._2
+      waitFuture(service.verifyCredential(userId, password)) should be(right = true)
+    }
+    scenario("the user and password do not match") {
+      val userId = initialUsers.head._1.userId
+      waitFuture(service.verifyCredential(userId, "")) should be(right = false)
+    }
+  }
+
+  feature("the AccountManager can update a user's cell phone number") {
+    scenario("the user ID is incorrect") {
+      pending
+    }
+    scenario("the provided cell phone number is invalid") {
+      pending
+    }
+    scenario("the cell phone number has updated successfully") {
+      pending
     }
   }
 }
