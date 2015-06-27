@@ -99,12 +99,12 @@ object GroupManager {
       import AccountManager.user2JsonNode
       import Implicits.JsonConversions._
       val targets = new ObjectMapper().createObjectNode()
-      for(elem <- userMap) {
-          targets.put("id", elem._2.get.userId)
-          targets.put("nickName", elem._2.get.nickName)
-          val avatarValue = Option(elem._2.get.avatar).getOrElse("")
-          targets.put("avatar", avatarValue)
-        }
+      for (elem <- userMap) {
+        targets.put("id", elem._2.get.userId)
+        targets.put("nickName", elem._2.get.nickName)
+        val avatarValue = Option(elem._2.get.avatar).getOrElse("")
+        targets.put("avatar", avatarValue)
+      }
       val eventArgs: Map[String, JsonNode] = Map(
         "chatGroup" -> cg,
         "creator" -> userMap(creator).get,

@@ -580,7 +580,7 @@ object AccountManager {
         userInfo
       }
       else
-        throw AuthException("")
+        throw AuthException()
     }
   }
 
