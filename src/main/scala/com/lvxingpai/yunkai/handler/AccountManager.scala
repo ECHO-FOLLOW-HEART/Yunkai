@@ -3,8 +3,8 @@ package com.lvxingpai.yunkai.handler
 import java.security.MessageDigest
 import java.util.UUID
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.{LongNode, NullNode, TextNode}
+import com.fasterxml.jackson.databind.{ObjectMapper}
+import com.fasterxml.jackson.databind.node.{ObjectNode, TextNode}
 import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.model.{ContactRequest, Credential, Relationship, UserInfo}
 import com.mongodb.{DuplicateKeyException, MongoCommandException}
@@ -96,12 +96,15 @@ object AccountManager {
       else {
         // 触发修改个人信息事件
         // 修改了哪些字段
-        val updated = new ObjectMapper().createObjectNode()
+        val miscInfo = new ObjectMapper().createObjectNode()
+        val user = new ObjectMapper().createObjectNode()
+        user.put("id", result.userId)
+        user.put("nickName", result.nickName)
+        val avatarValue = if (result.avatar != null && result.avatar.nonEmpty) result.avatar else ""
+        user.put("avatar", avatarValue)
         val eventArgs = scala.collection.immutable.Map(
-          "userId" -> LongNode.valueOf(result.userId),
-          "nickName" -> TextNode.valueOf(result.nickName),
-          "avatar" -> (if (result.avatar != null && result.avatar.nonEmpty) TextNode.valueOf(result.avatar) else NullNode.getInstance()),
-          "updated" -> updated
+          "user" -> user,
+          "miscInfo" -> miscInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
         // 返回userInfo
@@ -150,20 +153,26 @@ object AccountManager {
         // 触发添加联系人的事件
         val sender = m(userId).get
         val receiver = m(target).get
+        val miscInfo = new ObjectMapper().createObjectNode()
 
         val eventArgs = scala.collection.immutable.Map(
-          "userA" -> LongNode.valueOf(userId),
-          "nickNameA" -> TextNode.valueOf(sender.nickName),
-          "avatarA" -> (if (sender.avatar != null && sender.avatar.nonEmpty) TextNode.valueOf(sender.avatar) else NullNode.getInstance()),
-          "userB" -> LongNode.valueOf(receiver.userId),
-          "nickNameB" -> TextNode.valueOf(receiver.nickName),
-          "avatarB" -> (if (receiver.avatar != null && receiver.avatar.nonEmpty) TextNode.valueOf(receiver.avatar) else NullNode.getInstance())
+          "user" -> user2ObjectNode(sender),
+          "targets" -> user2ObjectNode(receiver),
+          "miscInfo" -> miscInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtAddContacts, eventArgs)
       })
 
       Future.collect(jobs) map (_ => ())
     })
+  }
+  def user2ObjectNode(user: UserInfo): ObjectNode = {
+    val targets = new ObjectMapper().createObjectNode()
+    targets.put("id", user.userId)
+    targets.put("nickName", user.nickName)
+    val avatarValue = if (user.avatar != null && user.avatar.nonEmpty) user.avatar else ""
+    targets.put("avatar", avatarValue)
+    targets
   }
 
   /**
@@ -193,16 +202,13 @@ object AccountManager {
 
         // 触发删除联系人的事件
         val userAInfo = m(userId).get
-        val userBInfos:Seq[UserInfo] = Seq()
+        val miscInfo = new ObjectMapper().createObjectNode()
         for(elem <- targetUsersFiltered) {
           val userBInfo = m(elem).get
           val eventArgs = scala.collection.immutable.Map(
-            "userA" -> LongNode.valueOf(userId),
-            "nickNameA" -> TextNode.valueOf(userAInfo.nickName),
-            "avatarA" -> (if (userAInfo.avatar != null && userAInfo.avatar.nonEmpty) TextNode.valueOf(userAInfo.avatar) else NullNode.getInstance()),
-            "userB" -> LongNode.valueOf(userBInfo.userId),
-            "nickNameB" -> TextNode.valueOf(userBInfo.nickName),
-            "avatarB" -> (if (userBInfo.avatar != null && userBInfo.avatar.nonEmpty) TextNode.valueOf(userBInfo.avatar) else NullNode.getInstance())
+            "user" -> user2ObjectNode(userAInfo),
+            "targets" -> user2ObjectNode(userBInfo),
+            "miscInfo" -> miscInfo
           )
           EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
         }
@@ -286,8 +292,9 @@ object AccountManager {
   def sendContactRequest(sender: Long, receiver: Long, message: Option[String] = None)
                         (implicit ds: Datastore, futurePool: FuturePool): Future[ObjectId] = {
     // 检查用户是否存在
+    val responseFields:Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     for {
-      users <- getUsersByIdList(Seq(), sender, receiver)(ds, futurePool)
+      users <- getUsersByIdList(responseFields, sender, receiver)(ds, futurePool)
       relationship <- isContact(sender, receiver)(ds, futurePool)
     } yield {
       if (relationship)
@@ -328,6 +335,18 @@ object AccountManager {
             else
               throw ex
         }
+        // 触发发送好友请求
+        val senderInfo = users(sender).get
+        val receiverInfo = users(receiver).get
+        val miscInfo = new ObjectMapper().createObjectNode()
+        val eventArgs = scala.collection.immutable.Map(
+          "requestId" -> TextNode.valueOf(newRequest.id.toString),
+          "message" -> TextNode.valueOf(message.getOrElse("")),
+          "sender" -> user2ObjectNode(senderInfo),
+          "receiver" -> user2ObjectNode(receiverInfo),
+          "miscInfo" -> miscInfo
+        )
+        EventEmitter.emitEvent(EventEmitter.evtSendContactRequest, eventArgs)
         newRequest.id
       }
     }
@@ -358,6 +377,25 @@ object AccountManager {
         val newRequest = ds.findAndModify(query, updateOps, false, false)
         if (newRequest == null)
           throw InvalidStateException("")
+
+        // 触发拒绝好友请求
+        val responseFields:Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+        val senderId = oldRequest.get.sender
+        val receiverId = oldRequest.get.receiver
+        val users = getUsersByIdList(responseFields, senderId, receiverId)
+        for{
+          userInfos <- users
+        } yield {
+          val miscInfo = new ObjectMapper().createObjectNode()
+          val eventArgs = scala.collection.immutable.Map(
+            "requestId" -> TextNode.valueOf(newRequest.id.toString),
+            "message" -> TextNode.valueOf(message.get),
+            "sender" -> user2ObjectNode(userInfos(senderId).get),
+            "receiver" -> user2ObjectNode(userInfos(receiverId).get),
+            "miscInfo" -> miscInfo
+          )
+          EventEmitter.emitEvent(EventEmitter.evtRejectContactRequest, eventArgs)
+        }
       }
     })
   }
@@ -387,6 +425,23 @@ object AccountManager {
           throw InvalidStateException("")
 
         addContact(newRequest.sender, newRequest.receiver)
+        // 触发拒绝好友请求
+        val responseFields:Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+        val senderId = oldRequest.get.sender
+        val receiverId = oldRequest.get.receiver
+        val users = getUsersByIdList(responseFields, senderId, receiverId)
+        for{
+          userInfos <- users
+        } yield {
+          val miscInfo = new ObjectMapper().createObjectNode()
+          val eventArgs = scala.collection.immutable.Map(
+            "requestId" -> TextNode.valueOf(newRequest.id.toString),
+            "sender" -> user2ObjectNode(userInfos(senderId).get),
+            "receiver" -> user2ObjectNode(userInfos(receiverId).get),
+            "miscInfo" -> miscInfo
+          )
+          EventEmitter.emitEvent(EventEmitter.evtAcceptContactRequest, eventArgs)
+        }
       }
     })
   }
@@ -497,7 +552,7 @@ object AccountManager {
    * @param password    登录密码
    * @return
    */
-  def login(loginName: String, password: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+  def login(loginName: String, password: String, source: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
     // 获得用户信息
     val userInfo = futurePool {
       ds.find(classOf[UserInfo], UserInfo.fdTel, loginName).get()
@@ -508,7 +563,7 @@ object AccountManager {
       if (v != null) {
         val userId = v.userId
         (v, ds.find(classOf[Credential], Credential.fdUserId, userId).get())
-      } else throw new AuthException("")
+      } else throw AuthException()
     })
 
     // 验证
@@ -518,17 +573,16 @@ object AccountManager {
       if (crypted == credential.passwdHash)
         user
       else
-        throw new AuthException("")
+        throw AuthException()
     })
 
     // 触发登录事件
     result map (v => {
       val miscInfo = new ObjectMapper().createObjectNode()
-      miscInfo.put("avatar", v.avatar)
       val eventArgs = scala.collection.immutable.Map(
-        "userId" -> LongNode.valueOf(v.userId),
-        "nickName" -> TextNode.valueOf(v.nickName),
-        "info" -> miscInfo
+        "user" -> user2ObjectNode(v),
+        "source" -> TextNode.valueOf(source),
+        "miscInfo" -> miscInfo
       )
       EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
       v
@@ -569,11 +623,11 @@ object AccountManager {
     }
 
     // 触发创建新用户的事件
+    val miscInfo = new ObjectMapper().createObjectNode()
     userInfo map (v => {
       val eventArgs = scala.collection.immutable.Map(
-        "id" -> LongNode.valueOf(v.userId),
-        "nickName" -> TextNode.valueOf(v.nickName),
-        "avatar" -> TextNode.valueOf(Option(v.avatar) getOrElse "")
+        "user" -> user2ObjectNode(v),
+        "miscInfo" -> miscInfo
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
     })
@@ -599,10 +653,10 @@ object AccountManager {
       elem <- user
     }yield {
       val userInfo = elem.get
+      val miscInfo = new ObjectMapper().createObjectNode()
       val eventArgs = scala.collection.immutable.Map(
-        "userId" -> LongNode.valueOf(userId),
-        "nickName" -> TextNode.valueOf(userInfo.nickName),
-        "avatar" -> (if (userInfo.avatar != null && userInfo.avatar.nonEmpty) TextNode.valueOf(userInfo.avatar) else NullNode.getInstance())
+        "user" -> user2ObjectNode(userInfo),
+        "miscInfo" -> miscInfo
       )
       EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
       }
