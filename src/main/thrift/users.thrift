@@ -137,15 +137,20 @@ service userservice {
   // 第3个参数表示登录设备的来源, 比如：web或者安卓
   UserInfo login(1:string loginName, 2:string password, 3:string source) throws (1:AuthException ex)
 
+  // 验证用户密码
+  bool verifyCredential(1:i64 userId, 2:string password) throws (1:AuthException ex)
+
   // 用户修改密码
   void resetPassword(1:i64 userId, 2:string newPassword) throws (1: InvalidArgsException ex1, 2: AuthException ex2)
+
+  // 修改手机号
+  void updateTelNumber(1:i64 userId, 2:string tel) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
 
   // 新用户注册。支持的UserInfoProp暂时只有tel
   UserInfo createUser(1:string nickName, 2:string password, 3:optional map<UserInfoProp, string> miscInfo) throws (1: UserExistsException ex1, 2: InvalidArgsException ex2)
 
   // 搜索用户(参数1表示根据哪些字段搜索, 参数2表示返回的字段, 参数3表示当前页从第几个开始, 4表示一页返回多少个)
-  list<UserInfo> searchUserInfo(1: map<UserInfoProp, string> queryFields, 2: optional list<UserInfoProp> fields,
-  3: optional i32 offset, 4: optional i32 count)
+  list<UserInfo> searchUserInfo(1: map<UserInfoProp, string> queryFields, 2: optional list<UserInfoProp> fields, 3: optional i32 offset, 4: optional i32 count)
 
   // 用户退出登录
   // void logout(1: i64 userId)
@@ -155,7 +160,7 @@ service userservice {
     throws (1: InvalidArgsException ex1, 2: NotFoundException ex2, 3: GroupMembersLimitException ex3)
 
   // 搜索讨论组
-  // list<ChatGroup> searchChatGroup(1: string keyword)
+//  list<ChatGroup> searchChatGroup(1: string keyword)
 
   // 修改讨论组信息（比如名称、描述等）。支持的ChatGroupProp有：name, groupDesc, maxUsers, avatar和visible
   ChatGroup updateChatGroup(1: i64 chatGroupId, 2: map<ChatGroupProp, string> chatGroupProps) throws (1: InvalidArgsException ex1, 2: NotFoundException ex2)

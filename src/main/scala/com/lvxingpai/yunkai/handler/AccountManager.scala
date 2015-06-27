@@ -3,7 +3,6 @@ package com.lvxingpai.yunkai.handler
 import java.security.MessageDigest
 import java.util.UUID
 
-import com.fasterxml.jackson.databind.node.TextNode
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.model.{ContactRequest, Credential, Relationship, UserInfo}
@@ -95,15 +94,13 @@ object AccountManager {
       else {
         // 触发修改个人信息事件
         // 修改了哪些字段
-        val miscInfo = new ObjectMapper().createObjectNode()
         val user = new ObjectMapper().createObjectNode()
         user.put("id", result.userId)
         user.put("nickName", result.nickName)
         val avatarValue = if (result.avatar != null && result.avatar.nonEmpty) result.avatar else ""
         user.put("avatar", avatarValue)
         val eventArgs = scala.collection.immutable.Map(
-          "user" -> user,
-          "miscInfo" -> miscInfo
+          "user" -> user
         )
         EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
         // 返回userInfo
@@ -152,12 +149,9 @@ object AccountManager {
         // 触发添加联系人的事件
         val sender = m(userId).get
         val receiver = m(target).get
-        val miscInfo = new ObjectMapper().createObjectNode()
-
         val eventArgs: Map[String, JsonNode] = Map(
           "user" -> sender,
-          "targets" -> receiver,
-          "miscInfo" -> miscInfo
+          "targets" -> receiver
         )
         EventEmitter.emitEvent(EventEmitter.evtAddContacts, eventArgs)
       })
@@ -202,13 +196,12 @@ object AccountManager {
 
         // 触发删除联系人的事件
         val userAInfo = m(userId).get
-        val miscInfo = new ObjectMapper().createObjectNode()
+        val userBInfos: Seq[UserInfo] = Seq()
         for (elem <- targetUsersFiltered) {
           val userBInfo = m(elem).get
           val eventArgs: Map[String, JsonNode] = Map(
             "user" -> userAInfo,
-            "targets" -> userBInfo,
-            "miscInfo" -> miscInfo
+            "targets" -> userBInfo
           )
           EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
         }
@@ -250,7 +243,7 @@ object AccountManager {
     for {
       ids <- contactIds
       contactsMap <- getUsersByIdList(fields, ids: _*)
-    } yield (contactsMap.values.toSeq map (_.orNull)) filter (_ != null)
+    } yield contactsMap.toSeq.map(_._2.orNull) filter (_ != null)
   }
 
   /**
@@ -336,15 +329,14 @@ object AccountManager {
               throw ex
         }
         // 触发发送好友请求
+        import Implicits.JsonConversions._
         val senderInfo = users(sender).get
         val receiverInfo = users(receiver).get
-        val miscInfo = new ObjectMapper().createObjectNode()
         val eventArgs: Map[String, JsonNode] = Map(
-          "requestId" -> TextNode.valueOf(newRequest.id.toString),
-          "message" -> TextNode.valueOf(message.getOrElse("")),
+          "requestId" -> newRequest.id.toString,
+          "message" -> message.orNull[String],
           "sender" -> senderInfo,
-          "receiver" -> receiverInfo,
-          "miscInfo" -> miscInfo
+          "receiver" -> receiverInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtSendContactRequest, eventArgs)
         newRequest.id
@@ -386,13 +378,12 @@ object AccountManager {
         for {
           userInfos <- users
         } yield {
-          val miscInfo = new ObjectMapper().createObjectNode()
+          import Implicits.JsonConversions._
           val eventArgs: Map[String, JsonNode] = Map(
-            "requestId" -> TextNode.valueOf(newRequest.id.toString),
-            "message" -> TextNode.valueOf(message.get),
+            "requestId" -> newRequest.id.toString,
+            "message" -> message.orNull[String],
             "sender" -> userInfos(senderId).get,
-            "receiver" -> userInfos(receiverId).get,
-            "miscInfo" -> miscInfo
+            "receiver" -> userInfos(receiverId).get
           )
           EventEmitter.emitEvent(EventEmitter.evtRejectContactRequest, eventArgs)
         }
@@ -433,12 +424,11 @@ object AccountManager {
         for {
           userInfos <- users
         } yield {
-          val miscInfo = new ObjectMapper().createObjectNode()
+          import Implicits.JsonConversions._
           val eventArgs: Map[String, JsonNode] = Map(
-            "requestId" -> TextNode.valueOf(newRequest.id.toString),
+            "requestId" -> newRequest.id.toString,
             "sender" -> userInfos(senderId).get,
-            "receiver" -> userInfos(receiverId).get,
-            "miscInfo" -> miscInfo
+            "receiver" -> userInfos(receiverId).get
           )
           EventEmitter.emitEvent(EventEmitter.evtAcceptContactRequest, eventArgs)
         }
@@ -546,6 +536,24 @@ object AccountManager {
   }
 
   /**
+   * 验证用户密码是否正确
+   *
+   * @param userId    用户名
+   * @param password  密码
+   * @return
+   */
+  def verifyCredential(userId: Long, password: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+    val query = ds.createQuery(classOf[Credential]).field(Credential.fdUserId).equal(userId)
+    futurePool {
+      val credential = query.get()
+      credential != null && {
+        val crypted = saltPassword(password, Some(credential.salt))._2
+        crypted == credential.passwdHash
+      }
+    }
+  }
+
+  /**
    * 用户登录
    *
    * @param loginName   登录用户名（默认情况下是注册的手机号）
@@ -554,39 +562,33 @@ object AccountManager {
    */
   def login(loginName: String, password: String, source: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
     // 获得用户信息
-    val userInfo = futurePool {
-      ds.find(classOf[UserInfo], UserInfo.fdTel, loginName).get()
-    }
+    for {
+      userInfo <- futurePool {
+        val retrievedFields = Seq(UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
+          UserInfo.fdSignature, UserInfo.fdTel)
+        ds.createQuery(classOf[UserInfo]).field(UserInfo.fdTel).equal(loginName)
+          .retrievedFields(true, retrievedFields: _*).get()
+      }
+      verified <- {
+        if (userInfo == null)
+          futurePool(false)
+        else
+          verifyCredential(userInfo.userId, password)
+      }
+    } yield {
+      if (verified) {
+        import Implicits.JsonConversions._
+        val eventArgs: Map[String, JsonNode] = Map(
+          "user" -> userInfo,
+          "source" -> source
+        )
+        EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
 
-    // 获得机密信息
-    val complex = userInfo map (v => {
-      if (v != null) {
-        val userId = v.userId
-        (v, ds.find(classOf[Credential], Credential.fdUserId, userId).get())
-      } else throw AuthException()
-    })
-
-    // 验证
-    val result = complex map (v => {
-      val (user, credential) = v
-      val crypted = saltPassword(password, Some(credential.salt))._2
-      if (crypted == credential.passwdHash)
-        user
+        userInfo
+      }
       else
         throw AuthException()
-    })
-
-    // 触发登录事件
-    result map (v => {
-      val miscInfo = new ObjectMapper().createObjectNode()
-      val eventArgs: Map[String, JsonNode] = Map(
-        "user" -> v,
-        "source" -> TextNode.valueOf(source),
-        "miscInfo" -> miscInfo
-      )
-      EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
-      v
-    })
+    }
   }
 
   // 新用户注册
@@ -623,11 +625,9 @@ object AccountManager {
     }
 
     // 触发创建新用户的事件
-    val miscInfo = new ObjectMapper().createObjectNode()
     userInfo map (v => {
       val eventArgs: Map[String, JsonNode] = Map(
-        "user" -> v,
-        "miscInfo" -> miscInfo
+        "user" -> v
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
     })
@@ -635,7 +635,13 @@ object AccountManager {
     userInfo
   }
 
-  def updatePassword(userId: Long, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
+  /**
+   * 重置密码
+   * @param userId
+   * @param newPassword
+   * @return
+   */
+  def resetPassword(userId: Long, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
     val query = ds.find(classOf[Credential], Credential.fdUserId, userId)
     if (query isEmpty) throw new NotFoundException(s"User userId=$userId credential is not found")
     else {
@@ -653,14 +659,31 @@ object AccountManager {
       elem <- user
     } yield {
       val userInfo = elem.get
-      val miscInfo = new ObjectMapper().createObjectNode()
       val eventArgs: Map[String, JsonNode] = Map(
-        "user" -> userInfo,
-        "miscInfo" -> miscInfo
+        "user" -> userInfo
       )
       EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
     }
   }
+
+  /**
+   * 更新用户手机号码
+   *
+   * @param userId
+   * @param tel
+   * @return
+   */
+  def updateTelNumber(userId: Long, tel: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
+    import UserInfo._
+
+    val cls = classOf[UserInfo]
+    val query = ds.createQuery(cls).field(fdUserId).equal(userId)
+    val updateOps = ds.createUpdateOperations(cls).set(fdTel, tel)
+    val updated = ds.findAndModify(query, updateOps)
+    if (updated == null)
+      throw NotFoundException(s"Cannot find user $userId")
+  }
+
 
   /**
    * 返回salt和密文
@@ -674,36 +697,55 @@ object AccountManager {
     theSalt -> (bytes map ("%02x" format _) mkString)
   }
 
+  /**
+   * 根据电话号码和昵称搜索用户。
+   *
+   * @param queryFields
+   * @param fields
+   * @param offset
+   * @param count
+   * @param ds
+   * @param futurePool
+   * @return
+   */
   def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int] = None,
                      count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
-    val query = ds.createQuery(classOf[UserInfo])
-    queryFields foreach (item => {
+    val cls = classOf[UserInfo]
+
+    val query = ds.createQuery(cls)
+    val criteriaList = queryFields.toSeq map (item => {
       item._1 match {
-        case UserInfoProp.Tel => query.or(ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdTel).startsWith(item._2))
-        case UserInfoProp.NickName => query.or(ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdNickName).contains(item._2))
-        case UserInfoProp.Gender => query.or(ds.createQuery(classOf[UserInfo]).criteria(UserInfo.fdGender).contains(item._2))
-        case _ => ""
+        case UserInfoProp.Tel => ds.createQuery(cls).criteria(UserInfo.fdTel).startsWith(item._2)
+        case UserInfoProp.NickName => ds.createQuery(cls).criteria(UserInfo.fdNickName).startsWithIgnoreCase(item._2)
+        case _ => null
       }
-    })
+    }) filter (_ != null)
 
-    // 分页
-    val defaultOffset = 0
-    val defaultCount = 20
+    if (criteriaList isEmpty)
+      futurePool(Seq())
+    else {
+      query.or(criteriaList: _*)
 
-    // 限定查询返回字段
-    val retrievedFields = fields.getOrElse(Seq()) map {
-      case UserInfoProp.UserId => UserInfo.fdUserId
-      case UserInfoProp.NickName => UserInfo.fdNickName
-      case UserInfoProp.Avatar => UserInfo.fdAvatar
-      case _ => ""
-    } filter (_ nonEmpty)
+      // 分页
+      val defaultOffset = 0
+      val defaultCount = 20
 
-    // 获得符合条件的userId
-    futurePool {
-      query.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
-      if (retrievedFields nonEmpty)
-        query.retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
-      query.asList().toSeq
+      // 限定查询返回字段
+      val retrievedFields = fields.getOrElse(Seq()) map {
+        case UserInfoProp.UserId => UserInfo.fdUserId
+        case UserInfoProp.NickName => UserInfo.fdNickName
+        case UserInfoProp.Avatar => UserInfo.fdAvatar
+        case UserInfoProp.Tel => UserInfo.fdTel
+        case _ => ""
+      } filter (_ nonEmpty)
+
+      // 获得符合条件的userId
+      futurePool {
+        query.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
+        if (retrievedFields nonEmpty)
+          query.retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
+        query.asList().toSeq
+      }
     }
   }
 }

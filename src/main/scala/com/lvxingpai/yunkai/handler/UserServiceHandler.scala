@@ -59,10 +59,13 @@ class UserServiceHandler extends Userservice.FutureIface {
       (_ map UserServiceHandler.userInfoConversion)
   }
 
-  override def searchUserInfo(queryFields: scala.collection.Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]],
-                              offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
-    AccountManager.searchUserInfo(Map(queryFields.toSeq: _*), fields, offset, count) map
-      (_ map UserServiceHandler.userInfoConversion)
+  override def searchUserInfo(queryFields: scala.collection.Map[UserInfoProp, String],
+                              fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
+    for {
+      userList <- AccountManager.searchUserInfo(Map(queryFields.toSeq: _*), fields, offset, count)
+    } yield {
+      userList map UserServiceHandler.userInfoConversion
+    }
   }
 
   override def getContactCount(userId: Long): Future[Int] = AccountManager.getContactCount(userId)
@@ -79,7 +82,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def resetPassword(userId: Long, newPassword: String): Future[Unit] =
-    AccountManager.updatePassword(userId, newPassword)
+    AccountManager.resetPassword(userId, newPassword)
 
   override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp,
     String]]): Future[yunkai.UserInfo] = {
@@ -191,6 +194,11 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def cancelContactRequest(requestId: String): Future[Unit] =
     AccountManager.cancelContactRequest(requestId)
+
+  override def verifyCredential(userId: Long, password: String): Future[Boolean] =
+    AccountManager.verifyCredential(userId, password)
+
+  override def updateTelNumber(userId: Long, tel: String): Future[Unit] = AccountManager.updateTelNumber(userId, tel)
 }
 
 object UserServiceHandler {
