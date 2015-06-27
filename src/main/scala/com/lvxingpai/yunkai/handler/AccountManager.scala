@@ -3,7 +3,6 @@ package com.lvxingpai.yunkai.handler
 import java.security.MessageDigest
 import java.util.UUID
 
-import com.fasterxml.jackson.databind.node.TextNode
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.model.{ContactRequest, Credential, Relationship, UserInfo}
@@ -337,12 +336,13 @@ object AccountManager {
               throw ex
         }
         // 触发发送好友请求
+        import Implicits.JsonConversions._
         val senderInfo = users(sender).get
         val receiverInfo = users(receiver).get
         val miscInfo = new ObjectMapper().createObjectNode()
         val eventArgs: Map[String, JsonNode] = Map(
-          "requestId" -> TextNode.valueOf(newRequest.id.toString),
-          "message" -> TextNode.valueOf(message.getOrElse("")),
+          "requestId" -> newRequest.id.toString,
+          "message" -> message.orNull[String],
           "sender" -> senderInfo,
           "receiver" -> receiverInfo,
           "miscInfo" -> miscInfo
@@ -388,9 +388,10 @@ object AccountManager {
           userInfos <- users
         } yield {
           val miscInfo = new ObjectMapper().createObjectNode()
+          import Implicits.JsonConversions._
           val eventArgs: Map[String, JsonNode] = Map(
-            "requestId" -> TextNode.valueOf(newRequest.id.toString),
-            "message" -> TextNode.valueOf(message.get),
+            "requestId" -> newRequest.id.toString,
+            "message" -> message.orNull[String],
             "sender" -> userInfos(senderId).get,
             "receiver" -> userInfos(receiverId).get,
             "miscInfo" -> miscInfo
@@ -435,8 +436,9 @@ object AccountManager {
           userInfos <- users
         } yield {
           val miscInfo = new ObjectMapper().createObjectNode()
+          import Implicits.JsonConversions._
           val eventArgs: Map[String, JsonNode] = Map(
-            "requestId" -> TextNode.valueOf(newRequest.id.toString),
+            "requestId" -> newRequest.id.toString,
             "sender" -> userInfos(senderId).get,
             "receiver" -> userInfos(receiverId).get,
             "miscInfo" -> miscInfo
@@ -589,9 +591,10 @@ object AccountManager {
     } yield {
       if (verified) {
         val miscInfo = new ObjectMapper().createObjectNode()
+        import Implicits.JsonConversions._
         val eventArgs: Map[String, JsonNode] = Map(
           "user" -> userInfo,
-          "source" -> TextNode.valueOf(source),
+          "source" -> source,
           "miscInfo" -> miscInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
