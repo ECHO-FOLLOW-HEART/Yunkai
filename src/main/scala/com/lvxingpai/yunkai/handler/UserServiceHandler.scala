@@ -70,8 +70,8 @@ class UserServiceHandler extends Userservice.FutureIface {
    * @param password  密码
    * @return 用户的详细资料
    */
-  override def login(loginName: String, password: String): Future[yunkai.UserInfo] = {
-    AccountManager.login(loginName, password) map UserServiceHandler.userInfoConversion
+  override def login(loginName: String, password: String, source: String): Future[yunkai.UserInfo] = {
+    AccountManager.login(loginName, password, source) map UserServiceHandler.userInfoConversion
   }
 
   override def resetPassword(userId: Long, newPassword: String): Future[Unit] =
@@ -131,11 +131,11 @@ class UserServiceHandler extends Userservice.FutureIface {
     }
   }
 
-  override def addChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
-    GroupManager.addChatGroupMembers(chatGroupId, userIds)
+  override def addChatGroupMembers(chatGroupId: Long, operatorId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
+    GroupManager.addChatGroupMembers(chatGroupId, operatorId, userIds)
 
-  override def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
-    GroupManager.removeChatGroupMembers(chatGroupId, userIds)
+  override def removeChatGroupMembers(chatGroupId: Long, operatorId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
+    GroupManager.removeChatGroupMembers(chatGroupId, operatorId, userIds)
 
   override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]]): Future[Seq[yunkai.UserInfo]] = {
     val result = GroupManager.getChatGroupMembers(chatGroupId, fields)
