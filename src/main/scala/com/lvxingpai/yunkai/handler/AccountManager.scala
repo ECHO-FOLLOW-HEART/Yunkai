@@ -93,14 +93,8 @@ object AccountManager {
         throw NotFoundException(s"Cannot find user: $userId")
       else {
         // 触发修改个人信息事件
-        // 修改了哪些字段
-        val user = new ObjectMapper().createObjectNode()
-        user.put("id", result.userId)
-        user.put("nickName", result.nickName)
-        val avatarValue = if (result.avatar != null && result.avatar.nonEmpty) result.avatar else ""
-        user.put("avatar", avatarValue)
-        val eventArgs = scala.collection.immutable.Map(
-          "user" -> user
+        val eventArgs: Map[String, JsonNode] = Map(
+          "user" -> result
         )
         EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
         // 返回userInfo
@@ -196,7 +190,6 @@ object AccountManager {
 
         // 触发删除联系人的事件
         val userAInfo = m(userId).get
-        val userBInfos: Seq[UserInfo] = Seq()
         for (elem <- targetUsersFiltered) {
           val userBInfo = m(elem).get
           val eventArgs: Map[String, JsonNode] = Map(
@@ -587,7 +580,7 @@ object AccountManager {
         userInfo
       }
       else
-        throw AuthException()
+        throw AuthException("")
     }
   }
 
