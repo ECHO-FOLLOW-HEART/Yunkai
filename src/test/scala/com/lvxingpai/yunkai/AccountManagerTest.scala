@@ -72,7 +72,7 @@ class AccountManagerTest extends YunkaiBaseTest {
       newUser.tel.get should be(tel)
 
       And("one can use the cell phone number and password to login")
-      val loginUser = waitFuture(new UserServiceHandler().login(tel, password))
+      val loginUser = waitFuture(new UserServiceHandler().login(tel, password,"1"))
       loginUser.userId should be(newUser.userId)
       loginUser.nickName should be(newUser.nickName)
     }
@@ -86,7 +86,7 @@ class AccountManagerTest extends YunkaiBaseTest {
     scenario("the cell phone number and the password are provided") {
       initialUsers foreach (entry => {
         val (userInfo, password) = entry
-        val actual = waitFuture(new UserServiceHandler().login(userInfo.tel.get, password))
+        val actual = waitFuture(new UserServiceHandler().login(userInfo.tel.get, password,"1"))
         actual.userId should be(userInfo.userId)
         actual.nickName should be(userInfo.nickName)
         actual.tel.get should be(userInfo.tel.get)
@@ -96,10 +96,10 @@ class AccountManagerTest extends YunkaiBaseTest {
       initialUsers foreach (entry => {
         val (userInfo, password) = entry
         intercept[AuthException] {
-          waitFuture(new UserServiceHandler().login(userInfo.tel.get, password + "false"))
+          waitFuture(new UserServiceHandler().login(userInfo.tel.get, password + "false","1"))
         }
         intercept[AuthException] {
-          waitFuture(new UserServiceHandler().login(userInfo.tel.get + "false", password))
+          waitFuture(new UserServiceHandler().login(userInfo.tel.get + "false", password, "1"))
         }
       })
     }

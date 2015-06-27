@@ -134,8 +134,8 @@ service userservice {
   // 获得用户的好友个数
   i32 getContactCount(1:i64 userId) throws (1:NotFoundException ex)
 
-  // 用户登录
-  UserInfo login(1:string loginName, 2:string password) throws (1:AuthException ex)
+  // 第3个参数表示登录设备的来源, 比如：web或者安卓
+  UserInfo login(1:string loginName, 2:string password, 3:string source) throws (1:AuthException ex)
 
   // 验证用户密码
   bool verifyCredential(1:i64 userId, 2:string password) throws (1:AuthException ex)
@@ -179,10 +179,10 @@ service userservice {
   i32 getUserChatGroupCount(1: i64 userId) throws (1: NotFoundException ex)
 
   // 批量添加讨论组成员
-  list<i64> addChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
+  list<i64> addChatGroupMembers(1: i64 chatGroupId, 2: i64 operatorId, 3: list<i64> userIds) throws (1:NotFoundException ex)
 
   // 批量删除讨论组成员
-  list<i64> removeChatGroupMembers(1: i64 chatGroupId, 2: list<i64> userIds) throws (1:NotFoundException ex)
+  list<i64> removeChatGroupMembers(1: i64 chatGroupId, 2: i64 operatorId, 3: list<i64> userIds) throws (1:NotFoundException ex)
 
   // 获得讨论组成员
   list<UserInfo> getChatGroupMembers(1:i64 chatGroupId, 2:optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
