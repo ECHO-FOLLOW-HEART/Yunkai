@@ -3,8 +3,8 @@ package com.lvxingpai.yunkai.handler
 import java.security.MessageDigest
 import java.util.UUID
 
-import com.fasterxml.jackson.databind.{ObjectMapper}
-import com.fasterxml.jackson.databind.node.{ObjectNode, TextNode}
+import com.fasterxml.jackson.databind.node.TextNode
+import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.model.{ContactRequest, Credential, Relationship, UserInfo}
 import com.mongodb.{DuplicateKeyException, MongoCommandException}
@@ -14,7 +14,6 @@ import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.{CriteriaContainer, UpdateOperations}
 
 import scala.collection.JavaConversions._
-import scala.collection.Map
 import scala.language.{implicitConversions, postfixOps}
 import scala.util.Random
 
@@ -155,9 +154,9 @@ object AccountManager {
         val receiver = m(target).get
         val miscInfo = new ObjectMapper().createObjectNode()
 
-        val eventArgs = scala.collection.immutable.Map(
-          "user" -> user2ObjectNode(sender),
-          "targets" -> user2ObjectNode(receiver),
+        val eventArgs: Map[String, JsonNode] = Map(
+          "user" -> sender,
+          "targets" -> receiver,
           "miscInfo" -> miscInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtAddContacts, eventArgs)
@@ -166,11 +165,12 @@ object AccountManager {
       Future.collect(jobs) map (_ => ())
     })
   }
-  def user2ObjectNode(user: UserInfo): ObjectNode = {
+
+  implicit def user2JsonNode(user: UserInfo): JsonNode = {
     val targets = new ObjectMapper().createObjectNode()
     targets.put("id", user.userId)
     targets.put("nickName", user.nickName)
-    val avatarValue = if (user.avatar != null && user.avatar.nonEmpty) user.avatar else ""
+    val avatarValue = Option(user.avatar).getOrElse("")
     targets.put("avatar", avatarValue)
     targets
   }
@@ -203,11 +203,11 @@ object AccountManager {
         // 触发删除联系人的事件
         val userAInfo = m(userId).get
         val miscInfo = new ObjectMapper().createObjectNode()
-        for(elem <- targetUsersFiltered) {
+        for (elem <- targetUsersFiltered) {
           val userBInfo = m(elem).get
-          val eventArgs = scala.collection.immutable.Map(
-            "user" -> user2ObjectNode(userAInfo),
-            "targets" -> user2ObjectNode(userBInfo),
+          val eventArgs: Map[String, JsonNode] = Map(
+            "user" -> userAInfo,
+            "targets" -> userBInfo,
             "miscInfo" -> miscInfo
           )
           EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
@@ -292,7 +292,7 @@ object AccountManager {
   def sendContactRequest(sender: Long, receiver: Long, message: Option[String] = None)
                         (implicit ds: Datastore, futurePool: FuturePool): Future[ObjectId] = {
     // 检查用户是否存在
-    val responseFields:Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+    val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     for {
       users <- getUsersByIdList(responseFields, sender, receiver)(ds, futurePool)
       relationship <- isContact(sender, receiver)(ds, futurePool)
@@ -339,11 +339,11 @@ object AccountManager {
         val senderInfo = users(sender).get
         val receiverInfo = users(receiver).get
         val miscInfo = new ObjectMapper().createObjectNode()
-        val eventArgs = scala.collection.immutable.Map(
+        val eventArgs: Map[String, JsonNode] = Map(
           "requestId" -> TextNode.valueOf(newRequest.id.toString),
           "message" -> TextNode.valueOf(message.getOrElse("")),
-          "sender" -> user2ObjectNode(senderInfo),
-          "receiver" -> user2ObjectNode(receiverInfo),
+          "sender" -> senderInfo,
+          "receiver" -> receiverInfo,
           "miscInfo" -> miscInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtSendContactRequest, eventArgs)
@@ -379,19 +379,19 @@ object AccountManager {
           throw InvalidStateException("")
 
         // 触发拒绝好友请求
-        val responseFields:Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+        val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
         val senderId = oldRequest.get.sender
         val receiverId = oldRequest.get.receiver
         val users = getUsersByIdList(responseFields, senderId, receiverId)
-        for{
+        for {
           userInfos <- users
         } yield {
           val miscInfo = new ObjectMapper().createObjectNode()
-          val eventArgs = scala.collection.immutable.Map(
+          val eventArgs: Map[String, JsonNode] = Map(
             "requestId" -> TextNode.valueOf(newRequest.id.toString),
             "message" -> TextNode.valueOf(message.get),
-            "sender" -> user2ObjectNode(userInfos(senderId).get),
-            "receiver" -> user2ObjectNode(userInfos(receiverId).get),
+            "sender" -> userInfos(senderId).get,
+            "receiver" -> userInfos(receiverId).get,
             "miscInfo" -> miscInfo
           )
           EventEmitter.emitEvent(EventEmitter.evtRejectContactRequest, eventArgs)
@@ -426,18 +426,18 @@ object AccountManager {
 
         addContact(newRequest.sender, newRequest.receiver)
         // 触发拒绝好友请求
-        val responseFields:Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+        val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
         val senderId = oldRequest.get.sender
         val receiverId = oldRequest.get.receiver
         val users = getUsersByIdList(responseFields, senderId, receiverId)
-        for{
+        for {
           userInfos <- users
         } yield {
           val miscInfo = new ObjectMapper().createObjectNode()
-          val eventArgs = scala.collection.immutable.Map(
+          val eventArgs: Map[String, JsonNode] = Map(
             "requestId" -> TextNode.valueOf(newRequest.id.toString),
-            "sender" -> user2ObjectNode(userInfos(senderId).get),
-            "receiver" -> user2ObjectNode(userInfos(receiverId).get),
+            "sender" -> userInfos(senderId).get,
+            "receiver" -> userInfos(receiverId).get,
             "miscInfo" -> miscInfo
           )
           EventEmitter.emitEvent(EventEmitter.evtAcceptContactRequest, eventArgs)
@@ -579,8 +579,8 @@ object AccountManager {
     // 触发登录事件
     result map (v => {
       val miscInfo = new ObjectMapper().createObjectNode()
-      val eventArgs = scala.collection.immutable.Map(
-        "user" -> user2ObjectNode(v),
+      val eventArgs: Map[String, JsonNode] = Map(
+        "user" -> v,
         "source" -> TextNode.valueOf(source),
         "miscInfo" -> miscInfo
       )
@@ -625,8 +625,8 @@ object AccountManager {
     // 触发创建新用户的事件
     val miscInfo = new ObjectMapper().createObjectNode()
     userInfo map (v => {
-      val eventArgs = scala.collection.immutable.Map(
-        "user" -> user2ObjectNode(v),
+      val eventArgs: Map[String, JsonNode] = Map(
+        "user" -> v,
         "miscInfo" -> miscInfo
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
@@ -647,19 +647,19 @@ object AccountManager {
     }
 
     // 触发重置用户密码的事件
-    val responseFields:Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+    val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     val user = getUserById(userId, responseFields)
-    for{
+    for {
       elem <- user
-    }yield {
+    } yield {
       val userInfo = elem.get
       val miscInfo = new ObjectMapper().createObjectNode()
-      val eventArgs = scala.collection.immutable.Map(
-        "user" -> user2ObjectNode(userInfo),
+      val eventArgs: Map[String, JsonNode] = Map(
+        "user" -> userInfo,
         "miscInfo" -> miscInfo
       )
       EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
-      }
+    }
   }
 
   /**

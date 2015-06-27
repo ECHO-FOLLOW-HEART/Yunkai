@@ -1,7 +1,7 @@
 package com.lvxingpai.yunkai.handler
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node._
+import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
 import com.lvxingpai.yunkai.model.{ChatGroup, UserInfo}
@@ -10,7 +10,9 @@ import com.twitter.util.{Future, FuturePool}
 import org.mongodb.morphia.Datastore
 
 import scala.collection.JavaConversions._
-import scala.collection.Map
+
+//import scala.collection.Map
+
 import scala.language.{implicitConversions, postfixOps}
 
 /**
@@ -70,46 +72,49 @@ object GroupManager {
     for {
       gid <- futureGid
     } yield {
-        val cg = ChatGroup(creator, gid, participants)
-        chatGroupProps foreach (item => {
-          item._1 match {
-            case ChatGroupProp.Name => cg.name = item._2.toString
-            case ChatGroupProp.GroupDesc => cg.groupDesc = item._2.toString
-            case ChatGroupProp.Avatar => cg.avatar = item._2.toString
-            case ChatGroupProp.Tags => cg.tags = item._2.asInstanceOf[Seq[String]]
-            case ChatGroupProp.MaxUsers => cg.maxUsers = item._2.asInstanceOf[Int]
-            case ChatGroupProp.Visible => cg.visible = item._2.asInstanceOf[Boolean]
-            case _ => ""
-          }
-        })
-        cg.admin = Seq(creator)
-        cg.createTime = java.lang.System.currentTimeMillis()
-        // 检查创建的群的用户数是否超过最大的上限
-        if (participants.size > cg.maxUsers)
-          throw GroupMembersLimitException("Chat group members' number exceed maximum allowable")
-        else
-          ds.save[ChatGroup](cg) // 1. gid重复 2. 数据库通信异常  3. 切面
-
-        // 触发创建讨论组的事件
-        val miscInfo = new ObjectMapper().createObjectNode()
-        val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
-        val creatorInfo = AccountManager.getUserById(creator, responseFields)(ds, futurePool)
-        for {
-          user <- creatorInfo
-        } yield {
-          val user1 = user.get
-          val eventArgs = scala.collection.immutable.Map(
-            "chatGroupId" -> LongNode.valueOf(cg.chatGroupId),
-            "name" -> TextNode.valueOf(cg.name),
-            "avatar" -> (if (cg.avatar != null && cg.avatar.nonEmpty) TextNode.valueOf(cg.avatar) else NullNode.getInstance()),
-            "creator" -> AccountManager.user2ObjectNode(user1),
-            "participants" -> new ObjectMapper().valueToTree(cg.participants),
-            "miscInfo" -> miscInfo
-          )
-          EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
+      val cg = ChatGroup(creator, gid, participants)
+      chatGroupProps foreach (item => {
+        item._1 match {
+          case ChatGroupProp.Name => cg.name = item._2.toString
+          case ChatGroupProp.GroupDesc => cg.groupDesc = item._2.toString
+          case ChatGroupProp.Avatar => cg.avatar = item._2.toString
+          case ChatGroupProp.Tags => cg.tags = item._2.asInstanceOf[Seq[String]]
+          case ChatGroupProp.MaxUsers => cg.maxUsers = item._2.asInstanceOf[Int]
+          case ChatGroupProp.Visible => cg.visible = item._2.asInstanceOf[Boolean]
+          case _ => ""
         }
-        cg
+      })
+      cg.admin = Seq(creator)
+      cg.createTime = java.lang.System.currentTimeMillis()
+      // 检查创建的群的用户数是否超过最大的上限
+      if (participants.size > cg.maxUsers)
+        throw GroupMembersLimitException("Chat group members' number exceed maximum allowable")
+      else
+        ds.save[ChatGroup](cg) // 1. gid重复 2. 数据库通信异常  3. 切面
+
+      // 触发创建讨论组的事件
+      val miscInfo = new ObjectMapper().createObjectNode()
+      val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+      val creatorInfo = AccountManager.getUserById(creator, responseFields)(ds, futurePool)
+      for {
+        user <- creatorInfo
+      } yield {
+        val user1 = user.get
+
+        import AccountManager.user2JsonNode
+
+        val eventArgs: Map[String, JsonNode] = Map(
+          "chatGroupId" -> LongNode.valueOf(cg.chatGroupId),
+          "name" -> TextNode.valueOf(cg.name),
+          "avatar" -> (if (cg.avatar != null && cg.avatar.nonEmpty) TextNode.valueOf(cg.avatar) else NullNode.getInstance()),
+          "creator" -> user1,
+          "participants" -> new ObjectMapper().valueToTree(cg.participants),
+          "miscInfo" -> miscInfo
+        )
+        EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
       }
+      cg
+    }
   }
 
   // 获取讨论组信息
@@ -216,7 +221,7 @@ object GroupManager {
         val addUserCount = usersToAdd.length
         val funcSpec =
           s"""var l = (this.$fieldName == null) ? 0 : this.$fieldName.length;
-             |return l + $addUserCount <= $maxUsers""".stripMargin.trim
+                                                                       |return l + $addUserCount <= $maxUsers""".stripMargin.trim
 
         val query = BasicDBObjectBuilder.start().add(ChatGroup.fdChatGroupId, chatGroupId).add("$where", funcSpec).get()
         val fields = BasicDBObjectBuilder.start(Map(ChatGroup.fdParticipants -> 1, ChatGroup.fdMaxUsers -> 1)).get()
@@ -254,9 +259,11 @@ object GroupManager {
       //      val participantsNode = new ObjectMapper().createArrayNode()
       //      participants foreach participantsNode.add
 
-      val eventArgs = scala.collection.immutable.Map(
+      import AccountManager.user2JsonNode
+
+      val eventArgs: Map[String, JsonNode] = Map(
         "chatGroupId" -> LongNode.valueOf(chatGroupId),
-        "operator" -> AccountManager.user2ObjectNode(operatorInfo),
+        "operator" -> operatorInfo,
         "targets" -> userInfos,
         "miscInfo" -> miscInfo
       )
@@ -335,9 +342,11 @@ object GroupManager {
       //      val participantsNode = new ObjectMapper().createArrayNode()
       //      group.participants foreach participantsNode.add
 
-      val eventArgs = scala.collection.immutable.Map(
+      import AccountManager.user2JsonNode
+
+      val eventArgs: Map[String, JsonNode] = Map(
         "chatGroupId" -> chatGroup2ObjectNode(group),
-        "operator" -> AccountManager.user2ObjectNode(operator),
+        "operator" -> operator,
         "targets" -> userInfos,
         "miscInfo" -> miscInfo
       )
