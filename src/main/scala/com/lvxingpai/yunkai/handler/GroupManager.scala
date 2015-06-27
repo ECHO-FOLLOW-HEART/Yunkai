@@ -41,11 +41,11 @@ object GroupManager {
     }
   }
 
-  def chatGroup2ObjectNode(chatGroup: ChatGroup): ObjectNode = {
+  implicit def chatGroup2JsonNode(chatGroup: ChatGroup): ObjectNode = {
     val targets = new ObjectMapper().createObjectNode()
     targets.put("id", chatGroup.chatGroupId)
     targets.put("name", chatGroup.name)
-    val avatarValue = if (chatGroup.avatar != null && chatGroup.avatar.nonEmpty) chatGroup.avatar else ""
+    val avatarValue = Option(chatGroup.avatar).getOrElse("")
     targets.put("avatar", avatarValue)
     targets
   }
@@ -99,13 +99,14 @@ object GroupManager {
       val miscInfo = new ObjectMapper().createObjectNode()
 
       import AccountManager.user2JsonNode
+      import Implicits.JsonConversions._
 
       val eventArgs: Map[String, JsonNode] = Map(
-        "chatGroupId" -> LongNode.valueOf(cg.chatGroupId),
-        "name" -> TextNode.valueOf(cg.name),
-        "avatar" -> (if (cg.avatar != null && cg.avatar.nonEmpty) TextNode.valueOf(cg.avatar) else NullNode.getInstance()),
+        "chatGroupId" -> cg.chatGroupId,
+        "name" -> cg.name,
+        "avatar" -> cg.avatar,
         "creator" -> userMap(creator).get,
-        "participants" -> new ObjectMapper().valueToTree(cg.participants),
+        "participants" -> cg.participants,
         "miscInfo" -> miscInfo
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
@@ -158,8 +159,10 @@ object GroupManager {
     }
 
     // 触发修改讨论组属性的事件
-    val eventArgs = scala.collection.immutable.Map(
-      "chatGroupId" -> LongNode.valueOf(result.chatGroupId)
+    import Implicits.JsonConversions._
+
+    val eventArgs:Map[String,JsonNode] = Map(
+      "chatGroupId" -> result.chatGroupId
     )
     EventEmitter.emitEvent(EventEmitter.evtModChatGroup, eventArgs)
 
@@ -253,9 +256,10 @@ object GroupManager {
       //      participants foreach participantsNode.add
 
       import AccountManager.user2JsonNode
+      import Implicits.JsonConversions._
 
       val eventArgs: Map[String, JsonNode] = Map(
-        "chatGroupId" -> LongNode.valueOf(chatGroupId),
+        "chatGroupId" -> chatGroupId,
         "operator" -> operatorInfo,
         "targets" -> userInfos,
         "miscInfo" -> miscInfo
@@ -338,7 +342,7 @@ object GroupManager {
       import AccountManager.user2JsonNode
 
       val eventArgs: Map[String, JsonNode] = Map(
-        "chatGroupId" -> chatGroup2ObjectNode(group),
+        "chatGroupId" -> group,
         "operator" -> operator,
         "targets" -> userInfos,
         "miscInfo" -> miscInfo
