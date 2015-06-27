@@ -94,15 +94,13 @@ object AccountManager {
       else {
         // 触发修改个人信息事件
         // 修改了哪些字段
-        val miscInfo = new ObjectMapper().createObjectNode()
         val user = new ObjectMapper().createObjectNode()
         user.put("id", result.userId)
         user.put("nickName", result.nickName)
         val avatarValue = if (result.avatar != null && result.avatar.nonEmpty) result.avatar else ""
         user.put("avatar", avatarValue)
         val eventArgs = scala.collection.immutable.Map(
-          "user" -> user,
-          "miscInfo" -> miscInfo
+          "user" -> user
         )
         EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
         // 返回userInfo
@@ -151,12 +149,9 @@ object AccountManager {
         // 触发添加联系人的事件
         val sender = m(userId).get
         val receiver = m(target).get
-        val miscInfo = new ObjectMapper().createObjectNode()
-
         val eventArgs: Map[String, JsonNode] = Map(
           "user" -> sender,
-          "targets" -> receiver,
-          "miscInfo" -> miscInfo
+          "targets" -> receiver
         )
         EventEmitter.emitEvent(EventEmitter.evtAddContacts, eventArgs)
       })
@@ -202,13 +197,11 @@ object AccountManager {
         // 触发删除联系人的事件
         val userAInfo = m(userId).get
         val userBInfos: Seq[UserInfo] = Seq()
-        val miscInfo = new ObjectMapper().createObjectNode()
         for (elem <- targetUsersFiltered) {
           val userBInfo = m(elem).get
           val eventArgs: Map[String, JsonNode] = Map(
             "user" -> userAInfo,
-            "targets" -> userBInfo,
-            "miscInfo" -> miscInfo
+            "targets" -> userBInfo
           )
           EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
         }
@@ -339,13 +332,11 @@ object AccountManager {
         import Implicits.JsonConversions._
         val senderInfo = users(sender).get
         val receiverInfo = users(receiver).get
-        val miscInfo = new ObjectMapper().createObjectNode()
         val eventArgs: Map[String, JsonNode] = Map(
           "requestId" -> newRequest.id.toString,
           "message" -> message.orNull[String],
           "sender" -> senderInfo,
-          "receiver" -> receiverInfo,
-          "miscInfo" -> miscInfo
+          "receiver" -> receiverInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtSendContactRequest, eventArgs)
         newRequest.id
@@ -387,14 +378,12 @@ object AccountManager {
         for {
           userInfos <- users
         } yield {
-          val miscInfo = new ObjectMapper().createObjectNode()
           import Implicits.JsonConversions._
           val eventArgs: Map[String, JsonNode] = Map(
             "requestId" -> newRequest.id.toString,
             "message" -> message.orNull[String],
             "sender" -> userInfos(senderId).get,
-            "receiver" -> userInfos(receiverId).get,
-            "miscInfo" -> miscInfo
+            "receiver" -> userInfos(receiverId).get
           )
           EventEmitter.emitEvent(EventEmitter.evtRejectContactRequest, eventArgs)
         }
@@ -435,13 +424,11 @@ object AccountManager {
         for {
           userInfos <- users
         } yield {
-          val miscInfo = new ObjectMapper().createObjectNode()
           import Implicits.JsonConversions._
           val eventArgs: Map[String, JsonNode] = Map(
             "requestId" -> newRequest.id.toString,
             "sender" -> userInfos(senderId).get,
-            "receiver" -> userInfos(receiverId).get,
-            "miscInfo" -> miscInfo
+            "receiver" -> userInfos(receiverId).get
           )
           EventEmitter.emitEvent(EventEmitter.evtAcceptContactRequest, eventArgs)
         }
@@ -590,12 +577,10 @@ object AccountManager {
       }
     } yield {
       if (verified) {
-        val miscInfo = new ObjectMapper().createObjectNode()
         import Implicits.JsonConversions._
         val eventArgs: Map[String, JsonNode] = Map(
           "user" -> userInfo,
-          "source" -> source,
-          "miscInfo" -> miscInfo
+          "source" -> source
         )
         EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
 
@@ -640,11 +625,9 @@ object AccountManager {
     }
 
     // 触发创建新用户的事件
-    val miscInfo = new ObjectMapper().createObjectNode()
     userInfo map (v => {
       val eventArgs: Map[String, JsonNode] = Map(
-        "user" -> v,
-        "miscInfo" -> miscInfo
+        "user" -> v
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
     })
@@ -676,10 +659,8 @@ object AccountManager {
       elem <- user
     } yield {
       val userInfo = elem.get
-      val miscInfo = new ObjectMapper().createObjectNode()
       val eventArgs: Map[String, JsonNode] = Map(
-        "user" -> userInfo,
-        "miscInfo" -> miscInfo
+        "user" -> userInfo
       )
       EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
     }

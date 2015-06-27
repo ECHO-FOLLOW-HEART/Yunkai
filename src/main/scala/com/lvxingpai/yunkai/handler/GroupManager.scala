@@ -68,13 +68,12 @@ object GroupManager {
 
     // 获得相关用户的详情
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
-    val futureUsers = AccountManager.getUsersByIdList(responseFields, participants:_*)
+    val futureUsers = AccountManager.getUsersByIdList(responseFields, participants: _*)
 
     for {
       gid <- futureGid
       userMap <- futureUsers
     } yield {
-      //<<<<<<< HEAD
       val cg = ChatGroup(creator, gid, participants)
       chatGroupProps foreach (item => {
         item._1 match {
@@ -86,6 +85,7 @@ object GroupManager {
           case ChatGroupProp.Visible => cg.visible = item._2.asInstanceOf[Boolean]
           case _ => ""
         }
+
       })
       cg.admin = Seq(creator)
       cg.createTime = java.lang.System.currentTimeMillis()
@@ -96,8 +96,6 @@ object GroupManager {
         ds.save[ChatGroup](cg) // 1. gid重复 2. 数据库通信异常  3. 切面
 
       // 触发创建讨论组的事件
-      val miscInfo = new ObjectMapper().createObjectNode()
-
       import AccountManager.user2JsonNode
       import Implicits.JsonConversions._
 
@@ -106,8 +104,7 @@ object GroupManager {
         "name" -> cg.name,
         "avatar" -> cg.avatar,
         "creator" -> userMap(creator).get,
-        "participants" -> cg.participants,
-        "miscInfo" -> miscInfo
+        "participants" -> cg.participants
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
 
@@ -130,8 +127,22 @@ object GroupManager {
   }
 
   //TODO 实现
-  def getChatGroups(fields: Seq[ChatGroupProp], groupIdList: Long*): Future[Map[Long, Option[ChatGroup]]] = {
+  def getChatGroups(fields: Seq[ChatGroupProp], groupIdList: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[ChatGroup]]] = {
     null
+    //    val allowedProperties = Seq(ChatGroupProp.Name, ChatGroupProp.GroupDesc, ChatGroupProp.ChatGroupId,
+    //      ChatGroupProp.Avatar, ChatGroupProp.Tags, ChatGroupProp.Creator, ChatGroupProp.Admin, ChatGroupProp.Participants,
+    //      ChatGroupProp.MaxUsers, ChatGroupProp.Visible)
+    //    val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ ChatGroupProp.ChatGroupId map
+    //      chatGroupPropToFieldName
+    //    futurePool {
+    //      val result = for (elem <- groupIdList) {
+    //        ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(elem).retrievedFields(true, retrievedFields: _*).get()
+    //      }
+    //      val result = for {elem <- groupIdList} {
+    //        ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(elem).retrievedFields(true, retrievedFields: _*).get()
+    //      }
+    //      Option(group)
+    //    }
   }
 
   // 修改讨论组信息（比如名称、描述等）
@@ -161,7 +172,7 @@ object GroupManager {
     // 触发修改讨论组属性的事件
     import Implicits.JsonConversions._
 
-    val eventArgs:Map[String,JsonNode] = Map(
+    val eventArgs: Map[String, JsonNode] = Map(
       "chatGroupId" -> result.chatGroupId
     )
     EventEmitter.emitEvent(EventEmitter.evtModChatGroup, eventArgs)
@@ -243,8 +254,6 @@ object GroupManager {
     def emitEvent(operatorInfo: UserInfo, addedUsers: Seq[UserInfo]): Future[Unit] = {
       // 触发添加讨论组成员的事件
       // 查找待添加的用户信息
-      val miscInfo = new ObjectMapper().createObjectNode()
-
       val userInfos = new ObjectMapper().createObjectNode()
       for (elem <- addedUsers) {
         val userInfo = elem
@@ -261,8 +270,7 @@ object GroupManager {
       val eventArgs: Map[String, JsonNode] = Map(
         "chatGroupId" -> chatGroupId,
         "operator" -> operatorInfo,
-        "targets" -> userInfos,
-        "miscInfo" -> miscInfo
+        "targets" -> userInfos
       )
       futurePool {
         EventEmitter.emitEvent(EventEmitter.evtAddGroupMembers, eventArgs)
@@ -326,8 +334,6 @@ object GroupManager {
     def procEvtEmitter(group: ChatGroup, operator: UserInfo, removedUsers: Seq[UserInfo]): Future[ChatGroup] = {
       // 触发删除讨论组成员的事件
       // 查找待添加的用户信息
-      val miscInfo = new ObjectMapper().createObjectNode()
-
       val userInfos = new ObjectMapper().createObjectNode()
       for (elem <- removedUsers) {
         val userInfo = elem
@@ -344,8 +350,7 @@ object GroupManager {
       val eventArgs: Map[String, JsonNode] = Map(
         "chatGroupId" -> group,
         "operator" -> operator,
-        "targets" -> userInfos,
-        "miscInfo" -> miscInfo
+        "targets" -> userInfos
       )
       futurePool {
         EventEmitter.emitEvent(EventEmitter.evtRemoveGroupMembers, eventArgs)
@@ -358,7 +363,6 @@ object GroupManager {
       group2 <- verify(group)
       operator <- futureOperator
       users <- futureUsers
-      //      _ <- procConversation(group2)
       _ <- procEvtEmitter(group2, operator.get, userInfos)
     } yield {
       group.participants
