@@ -39,7 +39,7 @@ object GroupManager {
     }
   }
 
-  def chatGroup2ObjectNode(chatGroup: ChatGroup): ObjectNode = {
+  implicit def chatGroup2JsonNode(chatGroup: ChatGroup): ObjectNode = {
     val targets = new ObjectMapper().createObjectNode()
     targets.put("id", chatGroup.chatGroupId)
     targets.put("name", chatGroup.name)
@@ -97,16 +97,19 @@ object GroupManager {
         for{
           user <- creatorInfo
         }yield {
-          val user1 = user.get
-          val eventArgs = scala.collection.immutable.Map(
-            "chatGroupId" -> LongNode.valueOf(cg.chatGroupId),
-            "name" -> TextNode.valueOf(cg.name),
-            "avatar" -> (if (cg.avatar != null && cg.avatar.nonEmpty) TextNode.valueOf(cg.avatar) else NullNode.getInstance()),
-            "creator" -> AccountManager.user2ObjectNode(user1),
-            "participants" -> new ObjectMapper().valueToTree(cg.participants),
-            "miscInfo" -> miscInfo
-          )
-          EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
+          if (user isEmpty)
+            throw NotFoundException("")
+          else{
+            val eventArgs = scala.collection.immutable.Map(
+              "chatGroupId" -> LongNode.valueOf(cg.chatGroupId),
+              "name" -> TextNode.valueOf(cg.name),
+              "avatar" -> (if (cg.avatar != null && cg.avatar.nonEmpty) TextNode.valueOf(cg.avatar) else NullNode.getInstance()),
+              "creator" -> AccountManager.user2JsonNode(user.get),
+              "participants" -> new ObjectMapper().valueToTree(cg.participants),
+              "miscInfo" -> miscInfo
+            )
+            EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
+          }
         }
         cg
       }
@@ -137,8 +140,22 @@ object GroupManager {
   }
 
   //TODO 实现
-  def getChatGroups(fields: Seq[ChatGroupProp], groupIdList: Long*): Future[Map[Long, Option[ChatGroup]]] = {
+  def getChatGroups(fields: Seq[ChatGroupProp], groupIdList: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[ChatGroup]]] = {
     null
+//    val allowedProperties = Seq(ChatGroupProp.Name, ChatGroupProp.GroupDesc, ChatGroupProp.ChatGroupId,
+//      ChatGroupProp.Avatar, ChatGroupProp.Tags, ChatGroupProp.Creator, ChatGroupProp.Admin, ChatGroupProp.Participants,
+//      ChatGroupProp.MaxUsers, ChatGroupProp.Visible)
+//    val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ ChatGroupProp.ChatGroupId map
+//      chatGroupPropToFieldName
+//    futurePool {
+//      val result = for (elem <- groupIdList) {
+//        ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(elem).retrievedFields(true, retrievedFields: _*).get()
+//      }
+//      val result = for {elem <- groupIdList} {
+//        ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(elem).retrievedFields(true, retrievedFields: _*).get()
+//      }
+//      Option(group)
+//    }
   }
 
   // 修改讨论组信息（比如名称、描述等）
@@ -270,7 +287,7 @@ object GroupManager {
 
       val eventArgs = scala.collection.immutable.Map(
         "chatGroupId" -> LongNode.valueOf(chatGroupId),
-        "operator" -> AccountManager.user2ObjectNode(operatorInfo),
+        "operator" -> AccountManager.user2JsonNode(operatorInfo),
         "targets" -> userInfos,
         "miscInfo" -> miscInfo
       )
@@ -351,8 +368,8 @@ object GroupManager {
 //      group.participants foreach participantsNode.add
 
       val eventArgs = scala.collection.immutable.Map(
-        "chatGroupId" -> chatGroup2ObjectNode(group),
-        "operator" -> AccountManager.user2ObjectNode(operator),
+        "chatGroupId" -> chatGroup2JsonNode(group),
+        "operator" -> AccountManager.user2JsonNode(operator),
         "targets" -> userInfos,
         "miscInfo" -> miscInfo
       )

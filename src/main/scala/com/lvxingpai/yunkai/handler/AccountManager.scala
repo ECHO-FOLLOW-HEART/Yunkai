@@ -155,8 +155,8 @@ object AccountManager {
         val miscInfo = new ObjectMapper().createObjectNode()
 
         val eventArgs = scala.collection.immutable.Map(
-          "user" -> user2ObjectNode(sender),
-          "targets" -> user2ObjectNode(receiver),
+          "user" -> user2JsonNode(sender),
+          "targets" -> user2JsonNode(receiver),
           "miscInfo" -> miscInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtAddContacts, eventArgs)
@@ -165,7 +165,7 @@ object AccountManager {
       Future.collect(jobs) map (_ => ())
     })
   }
-  def user2ObjectNode(user: UserInfo): ObjectNode = {
+  implicit def user2JsonNode(user: UserInfo): ObjectNode = {
     val targets = new ObjectMapper().createObjectNode()
     targets.put("id", user.userId)
     targets.put("nickName", user.nickName)
@@ -205,8 +205,8 @@ object AccountManager {
         for(elem <- targetUsersFiltered) {
           val userBInfo = m(elem).get
           val eventArgs = scala.collection.immutable.Map(
-            "user" -> user2ObjectNode(userAInfo),
-            "targets" -> user2ObjectNode(userBInfo),
+            "user" -> user2JsonNode(userAInfo),
+            "targets" -> user2JsonNode(userBInfo),
             "miscInfo" -> miscInfo
           )
           EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
@@ -340,9 +340,9 @@ object AccountManager {
         val miscInfo = new ObjectMapper().createObjectNode()
         val eventArgs = scala.collection.immutable.Map(
           "requestId" -> TextNode.valueOf(newRequest.id.toString),
-          "message" -> TextNode.valueOf(message.get),
-          "sender" -> user2ObjectNode(senderInfo),
-          "receiver" -> user2ObjectNode(receiverInfo),
+          "message" -> TextNode.valueOf(message.getOrElse("")),
+          "sender" -> user2JsonNode(senderInfo),
+          "receiver" -> user2JsonNode(receiverInfo),
           "miscInfo" -> miscInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtSendContactRequest, eventArgs)
@@ -388,9 +388,9 @@ object AccountManager {
           val miscInfo = new ObjectMapper().createObjectNode()
           val eventArgs = scala.collection.immutable.Map(
             "requestId" -> TextNode.valueOf(newRequest.id.toString),
-            "message" -> TextNode.valueOf(message.get),
-            "sender" -> user2ObjectNode(userInfos(senderId).get),
-            "receiver" -> user2ObjectNode(userInfos(receiverId).get),
+            "message" -> TextNode.valueOf(message.getOrElse("")),
+            "sender" -> user2JsonNode(userInfos(senderId).get),
+            "receiver" -> user2JsonNode(userInfos(receiverId).get),
             "miscInfo" -> miscInfo
           )
           EventEmitter.emitEvent(EventEmitter.evtRejectContactRequest, eventArgs)
@@ -435,8 +435,8 @@ object AccountManager {
           val miscInfo = new ObjectMapper().createObjectNode()
           val eventArgs = scala.collection.immutable.Map(
             "requestId" -> TextNode.valueOf(newRequest.id.toString),
-            "sender" -> user2ObjectNode(userInfos(senderId).get),
-            "receiver" -> user2ObjectNode(userInfos(receiverId).get),
+            "sender" -> user2JsonNode(userInfos(senderId).get),
+            "receiver" -> user2JsonNode(userInfos(receiverId).get),
             "miscInfo" -> miscInfo
           )
           EventEmitter.emitEvent(EventEmitter.evtAcceptContactRequest, eventArgs)
@@ -579,7 +579,7 @@ object AccountManager {
     result map (v => {
       val miscInfo = new ObjectMapper().createObjectNode()
       val eventArgs = scala.collection.immutable.Map(
-        "user" -> user2ObjectNode(v),
+        "user" -> user2JsonNode(v),
         "source" -> TextNode.valueOf(source),
         "miscInfo" -> miscInfo
       )
@@ -625,7 +625,7 @@ object AccountManager {
     val miscInfo = new ObjectMapper().createObjectNode()
     userInfo map (v => {
       val eventArgs = scala.collection.immutable.Map(
-        "user" -> user2ObjectNode(v),
+        "user" -> user2JsonNode(v),
         "miscInfo" -> miscInfo
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
@@ -654,7 +654,7 @@ object AccountManager {
       val userInfo = elem.get
       val miscInfo = new ObjectMapper().createObjectNode()
       val eventArgs = scala.collection.immutable.Map(
-        "user" -> user2ObjectNode(userInfo),
+        "user" -> user2JsonNode(userInfo),
         "miscInfo" -> miscInfo
       )
       EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
