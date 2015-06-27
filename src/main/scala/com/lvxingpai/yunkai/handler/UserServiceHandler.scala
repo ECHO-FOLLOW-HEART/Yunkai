@@ -7,7 +7,9 @@ import com.lvxingpai.yunkai.{NotFoundException, UserInfoProp, Userservice, _}
 import com.twitter.util.Future
 
 import scala.collection.JavaConversions._
-import scala.collection.Map
+
+//import scala.collection.Map
+
 import scala.language.{implicitConversions, postfixOps}
 
 /**
@@ -28,15 +30,15 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, String]): Future[yunkai.UserInfo] = {
-    val updateData = userInfo map (entry => {
+  override def updateUserInfo(userId: Long, userInfo: scala.collection.Map[UserInfoProp, String]): Future[yunkai.UserInfo] = {
+    val updateData = Map(userInfo.toSeq map (entry => {
       val (propName, propStr) = entry
       val propVal = propName match {
         case UserInfoProp.UserId => propStr.toLong
         case _ => if (propStr != null) propStr.trim else null
       }
       propName -> propVal
-    })
+    }): _*)
     AccountManager.updateUserInfo(userId, updateData) map UserServiceHandler.userInfoConversion
   }
 
@@ -57,9 +59,10 @@ class UserServiceHandler extends Userservice.FutureIface {
       (_ map UserServiceHandler.userInfoConversion)
   }
 
-  override def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
+  override def searchUserInfo(queryFields: scala.collection.Map[UserInfoProp, String],
+                              fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
     for {
-      userList <- AccountManager.searchUserInfo(queryFields, fields, offset, count)
+      userList <- AccountManager.searchUserInfo(Map(queryFields.toSeq: _*), fields, offset, count)
     } yield {
       userList map UserServiceHandler.userInfoConversion
     }
@@ -74,15 +77,16 @@ class UserServiceHandler extends Userservice.FutureIface {
    * @param password  密码
    * @return 用户的详细资料
    */
-  override def login(loginName: String, password: String): Future[yunkai.UserInfo] = {
-    AccountManager.login(loginName, password) map UserServiceHandler.userInfoConversion
+  override def login(loginName: String, password: String, source: String): Future[yunkai.UserInfo] = {
+    AccountManager.login(loginName, password, source) map UserServiceHandler.userInfoConversion
   }
 
   override def resetPassword(userId: Long, newPassword: String): Future[Unit] =
     AccountManager.resetPassword(userId, newPassword)
 
-  override def createUser(nickName: String, password: String, miscInfo: Option[Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
-    val tel = miscInfo.getOrElse(Map()).get(UserInfoProp.Tel)
+  override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp,
+    String]]): Future[yunkai.UserInfo] = {
+    val tel = miscInfo flatMap (_.get(UserInfoProp.Tel))
     AccountManager.createUser(nickName, password, tel) map (userInfo => {
       if (userInfo == null)
         throw new NotFoundException("Create user failure")
@@ -105,8 +109,8 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def updateChatGroup(chatGroupId: Long, chatGroupProps: Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
-    val updateInfo = chatGroupProps map (entry => {
+  override def updateChatGroup(chatGroupId: Long, chatGroupProps: scala.collection.Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
+    val updateInfo = Map(chatGroupProps.toSeq map (entry => {
       val (prop, value) = entry
       prop -> (prop match {
         case ChatGroupProp.Name | ChatGroupProp.GroupDesc | ChatGroupProp.Avatar => value.trim
@@ -114,7 +118,7 @@ class UserServiceHandler extends Userservice.FutureIface {
         case ChatGroupProp.Visible => value.toBoolean
         case _ => null
       })
-    }) filter (_._2 != null)
+    }): _*) filter (_._2 != null)
 
     GroupManager.updateChatGroup(chatGroupId, updateInfo) map (item => {
       if (item isEmpty)
@@ -135,11 +139,11 @@ class UserServiceHandler extends Userservice.FutureIface {
     }
   }
 
-  override def addChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
-    GroupManager.addChatGroupMembers(chatGroupId, userIds)
+  override def addChatGroupMembers(chatGroupId: Long, operatorId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
+    GroupManager.addChatGroupMembers(chatGroupId, operatorId, userIds)
 
-  override def removeChatGroupMembers(chatGroupId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
-    GroupManager.removeChatGroupMembers(chatGroupId, userIds)
+  override def removeChatGroupMembers(chatGroupId: Long, operatorId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
+    GroupManager.removeChatGroupMembers(chatGroupId, operatorId, userIds)
 
   override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]]): Future[Seq[yunkai.UserInfo]] = {
     val result = GroupManager.getChatGroupMembers(chatGroupId, fields)
@@ -157,9 +161,10 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def createChatGroup(creator: Long, participants: Seq[Long], chatGroupProps: Option[Map[ChatGroupProp, String]]): Future[yunkai.ChatGroup] = {
+  override def createChatGroup(creator: Long, participants: Seq[Long],
+                               chatGroupProps: Option[scala.collection.Map[ChatGroupProp, String]]): Future[yunkai.ChatGroup] = {
     // 处理额外信息
-    val miscInfo = chatGroupProps.getOrElse(Map()) map (entry => {
+    val miscInfo = Map(chatGroupProps.getOrElse(scala.collection.Map()).toSeq map (entry => {
       val prop = entry._1
       val value = entry._2
       val value2 = prop match {
@@ -171,7 +176,7 @@ class UserServiceHandler extends Userservice.FutureIface {
         case _ => null
       }
       prop -> value2
-    }) filter (_._2 != null)
+    }): _*) filter (_._2 != null)
 
     GroupManager.createChatGroup(creator, participants, miscInfo) map UserServiceHandler.chatGroupConversion
   }
@@ -189,6 +194,11 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def cancelContactRequest(requestId: String): Future[Unit] =
     AccountManager.cancelContactRequest(requestId)
+
+  override def verifyCredential(userId: Long, password: String): Future[Boolean] =
+    AccountManager.verifyCredential(userId, password)
+
+  override def updateTelNumber(userId: Long, tel: String): Future[Unit] = AccountManager.updateTelNumber(userId, tel)
 }
 
 object UserServiceHandler {
