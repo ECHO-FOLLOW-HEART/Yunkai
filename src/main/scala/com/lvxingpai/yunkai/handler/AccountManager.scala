@@ -409,7 +409,7 @@ object AccountManager {
           throw InvalidStateException("")
 
         addContact(newRequest.sender, newRequest.receiver)
-        // 触发拒绝好友请求
+        // 触发接受好友请求
         val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
         val senderId = oldRequest.get.sender
         val receiverId = oldRequest.get.receiver

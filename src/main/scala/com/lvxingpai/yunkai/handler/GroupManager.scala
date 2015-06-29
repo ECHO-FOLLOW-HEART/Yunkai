@@ -132,21 +132,25 @@ object GroupManager {
 
   //TODO 实现
   def getChatGroups(fields: Seq[ChatGroupProp], groupIdList: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[ChatGroup]]] = {
-    null
-    //    val allowedProperties = Seq(ChatGroupProp.Name, ChatGroupProp.GroupDesc, ChatGroupProp.ChatGroupId,
-    //      ChatGroupProp.Avatar, ChatGroupProp.Tags, ChatGroupProp.Creator, ChatGroupProp.Admin, ChatGroupProp.Participants,
-    //      ChatGroupProp.MaxUsers, ChatGroupProp.Visible)
-    //    val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ ChatGroupProp.ChatGroupId map
-    //      chatGroupPropToFieldName
-    //    futurePool {
-    //      val result = for (elem <- groupIdList) {
-    //        ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(elem).retrievedFields(true, retrievedFields: _*).get()
-    //      }
-    //      val result = for {elem <- groupIdList} {
-    //        ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(elem).retrievedFields(true, retrievedFields: _*).get()
-    //      }
-    //      Option(group)
-    //    }
+    val allowedProperties = Seq(ChatGroupProp.Name, ChatGroupProp.GroupDesc, ChatGroupProp.ChatGroupId,
+      ChatGroupProp.Avatar, ChatGroupProp.Tags, ChatGroupProp.Creator, ChatGroupProp.Admin, ChatGroupProp.Participants,
+      ChatGroupProp.MaxUsers, ChatGroupProp.Visible)
+    val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ ChatGroupProp.ChatGroupId map
+      chatGroupPropToFieldName
+    futurePool {
+      if (groupIdList isEmpty) {
+        Map[Long, Option[ChatGroup]]()
+      } else{
+        val query = groupIdList length match {
+          case 1 => ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(groupIdList head)
+          case _ => ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).in(groupIdList)
+        }
+
+        query.retrievedFields(true, retrievedFields: _*)
+        val results = Map(query.asList() map (v => v.chatGroupId -> v): _*)
+        Map(groupIdList map (v => v -> (results get v)): _*)
+      }
+    }
   }
 
   // 修改讨论组信息（比如名称、描述等）
