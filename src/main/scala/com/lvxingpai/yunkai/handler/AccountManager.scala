@@ -45,6 +45,7 @@ object AccountManager {
    */
   implicit def userInfoPropToFieldName(prop: UserInfoProp): String = {
     prop match {
+      case UserInfoProp.Id => UserInfo.fdId
       case UserInfoProp.UserId => UserInfo.fdUserId
       case UserInfoProp.NickName => UserInfo.fdNickName
       case UserInfoProp.Signature => UserInfo.fdSignature
@@ -76,7 +77,8 @@ object AccountManager {
     }
 
     // 获得需要处理的字段名
-    val fieldNames = filteredUserInfo.keys.toSeq map userInfoPropToFieldName
+    val fieldNames = ((filteredUserInfo.keys.toSeq ++ Seq(UserInfoProp.UserId, UserInfoProp.Id))
+      map userInfoPropToFieldName)
 
     if (filteredUserInfo nonEmpty) {
       val query = ds.find(classOf[UserInfo], "userId", userId).retrievedFields(true, fieldNames: _*)
@@ -526,7 +528,8 @@ object AccountManager {
         // 获得需要处理的字段名
         val allowedProperties = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar,
           UserInfoProp.Signature, UserInfoProp.Gender, UserInfoProp.Tel)
-        val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ UserInfoProp.UserId map userInfoPropToFieldName
+        val retrievedFields = (fields filter (allowedProperties.contains(_))) ++ Seq(UserInfoProp.UserId,
+          UserInfoProp.Id) map userInfoPropToFieldName
 
         query.retrievedFields(true, retrievedFields: _*)
         val results = Map(query.asList() map (v => v.userId -> v): _*)
@@ -564,7 +567,7 @@ object AccountManager {
     // 获得用户信息
     for {
       userInfo <- futurePool {
-        val retrievedFields = Seq(UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
+        val retrievedFields = Seq(UserInfo.fdId, UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
           UserInfo.fdSignature, UserInfo.fdTel)
         ds.createQuery(classOf[UserInfo]).field(UserInfo.fdTel).equal(loginName)
           .retrievedFields(true, retrievedFields: _*).get()
@@ -731,7 +734,7 @@ object AccountManager {
       val defaultCount = 20
 
       // 限定查询返回字段
-      val retrievedFields = fields.getOrElse(Seq()) map {
+      val retrievedFields = (fields.getOrElse(Seq()) ++ Seq(UserInfoProp.UserId, UserInfoProp.Id)) map {
         case UserInfoProp.UserId => UserInfo.fdUserId
         case UserInfoProp.NickName => UserInfo.fdNickName
         case UserInfoProp.Avatar => UserInfo.fdAvatar

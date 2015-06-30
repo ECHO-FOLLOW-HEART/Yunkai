@@ -1,4 +1,4 @@
-namespace java com.lvxingpai.yunkai
+namespace java com.lvxingpai.yunkai.java
 #@namespace scala com.lvxingpai.yunkai
 
 enum Gender {
@@ -13,19 +13,21 @@ enum GroupType{
 }
 
 struct UserInfo {
-  1: i64 userId,
-  2: string nickName,
-  3: optional string avatar,
-  4: optional Gender gender,
-  5: optional string signature,
-  6: optional string tel,
+  1: string id,
+  2: i64 userId,
+  3: string nickName,
+  4: optional string avatar,
+  5: optional Gender gender,
+  6: optional string signature,
+  7: optional string tel,
 }
 
 //Created by pengyt on 2015/5/26.
 struct ChatGroup{
-  1: i64 chatGroupId,
-  2: string name,
-  3: optional string groupDesc,
+  1: string id,
+  2: i64 chatGroupId,
+  3: string name,
+  4: optional string groupDesc,
 //  4: GroupType groupType,
   5: optional string avatar,
   6: optional list<string> tags,
@@ -41,6 +43,7 @@ struct ChatGroup{
 }
 
 enum UserInfoProp {
+  ID,
   USER_ID,
   NICK_NAME,
   AVATAR,
@@ -52,6 +55,7 @@ enum UserInfoProp {
 
 //Created by pengyt on 2015/5/26.
 enum ChatGroupProp{
+  ID,
   CHAT_GROUP_ID,
   NAME,
   GROUP_DESC,
