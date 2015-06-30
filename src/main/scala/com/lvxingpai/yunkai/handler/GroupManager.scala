@@ -44,7 +44,8 @@ object GroupManager {
 
   implicit def chatGroup2JsonNode(chatGroup: ChatGroup): ObjectNode = {
     val targets = new ObjectMapper().createObjectNode()
-    targets.put("id", chatGroup.chatGroupId)
+    targets.put("id", chatGroup.id.toString)
+    targets.put("chatGroupId", chatGroup.chatGroupId)
     targets.put("name", chatGroup.name)
     val avatarValue = Option(chatGroup.avatar).getOrElse("")
     targets.put("avatar", avatarValue)
@@ -101,7 +102,8 @@ object GroupManager {
       import Implicits.JsonConversions._
       val targets = new ObjectMapper().createObjectNode()
       for (elem <- userMap) {
-        targets.put("id", elem._2.get.userId)
+        targets.put("id", elem._2.get.id.toString)
+        targets.put("userId", elem._2.get.userId)
         targets.put("nickName", elem._2.get.nickName)
         val avatarValue = Option(elem._2.get.avatar).getOrElse("")
         targets.put("avatar", avatarValue)
@@ -266,6 +268,7 @@ object GroupManager {
       // 查找待添加的用户信息
       val userInfos = new ObjectMapper().createObjectNode()
       for (elem <- addedUsers) {
+        userInfos.put("id", elem.id.toString)
         userInfos.put("userId", elem.userId)
         userInfos.put("nickName", elem.nickName)
         val avatarValue = Option(elem.avatar).getOrElse("")
@@ -346,6 +349,7 @@ object GroupManager {
       // 查找待添加的用户信息
       val userInfos = new ObjectMapper().createObjectNode()
       for (elem <- removedUsers) {
+        userInfos.put("id", elem.id.toString)
         userInfos.put("userId", elem.userId)
         userInfos.put("nickName", elem.nickName)
         val avatarValue = Option(elem.avatar).getOrElse("")

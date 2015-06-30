@@ -158,7 +158,8 @@ object AccountManager {
 
   implicit def user2JsonNode(user: UserInfo): JsonNode = {
     val targets = new ObjectMapper().createObjectNode()
-    targets.put("id", user.userId)
+    targets.put("id", user.id.toString)
+    targets.put("userId", user.userId)
     targets.put("nickName", user.nickName)
     val avatarValue = Option(user.avatar).getOrElse("")
     targets.put("avatar", avatarValue)
