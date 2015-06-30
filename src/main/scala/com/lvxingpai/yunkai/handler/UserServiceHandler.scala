@@ -96,8 +96,9 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def getChatGroups(groupIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[ChatGroupProp]]): Future[Map[Long, yunkai.ChatGroup]] = {
-    // TODO To be implemented
-    throw new NotImplementedError()
+    GroupManager.getChatGroups(fields.getOrElse(Seq()), groupIdList: _*) map (resultMap => {
+      resultMap mapValues (value => (value map UserServiceHandler.chatGroupConversion).orNull)
+    })
   }
 
   override def getChatGroup(chatGroupId: Long, fields: Option[Seq[ChatGroupProp]]): Future[yunkai.ChatGroup] = {

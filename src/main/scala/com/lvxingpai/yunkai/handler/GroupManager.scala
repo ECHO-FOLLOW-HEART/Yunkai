@@ -99,13 +99,17 @@ object GroupManager {
       // 触发创建讨论组的事件
       import AccountManager.user2JsonNode
       import Implicits.JsonConversions._
-
+      val targets = new ObjectMapper().createObjectNode()
+      for (elem <- userMap) {
+        targets.put("id", elem._2.get.userId)
+        targets.put("nickName", elem._2.get.nickName)
+        val avatarValue = Option(elem._2.get.avatar).getOrElse("")
+        targets.put("avatar", avatarValue)
+      }
       val eventArgs: Map[String, JsonNode] = Map(
-        "chatGroupId" -> cg.chatGroupId,
-        "name" -> cg.name,
-        "avatar" -> cg.avatar,
+        "chatGroup" -> cg,
         "creator" -> userMap(creator).get,
-        "participants" -> cg.participants
+        "participants" -> targets
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
 
@@ -129,21 +133,25 @@ object GroupManager {
 
   //TODO 实现
   def getChatGroups(fields: Seq[ChatGroupProp], groupIdList: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[ChatGroup]]] = {
-    null
-    //    val allowedProperties = Seq(ChatGroupProp.Name, ChatGroupProp.GroupDesc, ChatGroupProp.ChatGroupId,
-    //      ChatGroupProp.Avatar, ChatGroupProp.Tags, ChatGroupProp.Creator, ChatGroupProp.Admin, ChatGroupProp.Participants,
-    //      ChatGroupProp.MaxUsers, ChatGroupProp.Visible)
-    //    val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ ChatGroupProp.ChatGroupId map
-    //      chatGroupPropToFieldName
-    //    futurePool {
-    //      val result = for (elem <- groupIdList) {
-    //        ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(elem).retrievedFields(true, retrievedFields: _*).get()
-    //      }
-    //      val result = for {elem <- groupIdList} {
-    //        ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(elem).retrievedFields(true, retrievedFields: _*).get()
-    //      }
-    //      Option(group)
-    //    }
+    val allowedProperties = Seq(ChatGroupProp.Name, ChatGroupProp.GroupDesc, ChatGroupProp.ChatGroupId,
+      ChatGroupProp.Avatar, ChatGroupProp.Tags, ChatGroupProp.Creator, ChatGroupProp.Admin, ChatGroupProp.Participants,
+      ChatGroupProp.MaxUsers, ChatGroupProp.Visible)
+    val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ ChatGroupProp.ChatGroupId map
+      chatGroupPropToFieldName
+    futurePool {
+      if (groupIdList isEmpty) {
+        Map[Long, Option[ChatGroup]]()
+      } else{
+        val query = groupIdList length match {
+          case 1 => ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(groupIdList head)
+          case _ => ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).in(groupIdList)
+        }
+
+        query.retrievedFields(true, retrievedFields: _*)
+        val results = Map(query.asList() map (v => v.chatGroupId -> v): _*)
+        Map(groupIdList map (v => v -> (results get v)): _*)
+      }
+    }
   }
 
   // 修改讨论组信息（比如名称、描述等）
@@ -214,7 +222,8 @@ object GroupManager {
   // 批量添加讨论组成员
   def addChatGroupMembers(chatGroupId: Long, operatorId: Long, userIdsToAdd: Seq[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[Long]] = {
     // 获得ChatGroup的最大人数
-    val futureGroup = GroupManager.getChatGroup(chatGroupId, Seq(ChatGroupProp.MaxUsers, ChatGroupProp.Participants))
+    val futureGroup = GroupManager.getChatGroup(chatGroupId, Seq(ChatGroupProp.ChatGroupId, ChatGroupProp.Name,
+      ChatGroupProp.Avatar, ChatGroupProp.MaxUsers, ChatGroupProp.Participants))
 
     // 查看是否所有的userId都有效
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
@@ -252,15 +261,15 @@ object GroupManager {
       }
     }
 
-    def emitEvent(operatorInfo: UserInfo, addedUsers: Seq[UserInfo]): Future[Unit] = {
+    def emitEvent(group: ChatGroup, operatorInfo: UserInfo, addedUsers: Seq[UserInfo]): Future[Unit] = {
       // 触发添加讨论组成员的事件
       // 查找待添加的用户信息
       val userInfos = new ObjectMapper().createObjectNode()
       for (elem <- addedUsers) {
-        val userInfo = elem
-        userInfos.put("userId", userInfo.userId)
-        userInfos.put("nickName", userInfo.nickName)
-        userInfos.put("avatar", userInfo.avatar)
+        userInfos.put("userId", elem.userId)
+        userInfos.put("nickName", elem.nickName)
+        val avatarValue = Option(elem.avatar).getOrElse("")
+        userInfos.put("avatar", avatarValue)
       }
       //      val participantsNode = new ObjectMapper().createArrayNode()
       //      participants foreach participantsNode.add
@@ -269,7 +278,7 @@ object GroupManager {
       import Implicits.JsonConversions._
 
       val eventArgs: Map[String, JsonNode] = Map(
-        "chatGroupId" -> chatGroupId,
+        "chatGroup" -> group,
         "operator" -> operatorInfo,
         "targets" -> userInfos
       )
@@ -282,7 +291,7 @@ object GroupManager {
       group <- futureGroup
       users <- futureUsers // Users to be removed(with both userId and nickName available)
       entry <- func1(group, users)
-      _ <- emitEvent(users(operatorId).get, entry._2)
+      _ <- emitEvent(group.get, users(operatorId).get, entry._2)
     } yield {
       entry._1
     }
@@ -294,7 +303,7 @@ object GroupManager {
     // 查看operatorId是否有效
     val futureOperator = AccountManager.getUserById(operatorId, responseFields)
     val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId)
-      .retrievedFields(true, ChatGroup.fdParticipants)
+      .retrievedFields(true, ChatGroup.fdParticipants, ChatGroup.fdChatGroupId, ChatGroup.fdName, ChatGroup.fdAvatar)
     val ops = ds.createUpdateOperations(classOf[ChatGroup]).removeAll(ChatGroup.fdParticipants, bufferAsJavaList(userToRemove.toBuffer))
     val groupFuture = futurePool {
       ds.findAndModify(query, ops)
@@ -337,10 +346,10 @@ object GroupManager {
       // 查找待添加的用户信息
       val userInfos = new ObjectMapper().createObjectNode()
       for (elem <- removedUsers) {
-        val userInfo = elem
-        userInfos.put("userId", userInfo.userId)
-        userInfos.put("nickName", userInfo.nickName)
-        userInfos.put("avatar", userInfo.avatar)
+        userInfos.put("userId", elem.userId)
+        userInfos.put("nickName", elem.nickName)
+        val avatarValue = Option(elem.avatar).getOrElse("")
+        userInfos.put("avatar", avatarValue)
       }
 
       //      val participantsNode = new ObjectMapper().createArrayNode()
@@ -349,7 +358,7 @@ object GroupManager {
       import AccountManager.user2JsonNode
 
       val eventArgs: Map[String, JsonNode] = Map(
-        "chatGroupId" -> group,
+        "chatGroup" -> group,
         "operator" -> operator,
         "targets" -> userInfos
       )
