@@ -39,7 +39,7 @@ class GroupManagerTest extends YunkaiBaseTest {
     scenario("a simple chat group without additional information is created") {
       val creator = (initialUsers last)._1
       val participants = (initialUsers init) map (_._1)
-      val group = waitFuture(service.createChatGroup(creator._1, participants map (_.userId), None))
+      val group = waitFuture(service.createChatGroup(creator.userId, participants map (_.userId), None))
       val actual = waitFuture(service.getChatGroup(group.chatGroupId,
         Some(Seq(ChatGroupProp.Creator, ChatGroupProp.Participants))))
       group.chatGroupId should be(actual.chatGroupId)
@@ -55,7 +55,7 @@ class GroupManagerTest extends YunkaiBaseTest {
         ChatGroupProp.Name -> "Group name",
         ChatGroupProp.MaxUsers -> "200"
       )
-      val group = waitFuture(service.createChatGroup(creator._1, participants map (_.userId), Some(miscInfo)))
+      val group = waitFuture(service.createChatGroup(creator.userId, participants map (_.userId), Some(miscInfo)))
       val actual = waitFuture(service.getChatGroup(group.chatGroupId, Some(Seq(ChatGroupProp.Creator,
         ChatGroupProp.Participants, ChatGroupProp.GroupDesc, ChatGroupProp.Name, ChatGroupProp.MaxUsers))))
       group.chatGroupId should be(actual.chatGroupId)

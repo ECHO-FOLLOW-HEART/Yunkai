@@ -12,7 +12,7 @@ import scala.beans.BeanProperty
  * Created by zephyre on 6/25/15.
  */
 @Entity
-@Indexes(Array(new Index(fields=Array(new Field("sender"), new Field("receiver")), options = new IndexOptions(unique = true))))
+@Indexes(Array(new Index(fields = Array(new Field("sender"), new Field("receiver")), options = new IndexOptions(unique = true))))
 class ContactRequest {
 
   @BeanProperty

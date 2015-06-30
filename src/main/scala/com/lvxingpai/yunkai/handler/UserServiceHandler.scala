@@ -211,6 +211,7 @@ object UserServiceHandler {
    */
   implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
     val userId = user.userId
+    val id = user.id
     val nickName = user.nickName
     val avatar = Option(user.avatar)
     val gender = Option(user.gender match {
@@ -223,10 +224,11 @@ object UserServiceHandler {
     val signature = Option(user.signature)
     val tel = Option(user.tel)
 
-    yunkai.UserInfo(userId, nickName, avatar, gender, signature, tel)
+    yunkai.UserInfo(id.toString, userId, nickName, avatar, gender, signature, tel)
   }
 
   implicit def chatGroupConversion(chatGroup: ChatGroup): yunkai.ChatGroup = {
+    val id = chatGroup.id
     val chatGroupId = chatGroup.chatGroupId
     val name = chatGroup.name
     val groupDesc = chatGroup.groupDesc
@@ -240,7 +242,7 @@ object UserServiceHandler {
     val updateTime = chatGroup.updateTime
     val visible = chatGroup.visible
 
-    yunkai.ChatGroup(chatGroupId, name, Option(groupDesc), Option(avatar), tags, creator, admin,
+    yunkai.ChatGroup(id.toString, chatGroupId, name, Option(groupDesc), Option(avatar), tags, creator, admin,
       participants, maxUsers, createTime, updateTime, visible)
   }
 

@@ -7,8 +7,8 @@ import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
 import com.twitter.util.FuturePool
 
-import scala.language.implicitConversions
 import scala.collection.JavaConversions._
+import scala.language.implicitConversions
 
 /**
  * Created by zephyre on 5/19/15.

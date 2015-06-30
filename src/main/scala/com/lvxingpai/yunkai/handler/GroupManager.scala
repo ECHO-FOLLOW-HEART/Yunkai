@@ -27,6 +27,7 @@ object GroupManager {
    */
   implicit def chatGroupPropToFieldName(prop: ChatGroupProp): String = {
     prop match {
+      case ChatGroupProp.Id => ChatGroup.fdId
       case ChatGroupProp.ChatGroupId => ChatGroup.fdChatGroupId
       case ChatGroupProp.Name => ChatGroup.fdName
       case ChatGroupProp.GroupDesc => ChatGroup.fdGroupDesc
@@ -117,7 +118,7 @@ object GroupManager {
     val allowedProperties = Seq(ChatGroupProp.Name, ChatGroupProp.GroupDesc, ChatGroupProp.ChatGroupId,
       ChatGroupProp.Avatar, ChatGroupProp.Tags, ChatGroupProp.Creator, ChatGroupProp.Admin, ChatGroupProp.Participants,
       ChatGroupProp.MaxUsers, ChatGroupProp.Visible)
-    val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ ChatGroupProp.ChatGroupId map
+    val retrievedFields = (fields filter (allowedProperties.contains(_))) ++ Seq(ChatGroupProp.ChatGroupId, ChatGroupProp.Id) map
       chatGroupPropToFieldName
 
     val group = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId)
@@ -188,7 +189,7 @@ object GroupManager {
     // 默认最大的获取数量
     val maxCount = 100
 
-    val retrievedFields = ((fields map {
+    val retrievedFields = ((fields ++ Seq(ChatGroupProp.ChatGroupId, ChatGroupProp.Id) map {
       case ChatGroupProp.ChatGroupId => fdChatGroupId
       case ChatGroupProp.Name => fdName
       case ChatGroupProp.Participants => fdParticipants
@@ -374,7 +375,7 @@ object GroupManager {
     futurePool {
       val query = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId).get().participants
       val queryUserInfo = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(query)
-      val retrievedFields = fields.getOrElse(Seq()) map {
+      val retrievedFields = fields.getOrElse(Seq()) ++ Seq(UserInfoProp.UserId, UserInfoProp.Id) map {
         case UserInfoProp.UserId => UserInfo.fdUserId
         case UserInfoProp.NickName => UserInfo.fdNickName
         case UserInfoProp.Avatar => UserInfo.fdAvatar

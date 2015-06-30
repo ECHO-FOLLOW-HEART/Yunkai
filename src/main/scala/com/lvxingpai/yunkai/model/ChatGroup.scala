@@ -80,6 +80,7 @@ class ChatGroup {
 }
 
 object ChatGroup {
+  val fdId = "_id"
   val fdChatGroupId = "chatGroupId"
   val fdName = "name"
   val fdGroupDesc = "groupDesc"
