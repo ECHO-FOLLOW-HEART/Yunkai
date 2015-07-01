@@ -5,7 +5,7 @@ import java.util.UUID
 import com.lvxingpai.yunkai.Implicits._
 import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
 import com.lvxingpai.yunkai.handler.{AccountManager, UserServiceHandler}
-import com.lvxingpai.yunkai.model.{ChatGroup => ChatGroupMorphia, ContactRequest, UserInfo => UserInfoMorphia}
+import com.lvxingpai.yunkai.model.{ChatGroup => ChatGroupMorphia, ContactRequest => ContactRequestMorphia, UserInfo => UserInfoMorphia}
 import com.twitter.util.Future
 import org.bson.types.ObjectId
 
@@ -554,10 +554,10 @@ class AccountManagerTest extends YunkaiBaseTest {
       val requestId = waitFuture(service.sendContactRequest(sender, receiver, None))
 
       val ds = MorphiaFactory.datastore
-      val cls = classOf[ContactRequest]
-      val query = ds.createQuery(cls).field(ContactRequest.fdContactRequestId).equal(new ObjectId(requestId))
+      val cls = classOf[ContactRequestMorphia]
+      val query = ds.createQuery(cls).field(ContactRequestMorphia.fdContactRequestId).equal(new ObjectId(requestId))
       val current = System.currentTimeMillis()
-      val updateOps = ds.createUpdateOperations(cls).set(ContactRequest.fdExpire, current)
+      val updateOps = ds.createUpdateOperations(cls).set(ContactRequestMorphia.fdExpire, current)
       ds.update(query, updateOps)
 
       Given(s"the scenario that $sender has sent a contact request to $receiver, but the expiration has been passed")

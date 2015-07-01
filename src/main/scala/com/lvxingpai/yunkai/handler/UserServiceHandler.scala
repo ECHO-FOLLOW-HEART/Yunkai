@@ -200,6 +200,23 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.verifyCredential(userId, password)
 
   override def updateTelNumber(userId: Long, tel: String): Future[Unit] = AccountManager.updateTelNumber(userId, tel)
+
+  override def getContactRequests(userId: Long, offset: Option[Int], limit: Option[Int]): Future[Seq[ContactRequest]] = {
+    import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
+    import com.lvxingpai.yunkai.{ContactRequest => YunkaiContactRequest}
+
+    val defaultOffset = 0
+    val defaultCount = 50
+    val maxCount = 100
+
+    val actualOffset = offset getOrElse defaultOffset
+    val actualLimit = Math.max(offset getOrElse defaultCount, maxCount)
+
+    AccountManager.getContactRequestList(userId, actualOffset, actualLimit) map (list => {
+      list map (v => v: YunkaiContactRequest)
+    })
+  }
+
 }
 
 object UserServiceHandler {
