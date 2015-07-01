@@ -23,10 +23,9 @@ object Implicits {
     .fromExecutorService(defaultFuturePool.executor)
 
   object YunkaiConversions {
-
     implicit def contactRequestConversion(req: DBContactRequest): ContactRequest = {
-      ContactRequest(req.id.toString, req.sender, req.receiver, req.status, req.requestMessage, req.rejectMessage,
-        req.timestamp, req.expire)
+      ContactRequest(req.id.toString, req.sender, req.receiver, req.status, req.requestMessage,
+        req.rejectMessage, req.timestamp, req.expire)
     }
   }
 

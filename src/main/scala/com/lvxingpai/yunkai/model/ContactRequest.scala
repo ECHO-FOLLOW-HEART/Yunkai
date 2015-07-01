@@ -84,7 +84,7 @@ object ContactRequest {
     req.receiver = receiver
     req.requestMessage = message.orNull
     req.status = ContactRequest.RequestStatus.PENDING.id
-    // 默认情况下，请求七天后过期
+    // 默认情况下，请求一天后过期
     val defaultExpireDelay = 7 * 24 * 3600 * 1000L
     val current = System.currentTimeMillis()
     req.expire = current + expire.getOrElse(defaultExpireDelay)

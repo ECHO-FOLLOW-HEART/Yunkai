@@ -3,7 +3,6 @@ package com.lvxingpai.yunkai
 import java.util.UUID
 
 import com.lvxingpai.yunkai.Implicits._
-import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
 import com.lvxingpai.yunkai.handler.{AccountManager, UserServiceHandler}
 import com.lvxingpai.yunkai.model.{ChatGroup => ChatGroupMorphia, ContactRequest => ContactRequestMorphia, UserInfo => UserInfoMorphia}
 import com.twitter.util.Future
@@ -545,26 +544,6 @@ class AccountManagerTest extends YunkaiBaseTest {
     scenario("the request ID is incorrect") {
       val requestId = new ObjectId().toString
       intercept[NotFoundException] {
-        waitFuture(service.acceptContactRequest(requestId))
-      }
-    }
-    scenario("the request has been expired") {
-      val sender = initialUsers.last._1.userId
-      val receiver = getSocialMap(sender)._2.head
-      val requestId = waitFuture(service.sendContactRequest(sender, receiver, None))
-
-      val ds = MorphiaFactory.datastore
-      val cls = classOf[ContactRequestMorphia]
-      val query = ds.createQuery(cls).field(ContactRequestMorphia.fdContactRequestId).equal(new ObjectId(requestId))
-      val current = System.currentTimeMillis()
-      val updateOps = ds.createUpdateOperations(cls).set(ContactRequestMorphia.fdExpire, current)
-      ds.update(query, updateOps)
-
-      Given(s"the scenario that $sender has sent a contact request to $receiver, but the expiration has been passed")
-      When(s"$receiver accept this request")
-      Then("an InvalidStateException should be raised")
-
-      intercept[InvalidStateException] {
         waitFuture(service.acceptContactRequest(requestId))
       }
     }

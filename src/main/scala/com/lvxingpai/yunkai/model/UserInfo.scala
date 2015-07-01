@@ -56,7 +56,7 @@ class UserInfo {
 }
 
 object UserInfo {
-  val fdId = "_id"
+  val fdId = "id"
   val fdUserId = "userId"
   val fdNickName = "nickName"
   val fdAvatar = "avatar"

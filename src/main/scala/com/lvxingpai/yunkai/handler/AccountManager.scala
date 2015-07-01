@@ -111,12 +111,28 @@ object AccountManager {
    *
    * @return
    */
-  def isContact(userA: Long, userB: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] =
-    futurePool {
-      val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
-      ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1)
-        .field(Relationship.fdUserB).equal(user2).get() != null
+  def isContact(userA: Long, userB: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+    val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
+
+    val userList = getUsersByIdList(Seq(), user1, user2)
+    val relationship = futurePool {
+      val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1)
+        .field(Relationship.fdUserB).equal(user2)
+        .retrievedFields(true, Relationship.fdId)
+        .get
+      rel != null
     }
+
+    for {
+      l <- userList
+      rel <- relationship
+    } yield {
+      if (l exists (_._2 isEmpty))
+        throw NotFoundException("")
+      else
+        rel
+    }
+  }
 
   /**
    * 添加好友
@@ -296,13 +312,11 @@ object AccountManager {
     // 检查用户是否存在
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     for {
-      users <- getUsersByIdList(responseFields, sender, receiver)(ds, futurePool)
-      relationship <- isContact(sender, receiver)(ds, futurePool)
+      users <- getUsersByIdList(responseFields, sender, receiver)
+      relationship <- isContact(sender, receiver)
     } yield {
       if (relationship)
         throw InvalidStateException(s"$sender and $receiver are already contacts")
-      else if (users filter (_._2 isEmpty) nonEmpty)
-        throw NotFoundException(s"Either $sender or $receiver cannot be found")
       else {
         import ContactRequest.RequestStatus._
         import ContactRequest._
@@ -318,14 +332,15 @@ object AccountManager {
         val query = ds.createQuery(cls).field(fdSender).equal(sender).field(fdReceiver).equal(receiver)
 
         val criteria1 = ds.createQuery(cls).criteria(fdStatus).equal(CANCELLED.id)
-        val criteria2 = ds.createQuery(cls).criteria(fdStatus).equal(PENDING.id)
+//        val criteria2 = ds.createQuery(cls).criteria(fdStatus).equal(PENDING.id)
         val criteria3 = ds.createQuery(cls).criteria(fdExpire).lessThan(currentTime)
 
         query.and(ds.createQuery(cls).or(
           criteria1,
-          ds.createQuery(cls).and(criteria2, criteria3)))
+          criteria3))
+//          ds.createQuery(cls).and(criteria2, criteria3)))
 
-        val updateOps = buildContactRequestUpdateOps(req)
+        val updateOps = buildContactRequestUpdateOps(req).unset(fdRejectMessage)//.set(fdContactRequestId, UUID.randomUUID().toString)
         val newRequest = try {
           ds.findAndModify(query, updateOps, false, true)
         } catch {
@@ -415,9 +430,8 @@ object AccountManager {
       else {
         val cls = classOf[ContactRequest]
 
-        val currentTime = System.currentTimeMillis()
         val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
-          .field(fdStatus).equal(PENDING.id).field(fdExpire).greaterThan(currentTime)
+          .field(fdStatus).equal(PENDING.id)
         val updateOps = ds.createUpdateOperations(cls).set(fdStatus, ACCEPTED.id)
 
         val newRequest = ds.findAndModify(query, updateOps, false, false)
