@@ -215,6 +215,9 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def sendValidationCode(action: Int, countryCode: Option[Int], tel: String, userId: Option[Long]): Future[String] =
     AccountManager.sendValidationCode(action, countryCode, tel, userId)
+
+  override def checkValidationCode(code: String, action: Int, countryCode: Option[Int], tel: String, userId: Option[Long]): Future[Boolean] =
+    AccountManager.checkValidationCode(code, action, countryCode, tel, userId)
 }
 
 object UserServiceHandler {

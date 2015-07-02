@@ -662,6 +662,30 @@ object AccountManager {
     userInfo
   }
 
+  def checkValidationCode(valCode: String, action: Int, countryCode: Option[Int] = None, tel: String, userId: Option[Long])
+                        (implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+    val expire = 10 * 60 * 1000 // 10分钟过期
+    val resendInterval = 60 * 1000 // 发送间隔为1分钟
+    val code = ValidationCode(valCode, action, userId, tel, expire, resendInterval, countryCode)
+    val fingerprint = code.fingerprint
+
+    // 生成相应的object mapper
+    val mapper = new ObjectMapper()
+    val module = new SimpleModule()
+    module.addSerializer(classOf[ValidationCode], new ValidationCodeSerializer())
+    module.addDeserializer(classOf[ValidationCode], new ValidationCodeDeserializer())
+    mapper.registerModule(module)
+
+    futurePool {
+      RedisFactory.pool.withClient(client => {
+        client.get[String](fingerprint) exists (contents => {
+          val c = mapper.readValue(contents, classOf[ValidationCode])
+          c.expireTime > System.currentTimeMillis && c.code == valCode
+        })
+      })
+    }
+  }
+
   def sendValidationCode(action: Int, countryCode: Option[Int] = None, tel: String, userId: Option[Long])
                         (implicit ds: Datastore, futurePool: FuturePool): Future[String] = {
     val expire = 10 * 60 * 1000 // 10分钟过期
@@ -699,7 +723,7 @@ object AccountManager {
         if (runlevel != "test")
           SmsCenter.client.sendSms(message, Seq(tel))
       }
-      fingerprint
+      code.code
     })
   }
 

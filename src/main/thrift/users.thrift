@@ -160,6 +160,8 @@ service userservice {
   // 发送手机验证码
   string sendValidationCode(1:i32 action, 2:optional i32 countryCode, 3:string tel, 4:optional i64 userId) throws (1:InvalidStateException ex)
 
+  bool checkValidationCode(1:string code, 2:i32 action, 3:optional i32 countryCode, 4:string tel, 5:optional i64 userId) throws (1:InvalidStateException ex)
+
   // 用户修改密码
   void resetPassword(1:i64 userId, 2:string oldPassword, 3:string newPassword) throws (1: InvalidArgsException ex1, 2: AuthException ex2)
 
