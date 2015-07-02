@@ -83,6 +83,30 @@ class GroupManagerTest extends YunkaiBaseTest {
     }
   }
 
+  feature("the GroupManager can get group members") {
+    scenario("the chat group ID is incorrect") {
+      Given(s"a fake chat group ID $fakeGroupId")
+      When("retrieving its member list")
+      Then("a NotFoundException should be thrown")
+
+      intercept[NotFoundException] {
+        waitFuture(service.getChatGroupMembers(fakeGroupId, None))
+      }
+    }
+
+    scenario("default") {
+      val chatGroup = initialChatGroups.head._2
+      val gid = chatGroup.chatGroupId
+      Given(s"a chatgroup gid")
+      When("retrieving its member list")
+      Then("the returned list should be correct")
+
+      val members = waitFuture(service.getChatGroupMembers(gid, None))
+      val memberIdList = members map (_.userId)
+      memberIdList should contain only (chatGroup.participants: _*)
+    }
+  }
+
   feature("the GroupManager can update chat group information") {
     scenario("the chat group ID is incorrect") {
       val fakeId = initialChatGroups.keySet.max + 1

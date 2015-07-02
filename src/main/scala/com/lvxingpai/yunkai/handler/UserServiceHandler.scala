@@ -147,13 +147,9 @@ class UserServiceHandler extends Userservice.FutureIface {
     GroupManager.removeChatGroupMembers(chatGroupId, operatorId, userIds)
 
   override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]]): Future[Seq[yunkai.UserInfo]] = {
-    val result = GroupManager.getChatGroupMembers(chatGroupId, fields)
-    for {
-      items <- result
-    } yield {
-      if (items isEmpty) throw new NotFoundException(s"Chat group $chatGroupId members not found")
-      else items map UserServiceHandler.userInfoConversion
-    }
+    GroupManager.getChatGroupMembers(chatGroupId, fields) map (userList => {
+      userList map UserServiceHandler.userInfoConversion
+    })
   }
 
   override def getUsersById(userIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[UserInfoProp]]): Future[Map[Long, yunkai.UserInfo]] = {

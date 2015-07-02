@@ -99,7 +99,6 @@ object GroupManager {
 
       // 触发创建讨论组的事件
       import AccountManager.user2JsonNode
-      import Implicits.JsonConversions._
       val targets = new ObjectMapper().createObjectNode()
       for (elem <- userMap) {
         targets.put("id", elem._2.get.id.toString)
@@ -278,7 +277,6 @@ object GroupManager {
       //      participants foreach participantsNode.add
 
       import AccountManager.user2JsonNode
-      import Implicits.JsonConversions._
 
       val eventArgs: Map[String, JsonNode] = Map(
         "chatGroup" -> group,
@@ -384,18 +382,23 @@ object GroupManager {
   }
 
   // 获得讨论组成员
-  def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] =
-    futurePool {
-      val query = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId).get().participants
-      val queryUserInfo = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(query)
-      val retrievedFields = fields.getOrElse(Seq()) ++ Seq(UserInfoProp.UserId, UserInfoProp.Id) map {
-        case UserInfoProp.UserId => UserInfo.fdUserId
-        case UserInfoProp.NickName => UserInfo.fdNickName
-        case UserInfoProp.Avatar => UserInfo.fdAvatar
-        case _ => ""
-      } filter (_ nonEmpty)
-      if (retrievedFields nonEmpty)
-        queryUserInfo.retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
-      queryUserInfo.toList
-    }
+  def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]] = None)
+                         (implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = futurePool {
+    val groupInfo = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId).get()
+    if (groupInfo == null)
+      throw NotFoundException(s"Cannot find chat group $chatGroupId")
+
+    val participants = Option(groupInfo.participants) getOrElse seqAsJavaList(Seq())
+
+    val queryUserInfo = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(participants)
+    val retrievedFields = fields.getOrElse(Seq()) ++ Seq(UserInfoProp.UserId, UserInfoProp.Id) map {
+      case UserInfoProp.UserId => UserInfo.fdUserId
+      case UserInfoProp.NickName => UserInfo.fdNickName
+      case UserInfoProp.Avatar => UserInfo.fdAvatar
+      case _ => ""
+    } filter (_ nonEmpty)
+    if (retrievedFields nonEmpty)
+      queryUserInfo.retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
+    queryUserInfo.toList
+  }
 }
