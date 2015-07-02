@@ -4,7 +4,7 @@ import java.util.{List => JList}
 
 import com.fasterxml.jackson.databind.node.{LongNode, TextNode}
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
-import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
+import com.lvxingpai.yunkai.service.MorphiaFactory
 import com.lvxingpai.yunkai.model.{ContactRequest => DBContactRequest}
 import com.twitter.util.FuturePool
 

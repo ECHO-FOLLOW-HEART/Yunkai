@@ -3,9 +3,12 @@ package com.lvxingpai.yunkai.handler
 import java.security.MessageDigest
 import java.util.UUID
 
+import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.yunkai._
-import com.lvxingpai.yunkai.model.{ContactRequest, Credential, Relationship, UserInfo}
+import com.lvxingpai.yunkai.model.{ContactRequest, UserInfo, _}
+import com.lvxingpai.yunkai.serialization.{ValidationCodeDeserializer, ValidationCodeSerializer}
+import com.lvxingpai.yunkai.service.{RedisFactory, SmsCenter}
 import com.mongodb.{DuplicateKeyException, MongoCommandException}
 import com.twitter.util.{Future, FuturePool}
 import org.bson.types.ObjectId
@@ -332,26 +335,26 @@ object AccountManager {
         val query = ds.createQuery(cls).field(fdSender).equal(sender).field(fdReceiver).equal(receiver)
 
         val criteria1 = ds.createQuery(cls).criteria(fdStatus).equal(CANCELLED.id)
-//        val criteria2 = ds.createQuery(cls).criteria(fdStatus).equal(PENDING.id)
+        //        val criteria2 = ds.createQuery(cls).criteria(fdStatus).equal(PENDING.id)
         val criteria3 = ds.createQuery(cls).criteria(fdExpire).lessThan(currentTime)
 
         query.and(ds.createQuery(cls).or(
           criteria1,
           criteria3))
-//          ds.createQuery(cls).and(criteria2, criteria3)))
+        //          ds.createQuery(cls).and(criteria2, criteria3)))
 
-        val updateOps = buildContactRequestUpdateOps(req).unset(fdRejectMessage)//.set(fdContactRequestId, UUID.randomUUID().toString)
+        val updateOps = buildContactRequestUpdateOps(req).unset(fdRejectMessage) //.set(fdContactRequestId, UUID.randomUUID().toString)
         val newRequest = try {
-          ds.findAndModify(query, updateOps, false, true)
-        } catch {
-          // 如果发生该异常，说明系统中已经存在一个好友请求，且不允许重复发送请求
-          // 比如：前一个请求处于PENDING状态，且未过期，或者前一个请求已经被拒绝等）
-          case ex: MongoCommandException =>
-            if (isDuplicateKeyException(ex))
-              throw InvalidStateException("")
-            else
-              throw ex
-        }
+            ds.findAndModify(query, updateOps, false, true)
+          } catch {
+            // 如果发生该异常，说明系统中已经存在一个好友请求，且不允许重复发送请求
+            // 比如：前一个请求处于PENDING状态，且未过期，或者前一个请求已经被拒绝等）
+            case ex: MongoCommandException =>
+              if (isDuplicateKeyException(ex))
+                throw InvalidStateException("")
+              else
+                throw ex
+          }
         // 触发发送好友请求
         import Implicits.JsonConversions._
         val senderInfo = users(sender).get
@@ -659,6 +662,47 @@ object AccountManager {
     userInfo
   }
 
+  def sendValidationCode(action: Int, countryCode: Option[Int] = None, tel: String, userId: Option[Long])
+                        (implicit ds: Datastore, futurePool: FuturePool): Future[String] = {
+    val expire = 10 * 60 * 1000 // 10分钟过期
+    val resendInterval = 60 * 1000 // 发送间隔为1分钟
+    val rnd = Random.nextInt(1000000)
+    val code = ValidationCode(f"$rnd%06d", action, userId, tel, expire, resendInterval, countryCode)
+    val fingerprint = code.fingerprint
+
+    // 生成相应的object mapper
+    val mapper = new ObjectMapper()
+    val module = new SimpleModule()
+    module.addSerializer(classOf[ValidationCode], new ValidationCodeSerializer())
+    module.addDeserializer(classOf[ValidationCode], new ValidationCodeDeserializer())
+    mapper.registerModule(module)
+
+    futurePool {
+      RedisFactory.pool.withClient(client => {
+        // 是否可以再次发送
+        val canSend = client.get[String](fingerprint) map
+          (mapper.readValue(_, classOf[ValidationCode]).resendTime < System.currentTimeMillis) getOrElse true
+
+        if (!canSend)
+          throw InvalidStateException("")
+
+        val contents = mapper.writeValueAsString(code)
+        client.setex(fingerprint, expire / 1000, contents)
+      })
+    } map (result => {
+      if (result) {
+        val message = action match {
+          case 1 =>
+            s"注册旅行派账户。验证码：${code.code}"
+        }
+        val runlevel = Global.conf.getString("runlevel")
+        if (runlevel != "test")
+          SmsCenter.client.sendSms(message, Seq(tel))
+      }
+      fingerprint
+    })
+  }
+
   /**
    * 重置密码
    * @param userId
@@ -667,7 +711,7 @@ object AccountManager {
    */
   def resetPassword(userId: Long, oldPassword: String, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
 
-    def emitEvent() : Future[Unit] = {
+    def emitEvent(): Future[Unit] = {
       // 触发重置用户密码的事件
       val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
       val user = getUserById(userId, responseFields)
@@ -683,7 +727,7 @@ object AccountManager {
       }
     }
 
-    verifyCredential(userId, oldPassword) map (result =>{
+    verifyCredential(userId, oldPassword) map (result => {
       if (!result)
         throw AuthException()
       else {

@@ -3,7 +3,7 @@ package com.lvxingpai.yunkai.handler
 import com.fasterxml.jackson.databind.node._
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.yunkai._
-import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
+import com.lvxingpai.yunkai.service.MorphiaFactory
 import com.lvxingpai.yunkai.model.{ChatGroup, UserInfo}
 import com.mongodb.{BasicDBList, BasicDBObject, BasicDBObjectBuilder}
 import com.twitter.util.{Future, FuturePool}

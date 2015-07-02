@@ -1,4 +1,4 @@
-package com.lvxingpai.yunkai.database.mongo
+package com.lvxingpai.yunkai.service
 
 import com.lvxingpai.yunkai.Global
 import com.lvxingpai.yunkai.model._
@@ -22,13 +22,14 @@ object MorphiaFactory {
 
   lazy val client = {
     val conf = Global.conf
-    val mongoBackends = conf.getConfig("backends.mongo").entrySet().toSeq
-    val serverAddresses = mongoBackends map (backend => {
-      val tmp = backend.getValue.unwrapped().toString.split(":")
-      val host = tmp(0)
-      val port = tmp(1).toInt
+    val mongoBackends = conf.getConfig("backends.mongo")
+    val serverAddresses = mongoBackends.root().toSeq map (item => {
+      val (key, _) = item
+      val host = mongoBackends.getString(s"$key.host")
+      val port = mongoBackends.getInt(s"$key.port")
       new ServerAddress(host, port)
     })
+
     val user = conf.getString("yunkai.mongo.user")
     val password = conf.getString("yunkai.mongo.password")
     val dbName = conf.getString("yunkai.mongo.db")

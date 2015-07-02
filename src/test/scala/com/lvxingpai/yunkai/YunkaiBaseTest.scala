@@ -1,6 +1,6 @@
 package com.lvxingpai.yunkai
 
-import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
+import com.lvxingpai.yunkai.service.MorphiaFactory
 import com.lvxingpai.yunkai.handler.UserServiceHandler
 import com.twitter.util.TimeConversions._
 import com.twitter.util.{Await, Duration, Future}
