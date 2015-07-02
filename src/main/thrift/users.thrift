@@ -158,7 +158,7 @@ service userservice {
   bool verifyCredential(1:i64 userId, 2:string password) throws (1:AuthException ex)
 
   // 用户修改密码
-  void resetPassword(1:i64 userId, 2:string newPassword) throws (1: InvalidArgsException ex1, 2: AuthException ex2)
+  void resetPassword(1:i64 userId, 2:string oldPassword, 3:string newPassword) throws (1: InvalidArgsException ex1, 2: AuthException ex2)
 
   // 修改手机号
   void updateTelNumber(1:i64 userId, 2:string tel) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)

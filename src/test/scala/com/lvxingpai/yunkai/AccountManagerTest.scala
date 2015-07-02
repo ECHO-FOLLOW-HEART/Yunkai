@@ -109,11 +109,20 @@ class AccountManagerTest extends YunkaiBaseTest {
 
   feature("the AccountManager can reset a user's password") {
     scenario("the old password is incorrect") {
-      pending
+      val (user, oldPassword) = initialUsers.head
+      val userId = user.userId
+      val newPassword = UUID.randomUUID().toString
+      val fakePassword = UUID.randomUUID().toString
+      intercept[AuthException] {
+        waitFuture(service.resetPassword(userId, fakePassword, newPassword))
+      }
     }
 
     scenario("the old password is correct") {
-      pending
+      val (user, oldPassword) = initialUsers.head
+      val userId = user.userId
+      val newPassword = UUID.randomUUID().toString
+      waitFuture(service.resetPassword(userId, oldPassword, newPassword))
     }
   }
 

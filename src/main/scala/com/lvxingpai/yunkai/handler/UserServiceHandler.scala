@@ -81,8 +81,8 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.login(loginName, password, source) map UserServiceHandler.userInfoConversion
   }
 
-  override def resetPassword(userId: Long, newPassword: String): Future[Unit] =
-    AccountManager.resetPassword(userId, newPassword)
+  override def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] =
+    AccountManager.resetPassword(userId, oldPassword, newPassword)
 
   override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp,
     String]]): Future[yunkai.UserInfo] = {

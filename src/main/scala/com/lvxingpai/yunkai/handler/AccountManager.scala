@@ -665,29 +665,38 @@ object AccountManager {
    * @param newPassword
    * @return
    */
-  def resetPassword(userId: Long, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
-    val query = ds.find(classOf[Credential], Credential.fdUserId, userId)
-    if (query isEmpty) throw new NotFoundException(s"User userId=$userId credential is not found")
-    else {
-      val (salt, crypted) = saltPassword(newPassword)
-      // 更新Credential
-      val updateOps = ds.createUpdateOperations(classOf[Credential]).set(Credential.fdSalt, salt)
-        .set(Credential.fdPasswdHash, crypted)
-      ds.updateFirst(query, updateOps)
+  def resetPassword(userId: Long, oldPassword: String, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+
+    def emitEvent() : Future[Unit] = {
+      // 触发重置用户密码的事件
+      val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+      val user = getUserById(userId, responseFields)
+      for {
+        elem <- user
+      } yield {
+        elem foreach (userInfo => {
+          val eventArgs: Map[String, JsonNode] = Map(
+            "user" -> userInfo
+          )
+          EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
+        })
+      }
     }
 
-    // 触发重置用户密码的事件
-    val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
-    val user = getUserById(userId, responseFields)
-    for {
-      elem <- user
-    } yield {
-      val userInfo = elem.get
-      val eventArgs: Map[String, JsonNode] = Map(
-        "user" -> userInfo
-      )
-      EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
-    }
+    verifyCredential(userId, oldPassword) map (result =>{
+      if (!result)
+        throw AuthException()
+      else {
+        val query = ds.find(classOf[Credential], Credential.fdUserId, userId)
+        val (salt, crypted) = saltPassword(newPassword)
+        // 更新Credential
+        val updateOps = ds.createUpdateOperations(classOf[Credential]).set(Credential.fdSalt, salt)
+          .set(Credential.fdPasswdHash, crypted)
+        ds.updateFirst(query, updateOps)
+        emitEvent()
+        ()
+      }
+    })
   }
 
   /**
