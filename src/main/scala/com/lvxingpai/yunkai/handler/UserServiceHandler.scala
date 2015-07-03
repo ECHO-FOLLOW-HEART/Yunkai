@@ -84,6 +84,9 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] =
     AccountManager.resetPassword(userId, oldPassword, newPassword)
 
+  override def resetPasswordByToken(userId: Long, token: String, newPassword: String): Future[Unit] =
+    AccountManager.resetPasswordByToken(userId, token, newPassword)
+
   override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp,
     String]]): Future[yunkai.UserInfo] = {
     val tel = miscInfo flatMap (_.get(UserInfoProp.Tel))
@@ -220,6 +223,7 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.checkValidationCode(code, action, countryCode, tel, userId)
 
   override def fetchToken(fingerprint: String): Future[Token] = AccountManager.fetchToken(fingerprint)
+
 }
 
 object UserServiceHandler {

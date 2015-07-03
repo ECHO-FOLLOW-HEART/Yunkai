@@ -179,7 +179,10 @@ service userservice {
   string checkValidationCode(1:string code, 2:i32 action, 3:optional i32 countryCode, 4:string tel, 5:optional i64 userId) throws (1:InvalidStateException ex)
 
   // 用户修改密码
-  void resetPassword(1:i64 userId, 2:string oldPassword, 3:string newPassword) throws (1: InvalidArgsException ex1, 2: AuthException ex2)
+  void resetPassword(1:i64 userId, 2:string oldPassword, 3:string newPassword) throws (1:InvalidArgsException ex1, 2:AuthException ex2)
+
+  // 通过提供token的方式修改密码
+  void resetPasswordByToken(1:i64 userId, 2:string token, 3:string newPassword) throws (1:InvalidArgsException ex1, 2:AuthException ex2)
 
   // 修改手机号
   void updateTelNumber(1:i64 userId, 2:string tel) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)

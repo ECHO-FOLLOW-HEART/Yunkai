@@ -11,13 +11,7 @@ import scala.language.postfixOps
  */
 case class ValidationCode(code: String, action: Int, userId: Option[Long], tel: String, createTime: Long,
                           expireTime: Long, resendTime: Long, countryCode: Option[Int]) {
-  val fingerprint: String = {
-    val u = userId getOrElse ""
-    val cd = countryCode getOrElse 86
-    val plain = s"action=$action&user=$u&tel=$tel&country=$cd"
-    val bytes = MessageDigest.getInstance("MD5").digest(plain.getBytes)
-    bytes map ("%02x" format _) mkString
-  }
+  val fingerprint: String = ValidationCode.calcFingerprint(action, userId, tel, countryCode)
 }
 
 object ValidationCode {
@@ -27,5 +21,13 @@ object ValidationCode {
     val expireTime = current + expire
     val resendTime = current + resendInterval
     ValidationCode(code, action, userId, tel, current, expireTime, resendTime, countryCode)
+  }
+
+  def calcFingerprint(action: Int, userId: Option[Long], tel: String, countryCode: Option[Int]): String = {
+    val u = userId getOrElse ""
+    val cd = countryCode getOrElse 86
+    val plain = s"action=$action&user=$u&tel=$tel&country=$cd"
+    val bytes = MessageDigest.getInstance("MD5").digest(plain.getBytes)
+    bytes map ("%02x" format _) mkString
   }
 }

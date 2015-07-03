@@ -2,9 +2,12 @@ package com.lvxingpai.yunkai
 
 import java.util.UUID
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.module.SimpleModule
 import com.lvxingpai.yunkai.Implicits._
 import com.lvxingpai.yunkai.handler.{AccountManager, UserServiceHandler}
-import com.lvxingpai.yunkai.model.{ChatGroup => ChatGroupMorphia, ContactRequest => ContactRequestMorphia, UserInfo => UserInfoMorphia}
+import com.lvxingpai.yunkai.model.{ChatGroup => ChatGroupMorphia, ContactRequest => ContactRequestMorphia, UserInfo => UserInfoMorphia, ValidationCode}
+import com.lvxingpai.yunkai.serialization.{ValidationCodeDeserializer, ValidationCodeSerializer}
 import com.twitter.util.Future
 import org.bson.types.ObjectId
 
@@ -123,6 +126,38 @@ class AccountManagerTest extends YunkaiBaseTest {
       val userId = user.userId
       val newPassword = UUID.randomUUID().toString
       waitFuture(service.resetPassword(userId, oldPassword, newPassword))
+    }
+  }
+
+  feature("the AccountManager can send validation codes") {
+    scenario("a validation code for password-reset is sent") {
+      val userId = initialUsers.head._1.userId
+      val tel = "15313380327"
+      waitFuture(service.sendValidationCode(1, None, tel, Some(userId)))
+
+      // 生成相应的object mapper
+      val mapper = new ObjectMapper()
+      val module = new SimpleModule()
+      module.addSerializer(classOf[ValidationCode], new ValidationCodeSerializer())
+      module.addDeserializer(classOf[ValidationCode], new ValidationCodeDeserializer())
+      mapper.registerModule(module)
+
+//        RedisFactory.pool.withClient(client => {
+//          // 验证token是否有效。判断标准
+//          // * token存在
+//          // * action一致
+//          // * userId一致
+//          // * 未过期
+//          client.get[String](token) exists (contents => {
+//            val code = mapper.readValue(contents, classOf[ValidationCode])
+//            code.action == action && code.userId.nonEmpty && code.userId.get == userId && code.expireTime >
+//              System.currentTimeMillis
+//          })
+//        })
+//      }
+//      RedisFactory.pool.withClient(client=>{
+//      })
+//
     }
   }
 
