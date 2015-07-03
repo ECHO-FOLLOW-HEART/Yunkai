@@ -333,13 +333,13 @@ object AccountManager {
         val cls = classOf[ContactRequest]
         val query = ds.createQuery(cls).field(fdSender).equal(sender).field(fdReceiver).equal(receiver)
 
-        val criteria1 = ds.createQuery(cls).criteria(fdStatus).equal(CANCELLED.id)
+        // val criteria1 = ds.createQuery(cls).criteria(fdStatus).equal(CANCELLED.id)
         //        val criteria2 = ds.createQuery(cls).criteria(fdStatus).equal(PENDING.id)
-        val criteria3 = ds.createQuery(cls).criteria(fdExpire).lessThan(currentTime)
+        // val criteria3 = ds.createQuery(cls).criteria(fdExpire).lessThan(currentTime)
 
-        query.and(ds.createQuery(cls).or(
-          criteria1,
-          criteria3))
+        // query.and(ds.createQuery(cls).or(
+          // criteria1,
+          // criteria3))
         //          ds.createQuery(cls).and(criteria2, criteria3)))
 
         val updateOps = buildContactRequestUpdateOps(req).unset(fdRejectMessage) //.set(fdContactRequestId, UUID.randomUUID().toString)
