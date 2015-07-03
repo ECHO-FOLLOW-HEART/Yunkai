@@ -11,11 +11,7 @@ import scala.language.postfixOps
  */
 case class ValidationCode(code: String, action: Int, userId: Option[Long], tel: String, createTime: Long,
                           expireTime: Long, resendTime: Long, countryCode: Option[Int]) {
-  object ActionCode extends Enumeration {
-    val SIGNUP = Value(1)
-  }
-
-  def fingerprint: String = {
+  val fingerprint: String = {
     val u = userId getOrElse ""
     val cd = countryCode getOrElse 86
     val plain = s"action=$action&user=$u&tel=$tel&country=$cd"

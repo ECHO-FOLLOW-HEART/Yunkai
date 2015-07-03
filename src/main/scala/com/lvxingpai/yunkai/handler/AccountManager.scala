@@ -76,7 +76,7 @@ object AccountManager {
     if (userInfo.contains(UserInfoProp.Gender)) {
       val gender = userInfo(UserInfoProp.Gender)
       if (gender != null && gender != "f" && gender != "m" && gender != "s" && gender != "F" && gender != "M" && gender != "S")
-        throw new InvalidArgsException(s"Invalid gender $gender")
+        throw new InvalidArgsException(Some(s"Invalid gender $gender"))
     }
 
     // 获得需要处理的字段名
@@ -95,7 +95,7 @@ object AccountManager {
 
       val result = ds.findAndModify(query, updateOps)
       if (result == null)
-        throw NotFoundException(s"Cannot find user: $userId")
+        throw NotFoundException(Some(s"Cannot find user: $userId"))
       else {
         // 触发修改个人信息事件
         val eventArgs: Map[String, JsonNode] = Map(
@@ -106,7 +106,7 @@ object AccountManager {
         result
       }
     } else
-      throw new InvalidArgsException("Invalid updated fields")
+      throw new InvalidArgsException(Some("Invalid updated fields"))
   }
 
   /**
@@ -131,7 +131,7 @@ object AccountManager {
       rel <- relationship
     } yield {
       if (l exists (_._2 isEmpty))
-        throw NotFoundException("")
+        throw NotFoundException()
       else
         rel
     }
@@ -151,7 +151,7 @@ object AccountManager {
     getUsersByIdList(responseFields, userId +: targetUsersFiltered: _*) flatMap (m => {
       // 相应的用户必须存在
       if (m exists (_._2 isEmpty))
-        throw NotFoundException("")
+        throw NotFoundException()
       val cls = classOf[Relationship]
 
       val jobs = targetUsersFiltered map (target => futurePool {
@@ -198,7 +198,7 @@ object AccountManager {
     getUsersByIdList(Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar), userId +: targetUsersFiltered: _*) map (m => {
       // 相应的用户必须存在
       if (m exists (_._2 isEmpty))
-        throw NotFoundException("")
+        throw NotFoundException()
       else {
         def buildQuery(user1: Long, user2: Long): CriteriaContainer = {
           val l = Seq(user1, user2).sorted
@@ -295,7 +295,7 @@ object AccountManager {
       userInfoOpt <- getUserById(userId)
     } yield {
       if (userInfoOpt isEmpty)
-        throw NotFoundException("")
+        throw NotFoundException()
       else {
         ds.createQuery(classOf[ContactRequest]).field(ContactRequest.fdReceiver).equal(userId)
           .offset(offset).limit(limit).asList().toSeq
@@ -319,7 +319,7 @@ object AccountManager {
       relationship <- isContact(sender, receiver)
     } yield {
       if (relationship)
-        throw InvalidStateException(s"$sender and $receiver are already contacts")
+        throw InvalidStateException(Some(s"$sender and $receiver are already contacts"))
       else {
         import ContactRequest.RequestStatus._
         import ContactRequest._
@@ -351,7 +351,7 @@ object AccountManager {
             // 比如：前一个请求处于PENDING状态，且未过期，或者前一个请求已经被拒绝等）
             case ex: MongoCommandException =>
               if (isDuplicateKeyException(ex))
-                throw InvalidStateException("")
+                throw InvalidStateException()
               else
                 throw ex
           }
@@ -384,7 +384,7 @@ object AccountManager {
 
     getContactRequest(requestId)(ds, futurePool) map (oldRequest => {
       if (oldRequest isEmpty)
-        throw NotFoundException(s"Cannot find the request $requestId")
+        throw NotFoundException(Some(s"Cannot find the request $requestId"))
       else {
         val cls = classOf[ContactRequest]
         val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
@@ -395,7 +395,7 @@ object AccountManager {
 
         val newRequest = ds.findAndModify(query, updateOps, false, false)
         if (newRequest == null)
-          throw InvalidStateException("")
+          throw InvalidStateException()
 
         // 触发拒绝好友请求
         val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
@@ -429,7 +429,7 @@ object AccountManager {
 
     getContactRequest(requestId = requestId)(ds, futurePool) flatMap (oldRequest => {
       if (oldRequest isEmpty)
-        throw NotFoundException(s"Cannot find the request $requestId")
+        throw NotFoundException(Some(s"Cannot find the request $requestId"))
       else {
         val cls = classOf[ContactRequest]
 
@@ -439,7 +439,7 @@ object AccountManager {
 
         val newRequest = ds.findAndModify(query, updateOps, false, false)
         if (newRequest == null)
-          throw InvalidStateException("")
+          throw InvalidStateException()
 
         addContact(newRequest.sender, newRequest.receiver)
         // 触发接受好友请求
@@ -473,7 +473,7 @@ object AccountManager {
 
     getContactRequest(requestId = requestId)(ds, futurePool) map (oldRequest => {
       if (oldRequest isEmpty)
-        throw NotFoundException(s"Cannot find the request $requestId")
+        throw NotFoundException(Some(s"Cannot find the request $requestId"))
       else {
         val cls = classOf[ContactRequest]
 
@@ -496,7 +496,7 @@ object AccountManager {
     import ContactRequest._
     val req = ds.createQuery(classOf[ContactRequest]).field(fdSender).equal(sender).field(fdReceiver).equal(receiver).get()
     if (req == null)
-      throw NotFoundException("Cannot find the request")
+      throw NotFoundException(Some("Cannot find the request"))
     else
       Option(req)
   }
@@ -523,7 +523,7 @@ object AccountManager {
 
     userFuture map (userInfo => {
       if (userInfo isEmpty)
-        throw NotFoundException(s"User not find $userId")
+        throw NotFoundException(Some(s"User not find $userId"))
       else {
         val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
           (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
@@ -633,7 +633,7 @@ object AccountManager {
           ds.save[UserInfo](newUser)
           newUser
         } catch {
-          case ex: DuplicateKeyException => throw new UserExistsException(s"User $userId is existed")
+          case ex: DuplicateKeyException => throw new UserExistsException(Some(s"User $userId is existed"))
         }
       }
 
@@ -647,7 +647,7 @@ object AccountManager {
       try {
         ds.save[Credential](credential)
       } catch {
-        case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId credential is existed")
+        case ex: DuplicateKeyException => throw new InvalidArgsException(Some(s"User $userId credential is existed"))
       }
     }
 
@@ -662,8 +662,12 @@ object AccountManager {
     userInfo
   }
 
+  /**
+   * 检查验证码。如果通过的话，返回相应的Token，否则抛出ValidationCodeException异常
+   * @return
+   */
   def checkValidationCode(valCode: String, action: Int, countryCode: Option[Int] = None, tel: String, userId: Option[Long])
-                        (implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+                         (implicit ds: Datastore, futurePool: FuturePool): Future[String] = {
     val expire = 10 * 60 * 1000 // 10分钟过期
     val resendInterval = 60 * 1000 // 发送间隔为1分钟
     val code = ValidationCode(valCode, action, userId, tel, expire, resendInterval, countryCode)
@@ -678,16 +682,40 @@ object AccountManager {
 
     futurePool {
       RedisFactory.pool.withClient(client => {
-        client.get[String](fingerprint) exists (contents => {
+        val checkResult = client.get[String](fingerprint) exists (contents => {
           val c = mapper.readValue(contents, classOf[ValidationCode])
           c.expireTime > System.currentTimeMillis && c.code == valCode
         })
+
+        if (checkResult)
+          fingerprint
+        else
+          throw ValidationCodeException()
+      })
+    }
+  }
+
+  def fetchToken(fingerprint: String)
+                (implicit ds: Datastore, futurePool: FuturePool): Future[Token] = {
+    // 生成相应的object mapper
+    val mapper = new ObjectMapper()
+    val module = new SimpleModule()
+    module.addSerializer(classOf[ValidationCode], new ValidationCodeSerializer())
+    module.addDeserializer(classOf[ValidationCode], new ValidationCodeDeserializer())
+    mapper.registerModule(module)
+
+    futurePool {
+      RedisFactory.pool.withClient(client => {
+        client.get[String](fingerprint) map (contents => {
+          val code = mapper.readValue(contents, classOf[ValidationCode])
+          Token(fingerprint, code.action, code.userId, code.createTime, code.expireTime)
+        }) getOrElse (throw NotFoundException())
       })
     }
   }
 
   def sendValidationCode(action: Int, countryCode: Option[Int] = None, tel: String, userId: Option[Long])
-                        (implicit ds: Datastore, futurePool: FuturePool): Future[String] = {
+                        (implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
     val expire = 10 * 60 * 1000 // 10分钟过期
     val resendInterval = 60 * 1000 // 发送间隔为1分钟
     val rnd = Random.nextInt(1000000)
@@ -708,7 +736,7 @@ object AccountManager {
           (mapper.readValue(_, classOf[ValidationCode]).resendTime < System.currentTimeMillis) getOrElse true
 
         if (!canSend)
-          throw InvalidStateException("")
+          throw InvalidStateException()
 
         val contents = mapper.writeValueAsString(code)
         client.setex(fingerprint, expire / 1000, contents)
@@ -723,7 +751,6 @@ object AccountManager {
         if (runlevel != "test")
           SmsCenter.client.sendSms(message, Seq(tel))
       }
-      code.code
     })
   }
 
@@ -782,7 +809,7 @@ object AccountManager {
     val updateOps = ds.createUpdateOperations(cls).set(fdTel, tel)
     val updated = ds.findAndModify(query, updateOps)
     if (updated == null)
-      throw NotFoundException(s"Cannot find user $userId")
+      throw NotFoundException(Some(s"Cannot find user $userId"))
   }
 
 

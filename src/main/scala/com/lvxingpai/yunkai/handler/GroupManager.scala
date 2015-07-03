@@ -93,7 +93,7 @@ object GroupManager {
       cg.createTime = java.lang.System.currentTimeMillis()
       // 检查创建的群的用户数是否超过最大的上限
       if (participants.size > cg.maxUsers)
-        throw GroupMembersLimitException("Chat group members' number exceed maximum allowable")
+        throw GroupMembersLimitException(Some("Chat group members' number exceed maximum allowable"))
       else
         ds.save[ChatGroup](cg) // 1. gid重复 2. 数据库通信异常  3. 切面
 
@@ -162,7 +162,7 @@ object GroupManager {
     val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId)
       .retrievedFields(true, retrievedFields: _*)
     val result = if (query isEmpty)
-      throw new NotFoundException(s"ChatGroup chatGroupId=$chatGroupId not found, update failure")
+      throw new NotFoundException(Some(s"ChatGroup chatGroupId=$chatGroupId not found, update failure"))
     else {
       val updateOps = chatGroupProps.foldLeft(ds.createUpdateOperations(classOf[ChatGroup]))((ops, entry) => {
         val (key, value) = entry
@@ -233,7 +233,7 @@ object GroupManager {
     // 在ChatGroup.participants中添加
     def func1(group: Option[ChatGroup], users: Map[Long, Option[UserInfo]]): Future[(Seq[Long], Seq[UserInfo])] = futurePool {
       if (group.isEmpty || users.exists(_._2.isEmpty))
-        throw NotFoundException("Cannot find all the users and the chat group")
+        throw NotFoundException(Some("Cannot find all the users and the chat group"))
       else {
         val col = MorphiaFactory.getCollection(classOf[ChatGroup])
 
@@ -254,7 +254,7 @@ object GroupManager {
               .add("$each", bufferAsJavaList(userIdsToAdd.toBuffer)).add("$slice", maxUsers).get()))
         val doc = col.findAndModify(query, fields, sort, false, ops, true, false)
         if (doc == null)
-          throw GroupMembersLimitException("")
+          throw GroupMembersLimitException()
         else {
           val remainedParticipants = doc.get(ChatGroup.fdParticipants).asInstanceOf[BasicDBList].toSeq map (_.asInstanceOf[Long])
           remainedParticipants -> usersToAdd
@@ -313,7 +313,7 @@ object GroupManager {
     // 验证chatGroupId是否有误
     def verify(group: ChatGroup): Future[ChatGroup] = {
       if (group == null)
-        throw NotFoundException(s"Cannot find chat group $chatGroupId")
+        throw NotFoundException(Some(s"Cannot find chat group $chatGroupId"))
       else
         futurePool {
           group
@@ -386,7 +386,7 @@ object GroupManager {
                          (implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = futurePool {
     val groupInfo = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId).get()
     if (groupInfo == null)
-      throw NotFoundException(s"Cannot find chat group $chatGroupId")
+      throw NotFoundException(Some(s"Cannot find chat group $chatGroupId"))
 
     val participants = Option(groupInfo.participants) getOrElse seqAsJavaList(Seq())
 

@@ -26,7 +26,7 @@ class UserServiceHandler extends Userservice.FutureIface {
       if (userInfo nonEmpty)
         userInfo.get
       else
-        throw NotFoundException(s"Cannot find user: $userId")
+        throw NotFoundException(Some(s"Cannot find user: $userId"))
     })
   }
 
@@ -89,7 +89,7 @@ class UserServiceHandler extends Userservice.FutureIface {
     val tel = miscInfo flatMap (_.get(UserInfoProp.Tel))
     AccountManager.createUser(nickName, password, tel) map (userInfo => {
       if (userInfo == null)
-        throw new NotFoundException("Create user failure")
+        throw new NotFoundException(Some("Create user failure"))
       else
         UserServiceHandler.userInfoConversion(userInfo)
     })
@@ -104,7 +104,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def getChatGroup(chatGroupId: Long, fields: Option[Seq[ChatGroupProp]]): Future[yunkai.ChatGroup] = {
     GroupManager.getChatGroup(chatGroupId, fields.getOrElse(Seq())) map (item => {
       if (item isEmpty)
-        throw NotFoundException("Chat group not found")
+        throw NotFoundException(Some("Chat group not found"))
       else
         UserServiceHandler.chatGroupConversion(item.get)
     })
@@ -123,7 +123,7 @@ class UserServiceHandler extends Userservice.FutureIface {
 
     GroupManager.updateChatGroup(chatGroupId, updateInfo) map (item => {
       if (item isEmpty)
-        throw NotFoundException("Chat group not found")
+        throw NotFoundException(Some("Chat group not found"))
       else
         UserServiceHandler.chatGroupConversion(item.get)
     })
@@ -135,7 +135,7 @@ class UserServiceHandler extends Userservice.FutureIface {
     for {
       items <- result
     } yield {
-      if (items isEmpty) throw NotFoundException(s"User $userId chat groups not found")
+      if (items isEmpty) throw NotFoundException(Some(s"User $userId chat groups not found"))
       else items map UserServiceHandler.chatGroupConversion
     }
   }
@@ -213,11 +213,13 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def sendValidationCode(action: Int, countryCode: Option[Int], tel: String, userId: Option[Long]): Future[String] =
+  override def sendValidationCode(action: Int, countryCode: Option[Int], tel: String, userId: Option[Long]): Future[Unit] =
     AccountManager.sendValidationCode(action, countryCode, tel, userId)
 
-  override def checkValidationCode(code: String, action: Int, countryCode: Option[Int], tel: String, userId: Option[Long]): Future[Boolean] =
+  override def checkValidationCode(code: String, action: Int, countryCode: Option[Int], tel: String, userId: Option[Long]): Future[String] =
     AccountManager.checkValidationCode(code, action, countryCode, tel, userId)
+
+  override def fetchToken(fingerprint: String): Future[Token] = AccountManager.fetchToken(fingerprint)
 }
 
 object UserServiceHandler {
