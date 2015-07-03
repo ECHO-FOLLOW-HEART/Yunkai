@@ -204,7 +204,7 @@ service userservice {
 //  list<ChatGroup> searchChatGroup(1: string keyword)
 
   // 修改讨论组信息（比如名称、描述等）。支持的ChatGroupProp有：name, groupDesc, maxUsers, avatar和visible
-  ChatGroup updateChatGroup(1: i64 chatGroupId, 2: map<ChatGroupProp, string> chatGroupProps) throws (1: InvalidArgsException ex1, 2: NotFoundException ex2)
+  ChatGroup updateChatGroup(1: i64 chatGroupId, 2:i64 operatorId, 3: map<ChatGroupProp, string> chatGroupProps) throws (1: InvalidArgsException ex1, 2: NotFoundException ex2)
 
   // 获取讨论组信息
   ChatGroup getChatGroup(1: i64 chatGroupId, 2: optional list<ChatGroupProp> fields) throws (1:NotFoundException ex)

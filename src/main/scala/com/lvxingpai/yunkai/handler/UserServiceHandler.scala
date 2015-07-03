@@ -113,7 +113,7 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def updateChatGroup(chatGroupId: Long, chatGroupProps: scala.collection.Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
+  override def updateChatGroup(chatGroupId: Long, operatorId: Long, chatGroupProps: scala.collection.Map[ChatGroupProp, String]): Future[yunkai.ChatGroup] = {
     val updateInfo = Map(chatGroupProps.toSeq map (entry => {
       val (prop, value) = entry
       prop -> (prop match {
@@ -124,7 +124,7 @@ class UserServiceHandler extends Userservice.FutureIface {
       })
     }): _*) filter (_._2 != null)
 
-    GroupManager.updateChatGroup(chatGroupId, updateInfo) map (item => {
+    GroupManager.updateChatGroup(chatGroupId, operatorId, updateInfo) map (item => {
       if (item isEmpty)
         throw NotFoundException(Some("Chat group not found"))
       else

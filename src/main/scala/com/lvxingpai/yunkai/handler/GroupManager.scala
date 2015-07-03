@@ -156,7 +156,7 @@ object GroupManager {
   }
 
   // 修改讨论组信息（比如名称、描述等）
-  def updateChatGroup(chatGroupId: Long, chatGroupProps: Map[ChatGroupProp, Any])(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ChatGroup]] = futurePool {
+  def updateChatGroup(chatGroupId: Long, operatorId:Long, chatGroupProps: Map[ChatGroupProp, Any])(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ChatGroup]] = futurePool {
     // 所有被修改的字段都需要返回
     val retrievedFields = chatGroupProps.keySet.toSeq :+ ChatGroupProp.ChatGroupId map chatGroupPropToFieldName
     val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId)
@@ -183,7 +183,8 @@ object GroupManager {
     import Implicits.JsonConversions._
 
     val eventArgs: Map[String, JsonNode] = Map(
-      "chatGroupId" -> result.chatGroupId
+      "chatGroupId" -> result.chatGroupId,
+      "operatorId" -> operatorId
     )
     EventEmitter.emitEvent(EventEmitter.evtModChatGroup, eventArgs)
 
