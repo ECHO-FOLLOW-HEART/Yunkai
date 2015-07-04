@@ -826,7 +826,7 @@ object AccountManager {
     }
 
     futurePool {
-      if (checkPassword(newPassword))
+      if (!checkPassword(newPassword))
         throw InvalidArgsException()
 
       val query = ds.find(classOf[Credential], Credential.fdUserId, userId)
