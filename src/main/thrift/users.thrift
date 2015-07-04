@@ -209,7 +209,7 @@ service userservice {
   void resetPasswordByToken(1:i64 userId, 2:string newPassword, 3:string token) throws (1:InvalidArgsException ex1, 2:AuthException ex2)
 
   // 修改手机号
-  void updateTelNumber(1:i64 userId, 2:string tel, 3:string token) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
+  void updateTelNumber(1:i64 userId, 2:string tel, 3:string token) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2, 3:AuthException ex3)
 
   // 新用户注册。支持的UserInfoProp暂时只有tel
   UserInfo createUser(1:string nickName, 2:string password, 3:optional map<UserInfoProp, string> miscInfo) throws (1: UserExistsException ex1, 2: InvalidArgsException ex2)
