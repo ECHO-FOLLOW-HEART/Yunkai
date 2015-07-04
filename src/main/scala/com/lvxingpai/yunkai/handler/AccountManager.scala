@@ -98,8 +98,14 @@ object AccountManager {
         throw NotFoundException(Some(s"Cannot find user: $userId"))
       else {
         // 触发修改个人信息事件
+        val updateInfo = new ObjectMapper().createObjectNode()
+        updateInfo.put("nickName","new nickname")
+        updateInfo.put("avatar", "new avatar")
+        updateInfo.put("signature", "new signature")
+
         val eventArgs: Map[String, JsonNode] = Map(
-          "user" -> result
+          "user" -> result,
+          "updateInfo" -> updateInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
         // 返回userInfo
@@ -177,7 +183,7 @@ object AccountManager {
 
   implicit def user2JsonNode(user: UserInfo): JsonNode = {
     val targets = new ObjectMapper().createObjectNode()
-    targets.put("id", user.id.toString)
+//    targets.put("id", user.id.toString)
     targets.put("userId", user.userId)
     targets.put("nickName", user.nickName)
     val avatarValue = Option(user.avatar).getOrElse("")
