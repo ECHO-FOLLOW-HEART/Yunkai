@@ -99,7 +99,7 @@ object AccountManager {
       else {
         // 触发修改个人信息事件
         val updateInfo = new ObjectMapper().createObjectNode()
-        updateInfo.put("nickName","new nickname")
+        updateInfo.put("nickName", "new nickname")
         updateInfo.put("avatar", "new avatar")
         updateInfo.put("signature", "new signature")
 
@@ -183,7 +183,7 @@ object AccountManager {
 
   implicit def user2JsonNode(user: UserInfo): JsonNode = {
     val targets = new ObjectMapper().createObjectNode()
-//    targets.put("id", user.id.toString)
+    //    targets.put("id", user.id.toString)
     targets.put("userId", user.userId)
     targets.put("nickName", user.nickName)
     val avatarValue = Option(user.avatar).getOrElse("")
@@ -842,10 +842,10 @@ object AccountManager {
 
   // 验证密码是否合法（必须是ASCII 33~126之间的字符，且长度为6~32）
   private def checkPassword(password: String): Boolean = {
-    lazy val len = password.length
-    lazy val illegalChar = password exists (c => {
+    val len = password.length
+    val illegalChar = password exists (c => {
       val ord = c.toInt
-      c < 33 || c > 126
+      ord < 33 || ord > 126
     })
     len >= 6 && len <= 32 && !illegalChar
   }

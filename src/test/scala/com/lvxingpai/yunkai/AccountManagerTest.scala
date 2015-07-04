@@ -113,8 +113,8 @@ class AccountManagerTest extends YunkaiBaseTest {
     scenario("the old password is incorrect") {
       val (user, oldPassword) = initialUsers.head
       val userId = user.userId
-      val newPassword = UUID.randomUUID().toString
-      val fakePassword = UUID.randomUUID().toString
+      val newPassword = UUID.randomUUID().toString.take(8)
+      val fakePassword = UUID.randomUUID().toString.take(8)
       intercept[AuthException] {
         waitFuture(service.resetPassword(userId, fakePassword, newPassword))
       }
@@ -123,7 +123,7 @@ class AccountManagerTest extends YunkaiBaseTest {
     scenario("the old password is correct") {
       val (user, oldPassword) = initialUsers.head
       val userId = user.userId
-      val newPassword = UUID.randomUUID().toString
+      val newPassword = UUID.randomUUID().toString.take(8)
       waitFuture(service.resetPassword(userId, oldPassword, newPassword))
 
       val newUser = waitFuture(service.login(user.tel.get, newPassword, ""))
@@ -137,7 +137,7 @@ class AccountManagerTest extends YunkaiBaseTest {
       val action = ResetPassword
       val tel = "13800138000"
       val (user, password) = initialUsers.head
-      val newPassword = UUID.randomUUID().toString
+      val newPassword = UUID.randomUUID().toString.take(8)
 
       waitFuture(service.sendValidationCode(action, None, tel, Some(user.userId)))
       val digits = RedisFactory.pool.withClient(client => {
