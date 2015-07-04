@@ -2,21 +2,25 @@ package com.lvxingpai.yunkai.serialization
 
 import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.databind.{SerializerProvider, JsonSerializer}
-import com.lvxingpai.yunkai.model.ValidationCode
-
+import com.lvxingpai.yunkai.Token
 import scala.language.postfixOps
 
 /**
- * Created by zephyre on 7/2/15.
+ * Created by zephyre on 7/4/15.
  */
-class ValidationCodeSerializer extends JsonSerializer[ValidationCode] {
-  override def serialize(value: ValidationCode, gen: JsonGenerator, serializers: SerializerProvider): Unit = {
+class TokenSerializer extends JsonSerializer[Token]{
+  override def serialize(value: Token, gen: JsonGenerator, serializers: SerializerProvider): Unit = {
     gen.writeStartObject()
-    gen.writeStringField("code", value.code)
+    gen.writeStringField("fingerprint", value.fingerprint)
     gen.writeNumberField("action", value.action.value)
-    gen.writeStringField("tel", value.tel)
+
+    val tel = value.tel
+    if (tel isEmpty)
+      gen.writeNullField("tel")
+    else
+      gen.writeStringField("tel", tel.get)
+
     gen.writeNumberField("createTime", value.createTime)
-    gen.writeBooleanField("checked", value.checked)
 
     val userId = value.userId
     if (userId isEmpty)

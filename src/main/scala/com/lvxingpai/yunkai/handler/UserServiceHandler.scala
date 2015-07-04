@@ -84,8 +84,8 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] =
     AccountManager.resetPassword(userId, oldPassword, newPassword)
 
-  override def resetPasswordByToken(userId: Long, token: String, newPassword: String): Future[Unit] =
-    AccountManager.resetPasswordByToken(userId, token, newPassword)
+  override def resetPasswordByToken(userId: Long, newPassword: String, token: String): Future[Unit] =
+    AccountManager.resetPasswordByToken(userId, newPassword, token)
 
   override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp,
     String]]): Future[yunkai.UserInfo] = {
@@ -198,7 +198,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def verifyCredential(userId: Long, password: String): Future[Boolean] =
     AccountManager.verifyCredential(userId, password)
 
-  override def updateTelNumber(userId: Long, tel: String): Future[Unit] = AccountManager.updateTelNumber(userId, tel)
+  override def updateTelNumber(userId: Long, tel: String, token: String): Future[Unit] = AccountManager.updateTelNumber(userId, tel, token)
 
   override def getContactRequests(userId: Long, offset: Option[Int], limit: Option[Int]): Future[Seq[ContactRequest]] = {
     import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
@@ -216,13 +216,29 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def sendValidationCode(action: Int, countryCode: Option[Int], tel: String, userId: Option[Long]): Future[Unit] =
+  override def sendValidationCode(action: ValidationCodeAction, countryCode: Option[Int], tel: String, userId: Option[Long]): Future[Unit] =
     AccountManager.sendValidationCode(action, countryCode, tel, userId)
 
-  override def checkValidationCode(code: String, action: Int, countryCode: Option[Int], tel: String, userId: Option[Long]): Future[String] =
-    AccountManager.checkValidationCode(code, action, countryCode, tel, userId)
+  override def checkValidationCode(code: String, action: ValidationCodeAction, countryCode: Option[Int], tel: Option[String], userId: Option[Long]): Future[String] = {
+    AccountManager.checkValidationCode(code, action, countryCode, tel, userId) map (opt => {
+      opt getOrElse {
+        throw ValidationCodeException()
+      }
+    })
+  }
 
-  override def fetchToken(fingerprint: String): Future[Token] = AccountManager.fetchToken(fingerprint)
+  //  override def fetchToken(fingerprint: String): Future[Token] = {
+  //    val ret = AccountManager.fetchToken(fingerprint)
+  //    ret map (opt => {
+  //      if (opt nonEmpty)
+  //        throw AuthException()
+  //      else {
+  //        val code = opt.get
+  //        Token(code.action.value, code.userId, code.createTime)
+  //      }
+  //
+  //    })
+  //  }
 
 }
 

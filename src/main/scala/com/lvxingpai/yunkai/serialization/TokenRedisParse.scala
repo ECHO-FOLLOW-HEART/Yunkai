@@ -2,25 +2,24 @@ package com.lvxingpai.yunkai.serialization
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.module.SimpleModule
-import com.lvxingpai.yunkai.model.ValidationCode
+import com.lvxingpai.yunkai.Token
 import com.redis.serialization.Parse
 
 /**
- * Created by zephyre on 7/3/15.
+ * Created by zephyre on 7/4/15.
  */
-object ValidationCodeRedisParse {
-
+object TokenRedisParse {
   def apply() = {
-    Parse[ValidationCode](bytes => {
+    Parse[Token](bytes => {
       val contents = new String(bytes)
 
       // 生成相应的object mapper
       val mapper = new ObjectMapper()
       val module = new SimpleModule()
-      module.addDeserializer(classOf[ValidationCode], new ValidationCodeDeserializer())
+      module.addDeserializer(classOf[Token], new TokenDeserializer())
       mapper.registerModule(module)
 
-      mapper.readValue(contents, classOf[ValidationCode])
+      mapper.readValue(contents, classOf[Token])
     })
   }
 }

@@ -1,9 +1,8 @@
 package com.lvxingpai.yunkai.model
 
-import javax.validation.constraints.{Max, Min, NotNull, Size}
+import javax.validation.constraints.{Max, Min, NotNull}
 
 import org.bson.types.ObjectId
-import org.hibernate.validator.constraints.NotBlank
 import org.mongodb.morphia.annotations.{Entity, Id, Indexed, Property}
 
 import scala.beans.BeanProperty
@@ -24,13 +23,9 @@ class Credential {
   var userId: Long = 0
 
   @BeanProperty
-  @NotBlank
-  @Size(min = 32, max = 128)
   var salt: String = ""
 
   @BeanProperty
-  @NotBlank
-  @Size(min = 32, max = 128)
   @Property("pwdHash")
   var passwdHash: String = ""
 

@@ -1,37 +1,39 @@
 package com.lvxingpai.yunkai.serialization
 
 import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.node.{NullNode, NumericNode}
+import com.fasterxml.jackson.databind.node.{NullNode, NumericNode, TextNode}
 import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer, JsonNode}
-import com.lvxingpai.yunkai.ValidationCodeAction
-import com.lvxingpai.yunkai.model.ValidationCode
+import com.lvxingpai.yunkai.{Token, ValidationCodeAction}
 
 /**
- * Created by zephyre on 7/2/15.
+ * Created by zephyre on 7/4/15.
  */
-class ValidationCodeDeserializer extends JsonDeserializer[ValidationCode] {
-  override def deserialize(p: JsonParser, ctxt: DeserializationContext): ValidationCode = {
+class TokenDeserializer extends JsonDeserializer[Token] {
+  override def deserialize(p: JsonParser, ctxt: DeserializationContext): Token = {
     val node = p.getCodec.readTree[JsonNode](p)
-    val code = node.get("code").asText()
+
+    val fp = node.get("fingerprint").asText()
     val action = node.get("action").asInt() match {
       case item if item == ValidationCodeAction.Signup.value => ValidationCodeAction.Signup
       case item if item == ValidationCodeAction.ResetPassword.value => ValidationCodeAction.ResetPassword
       case item if item == ValidationCodeAction.UpdateTel.value => ValidationCodeAction.UpdateTel
     }
 
-    val tel = node.get("tel").asText()
     val createTime = node.get("createTime").asLong()
-    val checked = node.get("checked").asBoolean()
-    val userId =
-      node.get("userId") match {
-        case _: NullNode => None
-        case item: NumericNode => Some(item.asLong())
-      }
+
+    val tel = node.get("tel") match {
+      case _: NullNode => None
+      case item: TextNode => Some(item.asText())
+    }
+    val userId = node.get("userId") match {
+      case _: NullNode => None
+      case item: NumericNode => Some(item.asLong())
+    }
     val countryCode = node.get("countryCode") match {
       case _: NullNode => None
       case item: NumericNode => Some(item.asInt())
     }
 
-    ValidationCode(code, action, userId, tel, countryCode, createTime, checked)
+    Token(fp, action, userId, countryCode, tel, createTime)
   }
 }
