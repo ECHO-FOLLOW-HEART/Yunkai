@@ -1,17 +1,20 @@
 namespace java com.lvxingpai.yunkai.java
 #@namespace scala com.lvxingpai.yunkai
 
+// 用户性别
 enum Gender {
   MALE,
   FEMALE,
   SECRET
 }
 
+// 聊天群组的类型。CHATGROUP为普通讨论组
 enum GroupType{
   CHATGROUP,
   FORUM
 }
 
+// 由一个用户向另外一个用户发起的好友申请
 struct ContactRequest {
   1:string id,
   2:i64 sender,
@@ -53,12 +56,20 @@ struct ChatGroup {
   13: bool visible
 }
 
+// 表示验证码所对应的动作
+enum ValidationCodeAction {
+  SIGNUP = 1            // 注册
+  RESET_PASSWORD = 2    // 重置密码
+  UPDATE_TEL = 3        // 绑定手机
+}
+
 struct Token {
-  1: string fingerprint
-  2: i32 action
-  3: optional i64 userId
-  4: i64 createTime
-  5: i64 expireTime
+  1:string fingerprint
+  2:ValidationCodeAction action
+  3:optional i64 userId
+  4:optional i32 countryCode
+  5:optional string tel
+  6:i64 createTime
 }
 
 enum UserInfoProp {
@@ -113,6 +124,11 @@ exception InvalidStateException {
 
 // 验证码验证失败的异常
 exception ValidationCodeException {
+  1:optional string message
+}
+
+// API流量限制的异常
+exception OverQuotaLimitException {
   1:optional string message
 }
 
@@ -171,21 +187,25 @@ service userservice {
   bool verifyCredential(1:i64 userId, 2:string password) throws (1:AuthException ex)
 
   // 发送手机验证码
-  void sendValidationCode(1:i32 action, 2:optional i32 countryCode, 3:string tel, 4:optional i64 userId) throws (1:InvalidStateException ex)
+  // 如果发送过于频繁，会出现OverQuotaLimitException
+  // 如果参数不合法，比如既不提供tel，又不提供userId，会抛出InvalidArgsException
+  void sendValidationCode(1:ValidationCodeAction action, 2:optional i32 countryCode, 3:string tel, 4:optional i64 userId) throws (1:OverQuotaLimitException ex, 2:InvalidArgsException ex2)
 
-  // 根据fingerprint读取Token
-  Token fetchToken(1:string fingerprint) throws (1:NotFoundException ex)
+//   根据fingerprint读取Token
+//  Token fetchToken(1:string fingerprint) throws (1:NotFoundException ex)
 
-  string checkValidationCode(1:string code, 2:i32 action, 3:optional i32 countryCode, 4:string tel, 5:optional i64 userId) throws (1:ValidationCodeException ex)
+  string checkValidationCode(1:string code, 2:ValidationCodeAction action, 3:optional i32 countryCode, 4:optional string tel, 5:optional i64 userId) throws (1:ValidationCodeException ex)
 
-  // 用户修改密码
+  // 用户修改密码（如果原先没有密码，则oldPassword可以设置为""）
+  // AuthException: 旧密码错误
+  // InvalidArgsException: 新密码不合法（必须是ASCII 33~126之间的字符，且长度为6~32）
   void resetPassword(1:i64 userId, 2:string oldPassword, 3:string newPassword) throws (1:InvalidArgsException ex1, 2:AuthException ex2)
 
   // 通过提供token的方式修改密码
-  void resetPasswordByToken(1:i64 userId, 2:string token, 3:string newPassword) throws (1:InvalidArgsException ex1, 2:AuthException ex2)
+  void resetPasswordByToken(1:i64 userId, 2:string newPassword, 3:string token) throws (1:InvalidArgsException ex1, 2:AuthException ex2)
 
   // 修改手机号
-  void updateTelNumber(1:i64 userId, 2:string tel) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
+  void updateTelNumber(1:i64 userId, 2:string tel, 3:string token) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
 
   // 新用户注册。支持的UserInfoProp暂时只有tel
   UserInfo createUser(1:string nickName, 2:string password, 3:optional map<UserInfoProp, string> miscInfo) throws (1: UserExistsException ex1, 2: InvalidArgsException ex2)

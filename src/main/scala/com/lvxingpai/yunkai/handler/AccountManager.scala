@@ -6,10 +6,11 @@ import java.util.UUID
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.model.{ContactRequest, UserInfo, _}
-import com.lvxingpai.yunkai.serialization.{ValidationCodeRedisFormat, ValidationCodeRedisParse}
+import com.lvxingpai.yunkai.serialization.{TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse}
 import com.lvxingpai.yunkai.service.{RedisFactory, SmsCenter}
 import com.mongodb.{DuplicateKeyException, MongoCommandException}
 import com.twitter.util.{Future, FuturePool}
+import com.typesafe.config.ConfigException
 import org.bson.types.ObjectId
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.{CriteriaContainer, UpdateOperations}
@@ -320,7 +321,6 @@ object AccountManager {
       if (relationship)
         throw InvalidStateException(Some(s"$sender and $receiver are already contacts"))
       else {
-        import ContactRequest.RequestStatus._
         import ContactRequest._
 
         val req = ContactRequest(sender, receiver, message, None)
@@ -338,8 +338,8 @@ object AccountManager {
         // val criteria3 = ds.createQuery(cls).criteria(fdExpire).lessThan(currentTime)
 
         // query.and(ds.createQuery(cls).or(
-          // criteria1,
-          // criteria3))
+        // criteria1,
+        // criteria3))
         //          ds.createQuery(cls).and(criteria2, criteria3)))
 
         val updateOps = buildContactRequestUpdateOps(req).unset(fdRejectMessage) //.set(fdContactRequestId, UUID.randomUUID().toString)
@@ -573,8 +573,13 @@ object AccountManager {
     futurePool {
       val credential = query.get()
       credential != null && {
-        val crypted = saltPassword(password, Some(credential.salt))._2
-        crypted == credential.passwdHash
+        // 对于第三方OAuth账号登录的用户，可能没有设置密码。此时，返回true
+        if (credential.salt.isEmpty || credential.passwdHash.isEmpty)
+          true
+        else {
+          val crypted = saltPassword(password, Some(credential.salt))._2
+          crypted == credential.passwdHash
+        }
       }
     }
   }
@@ -620,7 +625,7 @@ object AccountManager {
   // 新用户注册
   def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
     // 取得用户ID
-    val futureUserId = IdGenerator.generateId("yunkai.newUserId")
+    val futureUserId = IdGenerator.generateId("yunkai:idgenerator/user")
 
     // 创建用户并保存
     val userInfo = for {
@@ -662,71 +667,114 @@ object AccountManager {
   }
 
   /**
-   * 检查验证码。如果通过的话，返回相应的Token，否则抛出ValidationCodeException异常
+   * Check the validation code. If passed, a token string, which is essentially the validation code's fingerprint
+   * will be returned. Otherwise, None will be returned.
+   *
    * @return
    */
-  def checkValidationCode(valCode: String, action: Int, countryCode: Option[Int] = None, tel: String, userId: Option[Long])
-                         (implicit ds: Datastore, futurePool: FuturePool): Future[String] = {
-    val fingerprint = ValidationCode.calcFingerprint(action, userId, tel, countryCode)
+  def checkValidationCode(valCode: String, action: ValidationCodeAction, countryCode: Option[Int] = None, tel: Option[String] = None, userId: Option[Long] = None)
+                         (implicit ds: Datastore, futurePool: FuturePool): Future[Option[String]] = {
+    val redisKey = ValidationCode.calcRedisKey(action, userId, tel, countryCode)
+    val magicCode = try {
+      Global.conf.getString("smscenter.magicCode")
+    } catch {
+      case _: ConfigException.Missing => ""
+    }
 
     futurePool {
       RedisFactory.pool.withClient(client => {
         implicit val parse = ValidationCodeRedisParse()
-        val checkResult = client.get[ValidationCode](fingerprint) exists (c => {
-          c.expireTime > System.currentTimeMillis && c.code == valCode
-        })
+        implicit val parse2 = TokenRedisParse()
+        implicit val format = ValidationCodeRedisFormat()
 
-        if (checkResult)
-          fingerprint
-        else
-          throw ValidationCodeException()
+        (client.get[ValidationCode](redisKey) map (code => {
+          // The validation will be passed if and only if:
+          // * The code coincides
+          // * The action conincides
+          val checkResult = (magicCode.nonEmpty && magicCode == valCode) ||
+            (code.code == valCode && code.action == action && !code.checked &&
+              (action match {
+                // 分两种情况：注册用户时，validation code的电话号码必须一致
+                // 其它情况下，validation code的userId必须一致
+                case item if item.value == ValidationCodeAction.Signup.value => tel.get == code.tel
+                case _ => userId.get == code.userId.get
+              }))
+
+          // Set the validation code to CHECKED status no matter the check result is true or not.
+          val expire = 10 * 60 * 1000L // 10分钟后过期
+
+          // Generate a token
+          if (checkResult) {
+            val tokenKey = "yunkai:token/%s" format UUID.randomUUID().toString
+            val token = Token(tokenKey, action, userId, countryCode, tel, System.currentTimeMillis)
+            client.setex(tokenKey, expire / 1000, token)
+            client.del(redisKey)
+            Some(tokenKey)
+          } else {
+            code.checked = true
+            client.setex(redisKey, expire / 1000, code)
+            None
+          }
+        })) getOrElse None
       })
     }
   }
 
-  def fetchToken(fingerprint: String)
-                (implicit ds: Datastore, futurePool: FuturePool): Future[Token] = {
+  /**
+   * 取回一个token。注意，每个token只能被access一次。也就是说，此操作会删除对应的token。
+   * @return
+   */
+  def fetchToken(token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[Token]] = {
     futurePool {
       RedisFactory.pool.withClient(client => {
-        implicit val parse = ValidationCodeRedisParse()
-        client.get[ValidationCode](fingerprint) map (code => {
-          Token(fingerprint, code.action, code.userId, code.createTime, code.expireTime)
-        }) getOrElse (throw NotFoundException())
+        implicit val parse = TokenRedisParse()
+        val result = client.get[Token](token)
+        client.del(token)
+        result
       })
     }
   }
 
-  def sendValidationCode(action: Int, countryCode: Option[Int] = None, tel: String, userId: Option[Long])
+  def sendValidationCode(action: ValidationCodeAction, countryCode: Option[Int] = None, tel: String, userId: Option[Long])
                         (implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
-    val expire = 10 * 60 * 1000 // 10分钟过期
-    val resendInterval = 60 * 1000 // 发送间隔为1分钟
-    val rnd = Random.nextInt(1000000)
-    val code = ValidationCode(f"$rnd%06d", action, userId, tel, expire, resendInterval, countryCode)
-    val fingerprint = code.fingerprint
+    val resendInterval = 60 * 1000L // 1分钟的发送间隔
+    val redisKey = ValidationCode.calcRedisKey(action, userId, Some(tel), countryCode)
+    val digits = f"${Random.nextInt(1000000)}%06d"
+
+    def sendSms(): Future[Unit] = {
+      val message = action match {
+        case item if item.value == ValidationCodeAction.Signup.value =>
+          s"为手机%s注册旅行派账户。验证码：$digits" format tel
+        case item if item.value == ValidationCodeAction.ResetPassword.value =>
+          s"正在重置密码。验证码：$digits"
+        case item if item.value == ValidationCodeAction.UpdateTel.value =>
+          s"正在绑定手机。验证码：$digits"
+      }
+      SmsCenter.client.sendSms(message, Seq(tel)) map (s => ())
+    }
 
     futurePool {
       RedisFactory.pool.withClient(client => {
         implicit val format = ValidationCodeRedisFormat()
         implicit val parse = ValidationCodeRedisParse()
 
-        // 是否可以再次发送
-        val canSend = client.get[ValidationCode](fingerprint) map (_.resendTime < System.currentTimeMillis) getOrElse true
+        // 确定是否可以再次发送验证码
+        val canSend = client.get[ValidationCode](redisKey) map (_.createTime + resendInterval
+          < System.currentTimeMillis) getOrElse true
 
         if (!canSend)
-          throw InvalidStateException()
-
-        client.setex(fingerprint, expire / 1000, code)
-      })
-    } map (result => {
-      if (result) {
-        val message = action match {
-          case 1 =>
-            s"注册旅行派账户。验证码：${code.code}"
+          throw OverQuotaLimitException()
+        else {
+          val expire = 10 * 60 * 1000L // 10分钟后过期
+          val code = ValidationCode(digits, action, userId, tel, countryCode)
+          client.setex(redisKey, expire / 1000, code)
         }
-        val runlevel = Global.conf.getString("runlevel")
-        if (runlevel != "test")
-          SmsCenter.client.sendSms(message, Seq(tel))
-      }
+      })
+    } flatMap (result => {
+      if (result)
+        sendSms()
+      else
+        Future()
     })
   }
 
@@ -767,7 +815,20 @@ object AccountManager {
       }
     }
 
+    // 验证密码是否合法（必须是ASCII 33~126之间的字符，且长度为6~32）
+    def checkPassword(password: String): Boolean = {
+      lazy val len = password.length
+      lazy val illegalChar = password exists (c => {
+        val ord = c.toInt
+        c < 33 || c > 126
+      })
+      len >= 6 && len <= 32 && !illegalChar
+    }
+
     futurePool {
+      if (checkPassword(newPassword))
+        throw InvalidArgsException()
+
       val query = ds.find(classOf[Credential], Credential.fdUserId, userId)
       val (salt, crypted) = saltPassword(newPassword)
       // 更新Credential
@@ -781,10 +842,11 @@ object AccountManager {
 
   /**
    * 根据token修改用户密码
+   *
    * @return
    */
-  def resetPasswordByToken(userId: Long, token: String, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
-    verifyToken(1, userId, token) flatMap (checked => {
+  def resetPasswordByToken(userId: Long, newPassword: String, token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    verifyToken(ValidationCodeAction.ResetPassword, token, userId = Some(userId)) flatMap (checked => {
       if (!checked)
         throw AuthException()
       else
@@ -796,21 +858,23 @@ object AccountManager {
    * 验证Token是否有效
    * @return
    */
-  private def verifyToken(action: Int, userId: Long, token: String)(implicit futurePool: FuturePool): Future[Boolean] = {
-    futurePool {
-      RedisFactory.pool.withClient(client => {
-        // 验证token是否有效。判断标准
-        // * token存在
-        // * action一致
-        // * userId一致
-        // * 未过期
-
-        implicit val parse = ValidationCodeRedisParse()
-        client.get[ValidationCode](token) exists (code => {
-          code.action == action && code.userId.nonEmpty && code.userId.get == userId && code.expireTime >
-            System.currentTimeMillis
+  private def verifyToken(action: ValidationCodeAction, token: String, userId: Option[Long] = None, tel: Option[String] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+    for {
+      opt <- fetchToken(token)
+    } yield {
+      // 验证token是否有效。判断标准
+      // * token存在
+      // * action一致
+      // * userId一致
+      // * 未过期
+      val result = opt exists (valCode => {
+        valCode.action == action && (action match {
+          case item if item.value == ValidationCodeAction.Signup.value => tel.get == valCode.tel.get
+          case _ => userId.get == valCode.userId.get
         })
       })
+
+      result
     }
   }
 
@@ -821,15 +885,21 @@ object AccountManager {
    * @param tel
    * @return
    */
-  def updateTelNumber(userId: Long, tel: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
-    import UserInfo._
+  def updateTelNumber(userId: Long, tel: String, token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    verifyToken(ValidationCodeAction.UpdateTel, token, userId = Some(userId)) map (checked => {
+      if (!checked)
+        throw AuthException()
+      else {
+        import UserInfo._
 
-    val cls = classOf[UserInfo]
-    val query = ds.createQuery(cls).field(fdUserId).equal(userId)
-    val updateOps = ds.createUpdateOperations(cls).set(fdTel, tel)
-    val updated = ds.findAndModify(query, updateOps)
-    if (updated == null)
-      throw NotFoundException(Some(s"Cannot find user $userId"))
+        val cls = classOf[UserInfo]
+        val query = ds.createQuery(cls).field(fdUserId).equal(userId)
+        val updateOps = ds.createUpdateOperations(cls).set(fdTel, tel)
+        val result = ds.updateFirst(query, updateOps)
+        if (!result.getUpdatedExisting)
+          throw NotFoundException(Some(s"Cannot find user $userId"))
+      }
+    })
   }
 
 

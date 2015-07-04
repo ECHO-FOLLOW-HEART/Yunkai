@@ -1,7 +1,7 @@
 package com.lvxingpai.yunkai
 
-import com.lvxingpai.yunkai.service.MorphiaFactory
 import com.lvxingpai.yunkai.handler.UserServiceHandler
+import com.lvxingpai.yunkai.service.MorphiaFactory
 import com.twitter.util.TimeConversions._
 import com.twitter.util.{Await, Duration, Future}
 import org.scalatest.{BeforeAndAfter, FeatureSpec, GivenWhenThen, ShouldMatchers}
@@ -17,6 +17,12 @@ class YunkaiBaseTest extends FeatureSpec with ShouldMatchers with GivenWhenThen 
 
   // basic user info properties
   val properties = Seq(UserInfoProp.UserId, UserInfoProp.NickName)
+
+  // assert the runlevel
+  val runlevel = {
+    val l = Global.conf.getString("runlevel")
+    assert(l == "test")
+  }
 
   /**
    * Drop all the account-related collections
