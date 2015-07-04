@@ -131,7 +131,7 @@ class AccountManagerTest extends YunkaiBaseTest {
     }
 
     scenario("a token for password reset is provided") {
-      import ValidationCodeAction._
+      import OperationCode._
       implicit val parse = ValidationCodeRedisParse()
 
       val action = ResetPassword
@@ -151,7 +151,7 @@ class AccountManagerTest extends YunkaiBaseTest {
   }
 
   feature("the AccountManager can send validation codes") {
-    import ValidationCodeAction._
+    import OperationCode._
     import com.lvxingpai.yunkai.model.ValidationCode
 
     implicit val parse = ValidationCodeRedisParse()

@@ -3,7 +3,7 @@ package com.lvxingpai.yunkai.serialization
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.node.{NullNode, NumericNode}
 import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer, JsonNode}
-import com.lvxingpai.yunkai.ValidationCodeAction
+import com.lvxingpai.yunkai.OperationCode
 import com.lvxingpai.yunkai.model.ValidationCode
 
 /**
@@ -14,9 +14,9 @@ class ValidationCodeDeserializer extends JsonDeserializer[ValidationCode] {
     val node = p.getCodec.readTree[JsonNode](p)
     val code = node.get("code").asText()
     val action = node.get("action").asInt() match {
-      case item if item == ValidationCodeAction.Signup.value => ValidationCodeAction.Signup
-      case item if item == ValidationCodeAction.ResetPassword.value => ValidationCodeAction.ResetPassword
-      case item if item == ValidationCodeAction.UpdateTel.value => ValidationCodeAction.UpdateTel
+      case item if item == OperationCode.Signup.value => OperationCode.Signup
+      case item if item == OperationCode.ResetPassword.value => OperationCode.ResetPassword
+      case item if item == OperationCode.UpdateTel.value => OperationCode.UpdateTel
     }
 
     val tel = node.get("tel").asText()

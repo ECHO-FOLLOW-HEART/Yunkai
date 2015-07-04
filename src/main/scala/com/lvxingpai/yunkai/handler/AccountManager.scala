@@ -630,6 +630,10 @@ object AccountManager {
 
   // 新用户注册
   def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+    // 判断密码是否合法
+    if (!checkPassword(password))
+      throw InvalidArgsException()
+
     // 取得用户ID
     val futureUserId = IdGenerator.generateId("yunkai:idgenerator/user")
 
@@ -678,7 +682,7 @@ object AccountManager {
    *
    * @return
    */
-  def checkValidationCode(valCode: String, action: ValidationCodeAction, countryCode: Option[Int] = None, tel: Option[String] = None, userId: Option[Long] = None)
+  def checkValidationCode(valCode: String, action: OperationCode, countryCode: Option[Int] = None, tel: Option[String] = None, userId: Option[Long] = None)
                          (implicit ds: Datastore, futurePool: FuturePool): Future[Option[String]] = {
     val redisKey = ValidationCode.calcRedisKey(action, userId, tel, countryCode)
     val magicCode = try {
@@ -702,7 +706,7 @@ object AccountManager {
               (action match {
                 // 分两种情况：注册用户时，validation code的电话号码必须一致
                 // 其它情况下，validation code的userId必须一致
-                case item if item.value == ValidationCodeAction.Signup.value => tel.get == code.tel
+                case item if item.value == OperationCode.Signup.value => tel.get == code.tel
                 case _ => userId.get == code.userId.get
               }))
 
@@ -741,7 +745,7 @@ object AccountManager {
     }
   }
 
-  def sendValidationCode(action: ValidationCodeAction, countryCode: Option[Int] = None, tel: String, userId: Option[Long])
+  def sendValidationCode(action: OperationCode, countryCode: Option[Int] = None, tel: String, userId: Option[Long])
                         (implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
     val resendInterval = 60 * 1000L // 1分钟的发送间隔
     val redisKey = ValidationCode.calcRedisKey(action, userId, Some(tel), countryCode)
@@ -749,11 +753,11 @@ object AccountManager {
 
     def sendSms(): Future[Unit] = {
       val message = action match {
-        case item if item.value == ValidationCodeAction.Signup.value =>
+        case item if item.value == OperationCode.Signup.value =>
           s"为手机%s注册旅行派账户。验证码：$digits" format tel
-        case item if item.value == ValidationCodeAction.ResetPassword.value =>
+        case item if item.value == OperationCode.ResetPassword.value =>
           s"正在重置密码。验证码：$digits"
-        case item if item.value == ValidationCodeAction.UpdateTel.value =>
+        case item if item.value == OperationCode.UpdateTel.value =>
           s"正在绑定手机。验证码：$digits"
       }
       SmsCenter.client.sendSms(message, Seq(tel)) map (s => ())
@@ -821,16 +825,6 @@ object AccountManager {
       }
     }
 
-    // 验证密码是否合法（必须是ASCII 33~126之间的字符，且长度为6~32）
-    def checkPassword(password: String): Boolean = {
-      lazy val len = password.length
-      lazy val illegalChar = password exists (c => {
-        val ord = c.toInt
-        c < 33 || c > 126
-      })
-      len >= 6 && len <= 32 && !illegalChar
-    }
-
     futurePool {
       if (checkPassword(newPassword))
         throw InvalidArgsException()
@@ -846,13 +840,23 @@ object AccountManager {
     }
   }
 
+  // 验证密码是否合法（必须是ASCII 33~126之间的字符，且长度为6~32）
+  private def checkPassword(password: String): Boolean = {
+    lazy val len = password.length
+    lazy val illegalChar = password exists (c => {
+      val ord = c.toInt
+      c < 33 || c > 126
+    })
+    len >= 6 && len <= 32 && !illegalChar
+  }
+
   /**
    * 根据token修改用户密码
    *
    * @return
    */
   def resetPasswordByToken(userId: Long, newPassword: String, token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
-    verifyToken(ValidationCodeAction.ResetPassword, token, userId = Some(userId)) flatMap (checked => {
+    verifyToken(OperationCode.ResetPassword, token, userId = Some(userId)) flatMap (checked => {
       if (!checked)
         throw AuthException()
       else
@@ -864,7 +868,7 @@ object AccountManager {
    * 验证Token是否有效
    * @return
    */
-  private def verifyToken(action: ValidationCodeAction, token: String, userId: Option[Long] = None, tel: Option[String] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+  private def verifyToken(action: OperationCode, token: String, userId: Option[Long] = None, tel: Option[String] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
     for {
       opt <- fetchToken(token)
     } yield {
@@ -875,7 +879,7 @@ object AccountManager {
       // * 未过期
       val result = opt exists (valCode => {
         valCode.action == action && (action match {
-          case item if item.value == ValidationCodeAction.Signup.value => tel.get == valCode.tel.get
+          case item if item.value == OperationCode.Signup.value => tel.get == valCode.tel.get
           case _ => userId.get == valCode.userId.get
         })
       })
@@ -892,7 +896,7 @@ object AccountManager {
    * @return
    */
   def updateTelNumber(userId: Long, tel: String, token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
-    verifyToken(ValidationCodeAction.UpdateTel, token, userId = Some(userId)) map (checked => {
+    verifyToken(OperationCode.UpdateTel, token, userId = Some(userId)) map (checked => {
       if (!checked)
         throw AuthException()
       else {

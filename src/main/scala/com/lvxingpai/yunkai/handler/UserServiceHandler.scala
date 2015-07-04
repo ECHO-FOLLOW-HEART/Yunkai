@@ -216,10 +216,10 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  override def sendValidationCode(action: ValidationCodeAction, countryCode: Option[Int], tel: String, userId: Option[Long]): Future[Unit] =
+  override def sendValidationCode(action: OperationCode, countryCode: Option[Int], tel: String, userId: Option[Long]): Future[Unit] =
     AccountManager.sendValidationCode(action, countryCode, tel, userId)
 
-  override def checkValidationCode(code: String, action: ValidationCodeAction, countryCode: Option[Int], tel: Option[String], userId: Option[Long]): Future[String] = {
+  override def checkValidationCode(code: String, action: OperationCode, countryCode: Option[Int], tel: Option[String], userId: Option[Long]): Future[String] = {
     AccountManager.checkValidationCode(code, action, countryCode, tel, userId) map (opt => {
       opt getOrElse {
         throw ValidationCodeException()

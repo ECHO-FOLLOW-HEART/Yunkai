@@ -26,6 +26,7 @@ struct ContactRequest {
   8:i64 expire
 }
 
+// 用户信息
 struct UserInfo {
   1: string id,
   2: i64 userId,
@@ -36,7 +37,7 @@ struct UserInfo {
   7: optional string tel,
 }
 
-//Created by pengyt on 2015/5/26.
+// 讨论组信息
 struct ChatGroup {
   1: string id,
   2: i64 chatGroupId,
@@ -57,15 +58,16 @@ struct ChatGroup {
 }
 
 // 表示验证码所对应的动作
-enum ValidationCodeAction {
+enum OperationCode {
   SIGNUP = 1            // 注册
   RESET_PASSWORD = 2    // 重置密码
   UPDATE_TEL = 3        // 绑定手机
 }
 
+// 用户的某些操作（比如修改密码等），需要令牌，保证有相应的权限。
 struct Token {
   1:string fingerprint
-  2:ValidationCodeAction action
+  2:OperationCode action
   3:optional i64 userId
   4:optional i32 countryCode
   5:optional string tel
@@ -137,9 +139,11 @@ service userservice {
   UserInfo getUserById(1:i64 userId, 2: optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
 
   // 获得多个用户的信息
+  // 返回值是key-value结构。key表示用户的ID，value为用户信息。如果某个key对应的value为null，说明没有找到对应的用户
   map<i64, UserInfo> getUsersById(1:list<i64> userIdList, 2: optional list<UserInfoProp> fields)
 
   // 更新用户的信息。支持的UserInfoProp有：nickName, signature, gender和avatar
+  // InvalidArgsException: 如果要更新的内容不合法，则会抛出该异常
   UserInfo updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
 
   // 判断两个用户是否为好友关系
@@ -189,12 +193,12 @@ service userservice {
   // 发送手机验证码
   // 如果发送过于频繁，会出现OverQuotaLimitException
   // 如果参数不合法，比如既不提供tel，又不提供userId，会抛出InvalidArgsException
-  void sendValidationCode(1:ValidationCodeAction action, 2:optional i32 countryCode, 3:string tel, 4:optional i64 userId) throws (1:OverQuotaLimitException ex, 2:InvalidArgsException ex2)
+  void sendValidationCode(1:OperationCode action, 2:optional i32 countryCode, 3:string tel, 4:optional i64 userId) throws (1:OverQuotaLimitException ex, 2:InvalidArgsException ex2)
 
 //   根据fingerprint读取Token
 //  Token fetchToken(1:string fingerprint) throws (1:NotFoundException ex)
 
-  string checkValidationCode(1:string code, 2:ValidationCodeAction action, 3:optional i32 countryCode, 4:optional string tel, 5:optional i64 userId) throws (1:ValidationCodeException ex)
+  string checkValidationCode(1:string code, 2:OperationCode action, 3:optional i32 countryCode, 4:optional string tel, 5:optional i64 userId) throws (1:ValidationCodeException ex)
 
   // 用户修改密码（如果原先没有密码，则oldPassword可以设置为""）
   // AuthException: 旧密码错误

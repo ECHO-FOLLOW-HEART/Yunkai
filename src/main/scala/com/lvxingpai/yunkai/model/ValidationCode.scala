@@ -2,7 +2,7 @@ package com.lvxingpai.yunkai.model
 
 import java.security.MessageDigest
 
-import com.lvxingpai.yunkai.{InvalidArgsException, ValidationCodeAction}
+import com.lvxingpai.yunkai.{InvalidArgsException, OperationCode}
 
 import scala.language.postfixOps
 
@@ -11,7 +11,7 @@ import scala.language.postfixOps
  *
  * Created by zephyre on 7/2/15.
  */
-case class ValidationCode(code: String, action: ValidationCodeAction, userId: Option[Long] = None, tel: String,
+case class ValidationCode(code: String, action: OperationCode, userId: Option[Long] = None, tel: String,
                           countryCode: Option[Int], createTime: Long = System.currentTimeMillis,
                           var checked: Boolean = false) {
   val fingerprint: String = ValidationCode.calcFingerprint(action, userId, Some(tel), countryCode)
@@ -25,7 +25,7 @@ object ValidationCode {
    * 如果未提供userId，则：action + countryCode + tel
    * 否则报错：InvalidArgsException
    */
-  def calcFingerprint(action: ValidationCodeAction, userId: Option[Long] = None, tel: Option[String] = None, countryCode: Option[Int] = None): String = {
+  def calcFingerprint(action: OperationCode, userId: Option[Long] = None, tel: Option[String] = None, countryCode: Option[Int] = None): String = {
     val track = try {
       userId getOrElse s"00${countryCode.getOrElse(86)}${tel.get}"
     } catch {
@@ -37,7 +37,7 @@ object ValidationCode {
     bytes map ("%02x" format _) mkString
   }
 
-  def calcRedisKey(action: ValidationCodeAction, userId: Option[Long] = None, tel: Option[String] = None, countryCode: Option[Int] = None): String = {
+  def calcRedisKey(action: OperationCode, userId: Option[Long] = None, tel: Option[String] = None, countryCode: Option[Int] = None): String = {
     val fingerprint = calcFingerprint(action, userId, tel, countryCode)
     s"yunkai:valcode/$fingerprint"
   }
