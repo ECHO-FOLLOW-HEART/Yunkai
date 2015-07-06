@@ -227,18 +227,6 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
-  //  override def fetchToken(fingerprint: String): Future[Token] = {
-  //    val ret = AccountManager.fetchToken(fingerprint)
-  //    ret map (opt => {
-  //      if (opt nonEmpty)
-  //        throw AuthException()
-  //      else {
-  //        val code = opt.get
-  //        Token(code.action.value, code.userId, code.createTime)
-  //      }
-  //
-  //    })
-  //  }
 
 }
 

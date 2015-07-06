@@ -123,7 +123,7 @@ object AccountManager {
   def isContact(userA: Long, userB: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
     val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
 
-    val userList = getUsersByIdList(Seq(), user1, user2)
+    //    val userList = getUsersByIdList(Seq(), user1, user2)
     val relationship = futurePool {
       val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1)
         .field(Relationship.fdUserB).equal(user2)
@@ -133,13 +133,13 @@ object AccountManager {
     }
 
     for {
-      l <- userList
+    //      l <- userList
       rel <- relationship
     } yield {
-      if (l exists (_._2 isEmpty))
-        throw NotFoundException()
-      else
-        rel
+      //      if (l exists (_._2 isEmpty))
+      //        throw NotFoundException()
+      //      else
+      rel
     }
   }
 
