@@ -326,6 +326,8 @@ object AccountManager {
     } yield {
       if (relationship)
         throw InvalidStateException(Some(s"$sender and $receiver are already contacts"))
+      else if (users exists (_._2.isEmpty))
+        throw NotFoundException()
       else {
         import ContactRequest._
 
