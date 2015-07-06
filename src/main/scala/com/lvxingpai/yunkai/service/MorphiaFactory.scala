@@ -1,5 +1,7 @@
 package com.lvxingpai.yunkai.service
 
+import java.util.UUID
+
 import com.lvxingpai.yunkai.Global
 import com.lvxingpai.yunkai.model._
 import com.mongodb._
@@ -52,6 +54,16 @@ object MorphiaFactory {
   lazy val datastore = {
     val dbName = Global.conf.getString("yunkai.mongo.db")
     val ds = morphia.createDatastore(client, dbName)
+
+    // 消除fdTel为null的项目
+    val cls = classOf[UserInfo]
+    val query = ds.createQuery(cls) field UserInfo.fdTel equal null
+    query.asList().toSeq foreach (u => {
+      val query = ds.createQuery(cls) field UserInfo.fdUserId equal u.userId
+      val ops = ds.createUpdateOperations(cls).set(UserInfo.fdTel, UUID.randomUUID().toString)
+      ds.updateFirst(query, ops)
+    })
+
     ds.ensureIndexes()
     ds.ensureCaps()
     ds
