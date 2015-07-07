@@ -173,7 +173,7 @@ object AccountManager {
         val receiver = m(target).get
         val eventArgs: Map[String, JsonNode] = Map(
           "user" -> sender,
-          "targets" -> receiver
+          "target" -> receiver
         )
         EventEmitter.emitEvent(EventEmitter.evtAddContact, eventArgs)
       })
