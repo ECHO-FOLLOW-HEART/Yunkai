@@ -36,6 +36,7 @@ class Relationship {
 
 object Relationship {
 
+  val fdId = "id"
   val fdUserA = "userA"
   val fdUserB = "userB"
   val fdMemoA = "memoA"

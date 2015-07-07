@@ -5,9 +5,12 @@ import java.util.UUID
 
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.yunkai._
-import com.lvxingpai.yunkai.model.{ContactRequest, Credential, Relationship, UserInfo}
+import com.lvxingpai.yunkai.model.{ContactRequest, UserInfo, _}
+import com.lvxingpai.yunkai.serialization.{TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse}
+import com.lvxingpai.yunkai.service.{RedisFactory, SmsCenter}
 import com.mongodb.{DuplicateKeyException, MongoCommandException}
 import com.twitter.util.{Future, FuturePool}
+import com.typesafe.config.ConfigException
 import org.bson.types.ObjectId
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.{CriteriaContainer, UpdateOperations}
@@ -45,6 +48,7 @@ object AccountManager {
    */
   implicit def userInfoPropToFieldName(prop: UserInfoProp): String = {
     prop match {
+      case UserInfoProp.Id => UserInfo.fdId
       case UserInfoProp.UserId => UserInfo.fdUserId
       case UserInfoProp.NickName => UserInfo.fdNickName
       case UserInfoProp.Signature => UserInfo.fdSignature
@@ -72,11 +76,12 @@ object AccountManager {
     if (userInfo.contains(UserInfoProp.Gender)) {
       val gender = userInfo(UserInfoProp.Gender)
       if (gender != null && gender != "f" && gender != "m" && gender != "s" && gender != "F" && gender != "M" && gender != "S")
-        throw new InvalidArgsException(s"Invalid gender $gender")
+        throw new InvalidArgsException(Some(s"Invalid gender $gender"))
     }
 
     // 获得需要处理的字段名
-    val fieldNames = filteredUserInfo.keys.toSeq map userInfoPropToFieldName
+    val fieldNames = ((filteredUserInfo.keys.toSeq ++ Seq(UserInfoProp.UserId, UserInfoProp.Id))
+      map userInfoPropToFieldName)
 
     if (filteredUserInfo nonEmpty) {
       val query = ds.find(classOf[UserInfo], "userId", userId).retrievedFields(true, fieldNames: _*)
@@ -90,26 +95,24 @@ object AccountManager {
 
       val result = ds.findAndModify(query, updateOps)
       if (result == null)
-        throw NotFoundException(s"Cannot find user: $userId")
+        throw NotFoundException(Some(s"Cannot find user: $userId"))
       else {
         // 触发修改个人信息事件
-        // 修改了哪些字段
-        val miscInfo = new ObjectMapper().createObjectNode()
-        val user = new ObjectMapper().createObjectNode()
-        user.put("id", result.userId)
-        user.put("nickName", result.nickName)
-        val avatarValue = if (result.avatar != null && result.avatar.nonEmpty) result.avatar else ""
-        user.put("avatar", avatarValue)
-        val eventArgs = scala.collection.immutable.Map(
-          "user" -> user,
-          "miscInfo" -> miscInfo
+        val updateInfo = new ObjectMapper().createObjectNode()
+        updateInfo.put("nickName", "new nickname")
+        updateInfo.put("avatar", "new avatar")
+        updateInfo.put("signature", "new signature")
+
+        val eventArgs: Map[String, JsonNode] = Map(
+          "user" -> result,
+          "updateInfo" -> updateInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
         // 返回userInfo
         result
       }
     } else
-      throw new InvalidArgsException("Invalid updated fields")
+      throw new InvalidArgsException(Some("Invalid updated fields"))
   }
 
   /**
@@ -117,12 +120,28 @@ object AccountManager {
    *
    * @return
    */
-  def isContact(userA: Long, userB: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] =
-    futurePool {
-      val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
-      ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1)
-        .field(Relationship.fdUserB).equal(user2).get() != null
+  def isContact(userA: Long, userB: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+    val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
+
+    //    val userList = getUsersByIdList(Seq(), user1, user2)
+    val relationship = futurePool {
+      val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1)
+        .field(Relationship.fdUserB).equal(user2)
+        .retrievedFields(true, Relationship.fdId)
+        .get
+      rel != null
     }
+
+    for {
+    //      l <- userList
+      rel <- relationship
+    } yield {
+      //      if (l exists (_._2 isEmpty))
+      //        throw NotFoundException()
+      //      else
+      rel
+    }
+  }
 
   /**
    * 添加好友
@@ -138,7 +157,7 @@ object AccountManager {
     getUsersByIdList(responseFields, userId +: targetUsersFiltered: _*) flatMap (m => {
       // 相应的用户必须存在
       if (m exists (_._2 isEmpty))
-        throw NotFoundException("")
+        throw NotFoundException()
       val cls = classOf[Relationship]
 
       val jobs = targetUsersFiltered map (target => futurePool {
@@ -151,12 +170,9 @@ object AccountManager {
         // 触发添加联系人的事件
         val sender = m(userId).get
         val receiver = m(target).get
-        val miscInfo = new ObjectMapper().createObjectNode()
-
         val eventArgs: Map[String, JsonNode] = Map(
           "user" -> sender,
-          "targets" -> receiver,
-          "miscInfo" -> miscInfo
+          "targets" -> receiver
         )
         EventEmitter.emitEvent(EventEmitter.evtAddContacts, eventArgs)
       })
@@ -167,7 +183,8 @@ object AccountManager {
 
   implicit def user2JsonNode(user: UserInfo): JsonNode = {
     val targets = new ObjectMapper().createObjectNode()
-    targets.put("id", user.userId)
+    //    targets.put("id", user.id.toString)
+    targets.put("userId", user.userId)
     targets.put("nickName", user.nickName)
     val avatarValue = Option(user.avatar).getOrElse("")
     targets.put("avatar", avatarValue)
@@ -187,7 +204,7 @@ object AccountManager {
     getUsersByIdList(Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar), userId +: targetUsersFiltered: _*) map (m => {
       // 相应的用户必须存在
       if (m exists (_._2 isEmpty))
-        throw NotFoundException("")
+        throw NotFoundException()
       else {
         def buildQuery(user1: Long, user2: Long): CriteriaContainer = {
           val l = Seq(user1, user2).sorted
@@ -201,14 +218,11 @@ object AccountManager {
 
         // 触发删除联系人的事件
         val userAInfo = m(userId).get
-        val userBInfos: Seq[UserInfo] = Seq()
-        val miscInfo = new ObjectMapper().createObjectNode()
         for (elem <- targetUsersFiltered) {
           val userBInfo = m(elem).get
           val eventArgs: Map[String, JsonNode] = Map(
             "user" -> userAInfo,
-            "targets" -> userBInfo,
-            "miscInfo" -> miscInfo
+            "targets" -> userBInfo
           )
           EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
         }
@@ -281,6 +295,19 @@ object AccountManager {
    */
   private def isDuplicateKeyException(ex: MongoCommandException): Boolean = ex.getErrorMessage contains "duplicate key"
 
+  def getContactRequestList(userId: Long, offset: Int, limit: Int)
+                           (implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ContactRequest]] = {
+    for {
+      userInfoOpt <- getUserById(userId)
+    } yield {
+      if (userInfoOpt isEmpty)
+        throw NotFoundException()
+      else {
+        ds.createQuery(classOf[ContactRequest]).field(ContactRequest.fdReceiver).equal(userId)
+          .offset(offset).limit(limit).asList().toSeq
+      }
+    }
+  }
 
   /**
    * 发送好友请求
@@ -294,15 +321,14 @@ object AccountManager {
     // 检查用户是否存在
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     for {
-      users <- getUsersByIdList(responseFields, sender, receiver)(ds, futurePool)
-      relationship <- isContact(sender, receiver)(ds, futurePool)
+      users <- getUsersByIdList(responseFields, sender, receiver)
+      relationship <- isContact(sender, receiver)
     } yield {
       if (relationship)
-        throw InvalidStateException(s"$sender and $receiver are already contacts")
-      else if (users filter (_._2 isEmpty) nonEmpty)
-        throw NotFoundException(s"Either $sender or $receiver cannot be found")
+        throw InvalidStateException(Some(s"$sender and $receiver are already contacts"))
+      else if (users exists (_._2.isEmpty))
+        throw NotFoundException()
       else {
-        import ContactRequest.RequestStatus._
         import ContactRequest._
 
         val req = ContactRequest(sender, receiver, message, None)
@@ -315,37 +341,36 @@ object AccountManager {
         val cls = classOf[ContactRequest]
         val query = ds.createQuery(cls).field(fdSender).equal(sender).field(fdReceiver).equal(receiver)
 
-        val criteria1 = ds.createQuery(cls).criteria(fdStatus).equal(CANCELLED.id)
-        val criteria2 = ds.createQuery(cls).criteria(fdStatus).equal(PENDING.id)
-        val criteria3 = ds.createQuery(cls).criteria(fdExpire).lessThan(currentTime)
+        // val criteria1 = ds.createQuery(cls).criteria(fdStatus).equal(CANCELLED.id)
+        //        val criteria2 = ds.createQuery(cls).criteria(fdStatus).equal(PENDING.id)
+        // val criteria3 = ds.createQuery(cls).criteria(fdExpire).lessThan(currentTime)
 
-        query.and(ds.createQuery(cls).or(
-          criteria1,
-          ds.createQuery(cls).and(criteria2, criteria3)))
+        // query.and(ds.createQuery(cls).or(
+        // criteria1,
+        // criteria3))
+        //          ds.createQuery(cls).and(criteria2, criteria3)))
 
-        val updateOps = buildContactRequestUpdateOps(req)
+        val updateOps = buildContactRequestUpdateOps(req).unset(fdRejectMessage) //.set(fdContactRequestId, UUID.randomUUID().toString)
         val newRequest = try {
-          ds.findAndModify(query, updateOps, false, true)
-        } catch {
-          // 如果发生该异常，说明系统中已经存在一个好友请求，且不允许重复发送请求
-          // 比如：前一个请求处于PENDING状态，且未过期，或者前一个请求已经被拒绝等）
-          case ex: MongoCommandException =>
-            if (isDuplicateKeyException(ex))
-              throw InvalidStateException("")
-            else
-              throw ex
-        }
+            ds.findAndModify(query, updateOps, false, true)
+          } catch {
+            // 如果发生该异常，说明系统中已经存在一个好友请求，且不允许重复发送请求
+            // 比如：前一个请求处于PENDING状态，且未过期，或者前一个请求已经被拒绝等）
+            case ex: MongoCommandException =>
+              if (isDuplicateKeyException(ex))
+                throw InvalidStateException()
+              else
+                throw ex
+          }
         // 触发发送好友请求
         import Implicits.JsonConversions._
         val senderInfo = users(sender).get
         val receiverInfo = users(receiver).get
-        val miscInfo = new ObjectMapper().createObjectNode()
         val eventArgs: Map[String, JsonNode] = Map(
           "requestId" -> newRequest.id.toString,
           "message" -> message.orNull[String],
           "sender" -> senderInfo,
-          "receiver" -> receiverInfo,
-          "miscInfo" -> miscInfo
+          "receiver" -> receiverInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtSendContactRequest, eventArgs)
         newRequest.id
@@ -366,7 +391,7 @@ object AccountManager {
 
     getContactRequest(requestId)(ds, futurePool) map (oldRequest => {
       if (oldRequest isEmpty)
-        throw NotFoundException(s"Cannot find the request $requestId")
+        throw NotFoundException(Some(s"Cannot find the request $requestId"))
       else {
         val cls = classOf[ContactRequest]
         val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
@@ -377,7 +402,7 @@ object AccountManager {
 
         val newRequest = ds.findAndModify(query, updateOps, false, false)
         if (newRequest == null)
-          throw InvalidStateException("")
+          throw InvalidStateException()
 
         // 触发拒绝好友请求
         val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
@@ -387,14 +412,12 @@ object AccountManager {
         for {
           userInfos <- users
         } yield {
-          val miscInfo = new ObjectMapper().createObjectNode()
           import Implicits.JsonConversions._
           val eventArgs: Map[String, JsonNode] = Map(
             "requestId" -> newRequest.id.toString,
             "message" -> message.orNull[String],
             "sender" -> userInfos(senderId).get,
-            "receiver" -> userInfos(receiverId).get,
-            "miscInfo" -> miscInfo
+            "receiver" -> userInfos(receiverId).get
           )
           EventEmitter.emitEvent(EventEmitter.evtRejectContactRequest, eventArgs)
         }
@@ -413,21 +436,20 @@ object AccountManager {
 
     getContactRequest(requestId = requestId)(ds, futurePool) flatMap (oldRequest => {
       if (oldRequest isEmpty)
-        throw NotFoundException(s"Cannot find the request $requestId")
+        throw NotFoundException(Some(s"Cannot find the request $requestId"))
       else {
         val cls = classOf[ContactRequest]
 
-        val currentTime = System.currentTimeMillis()
         val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
-          .field(fdStatus).equal(PENDING.id).field(fdExpire).greaterThan(currentTime)
+          .field(fdStatus).equal(PENDING.id)
         val updateOps = ds.createUpdateOperations(cls).set(fdStatus, ACCEPTED.id)
 
         val newRequest = ds.findAndModify(query, updateOps, false, false)
         if (newRequest == null)
-          throw InvalidStateException("")
+          throw InvalidStateException()
 
         addContact(newRequest.sender, newRequest.receiver)
-        // 触发拒绝好友请求
+        // 触发接受好友请求
         val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
         val senderId = oldRequest.get.sender
         val receiverId = oldRequest.get.receiver
@@ -435,13 +457,11 @@ object AccountManager {
         for {
           userInfos <- users
         } yield {
-          val miscInfo = new ObjectMapper().createObjectNode()
           import Implicits.JsonConversions._
           val eventArgs: Map[String, JsonNode] = Map(
             "requestId" -> newRequest.id.toString,
             "sender" -> userInfos(senderId).get,
-            "receiver" -> userInfos(receiverId).get,
-            "miscInfo" -> miscInfo
+            "receiver" -> userInfos(receiverId).get
           )
           EventEmitter.emitEvent(EventEmitter.evtAcceptContactRequest, eventArgs)
         }
@@ -460,7 +480,7 @@ object AccountManager {
 
     getContactRequest(requestId = requestId)(ds, futurePool) map (oldRequest => {
       if (oldRequest isEmpty)
-        throw NotFoundException(s"Cannot find the request $requestId")
+        throw NotFoundException(Some(s"Cannot find the request $requestId"))
       else {
         val cls = classOf[ContactRequest]
 
@@ -483,7 +503,7 @@ object AccountManager {
     import ContactRequest._
     val req = ds.createQuery(classOf[ContactRequest]).field(fdSender).equal(sender).field(fdReceiver).equal(receiver).get()
     if (req == null)
-      throw NotFoundException("Cannot find the request")
+      throw NotFoundException(Some("Cannot find the request"))
     else
       Option(req)
   }
@@ -510,7 +530,7 @@ object AccountManager {
 
     userFuture map (userInfo => {
       if (userInfo isEmpty)
-        throw NotFoundException(s"User not find $userId")
+        throw NotFoundException(Some(s"User not find $userId"))
       else {
         val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
           (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
@@ -539,7 +559,8 @@ object AccountManager {
         // 获得需要处理的字段名
         val allowedProperties = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar,
           UserInfoProp.Signature, UserInfoProp.Gender, UserInfoProp.Tel)
-        val retrievedFields = (fields filter (allowedProperties.contains(_))) :+ UserInfoProp.UserId map userInfoPropToFieldName
+        val retrievedFields = (fields filter (allowedProperties.contains(_))) ++ Seq(UserInfoProp.UserId,
+          UserInfoProp.Id) map userInfoPropToFieldName
 
         query.retrievedFields(true, retrievedFields: _*)
         val results = Map(query.asList() map (v => v.userId -> v): _*)
@@ -560,8 +581,13 @@ object AccountManager {
     futurePool {
       val credential = query.get()
       credential != null && {
-        val crypted = saltPassword(password, Some(credential.salt))._2
-        crypted == credential.passwdHash
+        // 对于第三方OAuth账号登录的用户，可能没有设置密码。此时，返回true
+        if (credential.salt.isEmpty || credential.passwdHash.isEmpty)
+          true
+        else {
+          val crypted = saltPassword(password, Some(credential.salt))._2
+          crypted == credential.passwdHash
+        }
       }
     }
   }
@@ -577,7 +603,7 @@ object AccountManager {
     // 获得用户信息
     for {
       userInfo <- futurePool {
-        val retrievedFields = Seq(UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
+        val retrievedFields = Seq(UserInfo.fdId, UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
           UserInfo.fdSignature, UserInfo.fdTel)
         ds.createQuery(classOf[UserInfo]).field(UserInfo.fdTel).equal(loginName)
           .retrievedFields(true, retrievedFields: _*).get()
@@ -590,12 +616,10 @@ object AccountManager {
       }
     } yield {
       if (verified) {
-        val miscInfo = new ObjectMapper().createObjectNode()
         import Implicits.JsonConversions._
         val eventArgs: Map[String, JsonNode] = Map(
           "user" -> userInfo,
-          "source" -> source,
-          "miscInfo" -> miscInfo
+          "source" -> source
         )
         EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
 
@@ -608,8 +632,12 @@ object AccountManager {
 
   // 新用户注册
   def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+    // 判断密码是否合法
+    if (!checkPassword(password))
+      throw InvalidArgsException()
+
     // 取得用户ID
-    val futureUserId = IdGenerator.generateId("yunkai.newUserId")
+    val futureUserId = IdGenerator.generateId("yunkai:idgenerator/user")
 
     // 创建用户并保存
     val userInfo = for {
@@ -621,7 +649,7 @@ object AccountManager {
           ds.save[UserInfo](newUser)
           newUser
         } catch {
-          case ex: DuplicateKeyException => throw new UserExistsException(s"User $userId is existed")
+          case ex: DuplicateKeyException => throw new UserExistsException(Some(s"User $userId is existed"))
         }
       }
 
@@ -635,16 +663,14 @@ object AccountManager {
       try {
         ds.save[Credential](credential)
       } catch {
-        case ex: DuplicateKeyException => throw new InvalidArgsException(s"User $userId credential is existed")
+        case ex: DuplicateKeyException => throw new InvalidArgsException(Some(s"User $userId credential is existed"))
       }
     }
 
     // 触发创建新用户的事件
-    val miscInfo = new ObjectMapper().createObjectNode()
     userInfo map (v => {
       val eventArgs: Map[String, JsonNode] = Map(
-        "user" -> v,
-        "miscInfo" -> miscInfo
+        "user" -> v
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
     })
@@ -653,35 +679,214 @@ object AccountManager {
   }
 
   /**
-   * 重置密码
-   * @param userId
-   * @param newPassword
+   * Check the validation code. If passed, a token string, which is essentially the validation code's fingerprint
+   * will be returned. Otherwise, None will be returned.
+   *
    * @return
    */
-  def resetPassword(userId: Long, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
-    val query = ds.find(classOf[Credential], Credential.fdUserId, userId)
-    if (query isEmpty) throw new NotFoundException(s"User userId=$userId credential is not found")
-    else {
+  def checkValidationCode(valCode: String, action: OperationCode, countryCode: Option[Int] = None, tel: Option[String] = None, userId: Option[Long] = None)
+                         (implicit ds: Datastore, futurePool: FuturePool): Future[Option[String]] = {
+    val redisKey = ValidationCode.calcRedisKey(action, userId, tel, countryCode)
+    val magicCode = try {
+      Global.conf.getString("smscenter.magicCode")
+    } catch {
+      case _: ConfigException.Missing => ""
+    }
+
+    futurePool {
+      RedisFactory.pool.withClient(client => {
+        implicit val parse = ValidationCodeRedisParse()
+        implicit val parse2 = TokenRedisParse()
+        implicit val format = ValidationCodeRedisFormat()
+
+        (client.get[ValidationCode](redisKey) map (code => {
+          // The validation will be passed if and only if:
+          // * The code coincides
+          // * The action conincides
+          val checkResult = (magicCode.nonEmpty && magicCode == valCode) ||
+            (code.code == valCode && code.action == action && !code.checked &&
+              (action match {
+                // 分两种情况：注册用户时，validation code的电话号码必须一致
+                // 其它情况下，validation code的userId必须一致
+                case item if item.value == OperationCode.Signup.value => tel.get == code.tel
+                case _ => userId.get == code.userId.get
+              }))
+
+          // Set the validation code to CHECKED status no matter the check result is true or not.
+          val expire = 10 * 60 * 1000L // 10分钟后过期
+
+          // Generate a token
+          if (checkResult) {
+            val tokenKey = "yunkai:token/%s" format UUID.randomUUID().toString
+            val token = Token(tokenKey, action, userId, countryCode, tel, System.currentTimeMillis)
+            client.setex(tokenKey, expire / 1000, token)
+            client.del(redisKey)
+            Some(tokenKey)
+          } else {
+            code.checked = true
+            client.setex(redisKey, expire / 1000, code)
+            None
+          }
+        })) getOrElse None
+      })
+    }
+  }
+
+  /**
+   * 取回一个token。注意，每个token只能被access一次。也就是说，此操作会删除对应的token。
+   * @return
+   */
+  def fetchToken(token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[Token]] = {
+    futurePool {
+      RedisFactory.pool.withClient(client => {
+        implicit val parse = TokenRedisParse()
+        val result = client.get[Token](token)
+        client.del(token)
+        result
+      })
+    }
+  }
+
+  def sendValidationCode(action: OperationCode, countryCode: Option[Int] = None, tel: String, userId: Option[Long])
+                        (implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    val resendInterval = 60 * 1000L // 1分钟的发送间隔
+    val redisKey = ValidationCode.calcRedisKey(action, userId, Some(tel), countryCode)
+    val digits = f"${Random.nextInt(1000000)}%06d"
+
+    def sendSms(): Future[Unit] = {
+      val message = action match {
+        case item if item.value == OperationCode.Signup.value =>
+          s"为手机%s注册旅行派账户。验证码：$digits" format tel
+        case item if item.value == OperationCode.ResetPassword.value =>
+          s"正在重置密码。验证码：$digits"
+        case item if item.value == OperationCode.UpdateTel.value =>
+          s"正在绑定手机。验证码：$digits"
+      }
+      SmsCenter.client.sendSms(message, Seq(tel)) map (s => ())
+    }
+
+    futurePool {
+      RedisFactory.pool.withClient(client => {
+        implicit val format = ValidationCodeRedisFormat()
+        implicit val parse = ValidationCodeRedisParse()
+
+        // 确定是否可以再次发送验证码
+        val canSend = client.get[ValidationCode](redisKey) map (_.createTime + resendInterval
+          < System.currentTimeMillis) getOrElse true
+
+        if (!canSend)
+          throw OverQuotaLimitException()
+        else {
+          val expire = 10 * 60 * 1000L // 10分钟后过期
+          val code = ValidationCode(digits, action, userId, tel, countryCode)
+          client.setex(redisKey, expire / 1000, code)
+        }
+      })
+    } flatMap (result => {
+      if (result)
+        sendSms()
+      else
+        Future()
+    })
+  }
+
+  /**
+   * 重置密码
+   * @return
+   */
+  def resetPassword(userId: Long, oldPassword: String, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    verifyCredential(userId, oldPassword) flatMap (result => {
+      if (!result)
+        throw AuthException()
+      else {
+        resetPasswordImpl(userId, newPassword)
+      }
+    })
+  }
+
+
+  /**
+   * 修改用户密码的代码实现
+   * @return
+   */
+  private def resetPasswordImpl(userId: Long, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+
+    def emitEvent(): Future[Unit] = {
+      // 触发重置用户密码的事件
+      val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+      val user = getUserById(userId, responseFields)
+      for {
+        elem <- user
+      } yield {
+        elem foreach (userInfo => {
+          val eventArgs: Map[String, JsonNode] = Map(
+            "user" -> userInfo
+          )
+          EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
+        })
+      }
+    }
+
+    futurePool {
+      if (!checkPassword(newPassword))
+        throw InvalidArgsException()
+
+      val query = ds.find(classOf[Credential], Credential.fdUserId, userId)
       val (salt, crypted) = saltPassword(newPassword)
       // 更新Credential
       val updateOps = ds.createUpdateOperations(classOf[Credential]).set(Credential.fdSalt, salt)
         .set(Credential.fdPasswdHash, crypted)
       ds.updateFirst(query, updateOps)
+      emitEvent()
+      ()
     }
+  }
 
-    // 触发重置用户密码的事件
-    val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
-    val user = getUserById(userId, responseFields)
+  // 验证密码是否合法（必须是ASCII 33~126之间的字符，且长度为6~32）
+  private def checkPassword(password: String): Boolean = {
+    val len = password.length
+    val illegalChar = password exists (c => {
+      val ord = c.toInt
+      ord < 33 || ord > 126
+    })
+    len >= 6 && len <= 32 && !illegalChar
+  }
+
+  /**
+   * 根据token修改用户密码
+   *
+   * @return
+   */
+  def resetPasswordByToken(userId: Long, newPassword: String, token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    verifyToken(OperationCode.ResetPassword, token, userId = Some(userId)) flatMap (checked => {
+      if (!checked)
+        throw AuthException()
+      else
+        resetPasswordImpl(userId, newPassword)
+    })
+  }
+
+  /**
+   * 验证Token是否有效
+   * @return
+   */
+  private def verifyToken(action: OperationCode, token: String, userId: Option[Long] = None, tel: Option[String] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
     for {
-      elem <- user
+      opt <- fetchToken(token)
     } yield {
-      val userInfo = elem.get
-      val miscInfo = new ObjectMapper().createObjectNode()
-      val eventArgs: Map[String, JsonNode] = Map(
-        "user" -> userInfo,
-        "miscInfo" -> miscInfo
-      )
-      EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
+      // 验证token是否有效。判断标准
+      // * token存在
+      // * action一致
+      // * userId一致
+      // * 未过期
+      val result = opt exists (valCode => {
+        valCode.action == action && (action match {
+          case item if item.value == OperationCode.Signup.value => tel.get == valCode.tel.get
+          case _ => userId.get == valCode.userId.get
+        })
+      })
+
+      result
     }
   }
 
@@ -692,15 +897,21 @@ object AccountManager {
    * @param tel
    * @return
    */
-  def updateTelNumber(userId: Long, tel: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
-    import UserInfo._
+  def updateTelNumber(userId: Long, tel: String, token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    verifyToken(OperationCode.UpdateTel, token, userId = Some(userId)) map (checked => {
+      if (!checked)
+        throw AuthException()
+      else {
+        import UserInfo._
 
-    val cls = classOf[UserInfo]
-    val query = ds.createQuery(cls).field(fdUserId).equal(userId)
-    val updateOps = ds.createUpdateOperations(cls).set(fdTel, tel)
-    val updated = ds.findAndModify(query, updateOps)
-    if (updated == null)
-      throw NotFoundException(s"Cannot find user $userId")
+        val cls = classOf[UserInfo]
+        val query = ds.createQuery(cls).field(fdUserId).equal(userId)
+        val updateOps = ds.createUpdateOperations(cls).set(fdTel, tel)
+        val result = ds.updateFirst(query, updateOps)
+        if (!result.getUpdatedExisting)
+          throw NotFoundException(Some(s"Cannot find user $userId"))
+      }
+    })
   }
 
 
@@ -750,7 +961,7 @@ object AccountManager {
       val defaultCount = 20
 
       // 限定查询返回字段
-      val retrievedFields = fields.getOrElse(Seq()) map {
+      val retrievedFields = (fields.getOrElse(Seq()) ++ Seq(UserInfoProp.UserId, UserInfoProp.Id)) map {
         case UserInfoProp.UserId => UserInfo.fdUserId
         case UserInfoProp.NickName => UserInfo.fdNickName
         case UserInfoProp.Avatar => UserInfo.fdAvatar

@@ -110,9 +110,16 @@ object EventEmitter {
 
     // 获得rabbitmq的地址
     import scala.collection.JavaConversions._
-    val tmp = conf.getConfig("backends.rabbitmq").entrySet().toSeq.head.getValue.unwrapped().toString.split(":")
-    val host = tmp(0)
-    val port = tmp(1).toInt
+    val backends = conf.getConfig("backends.rabbitmq")
+    val servers = backends.root().toSeq map (item => {
+      val (key, _) = item
+      val host = backends.getString(s"$key.host")
+      val port = backends.getInt(s"$key.port")
+      host -> port
+    })
+
+    val host = servers.head._1
+    val port = servers.head._2
 
     val username = conf.getString("yunkai.rabbitmq.username")
     val password = conf.getString("yunkai.rabbitmq.password")
