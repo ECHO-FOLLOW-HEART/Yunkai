@@ -7,6 +7,7 @@ import com.lvxingpai.yunkai.model._
 import com.mongodb._
 import org.mongodb.morphia.Morphia
 import org.mongodb.morphia.annotations.Property
+import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConversions._
 import scala.language.postfixOps
@@ -36,6 +37,8 @@ object MorphiaFactory {
     val password = conf.getString("yunkai.mongo.password")
     val dbName = conf.getString("yunkai.mongo.db")
     val credential = MongoCredential.createScramSha1Credential(user, dbName, password.toCharArray)
+
+    LoggerFactory.getLogger(MorphiaFactory.getClass).info(s"Connected to MongoDB: dbName=$dbName, user=$user")
 
     val options = new MongoClientOptions.Builder()
       //连接超时

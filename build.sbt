@@ -1,3 +1,6 @@
+import com.typesafe.sbt.SbtAspectj.Aspectj
+import com.typesafe.sbt.SbtAspectj.AspectjKeys._
+
 organization := "com.lvxingpai"
 
 name := "yunkai"
@@ -14,6 +17,8 @@ val finagleVersion = "6.14.0"
 
 val morphiaVersion = "0.111"
 
+val springVersion = "3.2.2.RELEASE"
+
 libraryDependencies ++= Seq(
   "org.mongodb" % "mongo-java-driver" % "3.0.0",
   "org.mongodb.morphia" % "morphia" % morphiaVersion,
@@ -29,9 +34,13 @@ libraryDependencies ++= Seq(
   "com.twitter" %% "finagle-thriftmux" % finagleVersion,
   "com.twitter" %% "scrooge-core" % "3.18.1",
   "org.apache.thrift" % "libthrift" % "0.9.2",
-  "org.slf4j" % "slf4j-log4j12" % "1.7.12",
+//  "org.slf4j" % "slf4j-log4j12" % "1.7.12",
   "com.typesafe" % "config" % "1.2.1",
   //  "com.google.code.findbugs" % "jsr305" % "3.0.0",
+  "org.springframework" % "spring-aspects" % springVersion,
+  "org.springframework" % "spring-aop" % springVersion,
+  "org.springframework" % "spring-tx" % springVersion,
+  "javax.persistence" % "persistence-api" % "1.0.2",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test",
   "org.specs2" %% "specs2-core" % "3.6",
   "com.fasterxml.jackson.module" % "jackson-module-scala_2.10" % "2.5.2",
@@ -41,9 +50,9 @@ libraryDependencies ++= Seq(
   "org.mockito" % "mockito-all" % "2.0.2-beta",
   "org.specs2" %% "specs2-mock" % "3.6",
   "com.lvxingpai" %% "appconfig" % "0.2.1-SNAPSHOT",
+  "ch.qos.logback" % "logback-classic" % "1.1.3",
   "com.lvxingpai" %% "apium" % "0.1-SNAPSHOT"
 )
-
 
 publishTo := {
   val nexus = "http://nexus.lvxingpai.com/content/repositories/"
@@ -81,3 +90,38 @@ Keys.mainClass in Compile := Some("com.lvxingpai.yunkai.YunkaiServer")
 parallelExecution in Test := false
 
 fork in run := true
+
+// AspectJ settings start
+
+//AspectjKeys.compileOnly in Aspectj := true
+
+aspectjSettings
+
+AspectjKeys.showWeaveInfo in Aspectj := false
+
+
+inputs in Aspectj <+= compiledClasses
+
+binaries in Aspectj <++= update map { report =>
+  report.matching(
+    moduleFilter(organization = "org.springframework", name = "spring-aspects")
+  )
+}
+
+binaries in Aspectj <++= update map { report =>
+  report.matching(
+    moduleFilter(organization = "org.springframework", name = "spring-aop")
+  )
+}
+
+binaries in Aspectj <++= update map { report =>
+  report.matching(
+    moduleFilter(organization = "org.springframework", name = "spring-tx")
+  )
+}
+
+products in Compile <<= products in Aspectj
+
+products in Runtime <<= products in Compile
+
+// AspectJ settings end
