@@ -326,7 +326,8 @@ object AccountManager {
         // * 从未发送过好友申请
         // * 发送过好友申请，且前一申请的状态CANCELLED
         // * 发送过好友申请，且前一申请的状态为PENDING，且已经过期
-        val currentTime = req.timestamp
+        // UPDATED: 我决定放开这个限制，可以无限制地发送请求，只不过requestId不会改变
+
         val cls = classOf[ContactRequest]
         val query = ds.createQuery(cls).field(fdSender).equal(sender).field(fdReceiver).equal(receiver)
 
@@ -396,7 +397,6 @@ object AccountManager {
       else {
         val cls = classOf[ContactRequest]
         val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
-          .field(fdStatus).equal(PENDING.id)
         val updateOps = ds.createUpdateOperations(cls).set(fdStatus, REJECTED.id)
         if (message nonEmpty)
           updateOps.set(fdRejectMessage, message.get)
@@ -436,7 +436,6 @@ object AccountManager {
         val cls = classOf[ContactRequest]
 
         val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
-          .field(fdStatus).equal(PENDING.id)
         val updateOps = ds.createUpdateOperations(cls).set(fdStatus, ACCEPTED.id)
 
         val newRequest = ds.findAndModify(query, updateOps, false, false)
