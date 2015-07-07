@@ -110,7 +110,7 @@ object GroupManager {
       val eventArgs: Map[String, JsonNode] = Map(
         "chatGroup" -> cg,
         "creator" -> userMap(creator).get,
-        "participants" -> targets
+        "members" -> targets
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateChatGroup, eventArgs)
 
