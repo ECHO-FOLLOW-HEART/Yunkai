@@ -175,7 +175,7 @@ object AccountManager {
           "user" -> sender,
           "targets" -> receiver
         )
-        EventEmitter.emitEvent(EventEmitter.evtAddContacts, eventArgs)
+        EventEmitter.emitEvent(EventEmitter.evtAddContact, eventArgs)
       })
 
       Future.collect(jobs) map (_ => ())
@@ -216,7 +216,7 @@ object AccountManager {
             "user" -> userAInfo,
             "target" -> userBInfo
           )
-          EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
+          EventEmitter.emitEvent(EventEmitter.evtRemoveContact, eventArgs)
         }
       }
     })

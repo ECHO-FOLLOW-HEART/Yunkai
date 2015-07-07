@@ -52,12 +52,12 @@ object EventEmitter {
   /**
    * 添加联系人的事件
    */
-  val evtAddContacts = "addContacts"
+  val evtAddContact = "addContact"
 
   /**
    * 删除联系人的事件
    */
-  val evtRemoveContacts = "removeContacts"
+  val evtRemoveContact = "removeContact"
 
   /**
    * 发送好友申请的事件
@@ -125,7 +125,7 @@ object EventEmitter {
     val password = conf.getString("yunkai.rabbitmq.password")
     val virtualHost = conf.getString("yunkai.rabbitmq.virtualhost")
     ApiumPlant(ConnectionParam(host, port, username, password, virtualHost), "yunkai",
-      Seq(evtCreateUser, evtLogin, evtResetPassword, evtAddContacts, evtRemoveContacts, evtModUserInfo,
+      Seq(evtCreateUser, evtLogin, evtResetPassword, evtAddContact, evtRemoveContact, evtModUserInfo,
         evtCreateChatGroup, evtModChatGroup, evtAddGroupMembers, evtRemoveGroupMembers, evtSendContactRequest,
         evtAcceptContactRequest, evtRejectContactRequest))
   }
