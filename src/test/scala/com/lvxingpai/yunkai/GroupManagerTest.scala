@@ -39,7 +39,7 @@ class GroupManagerTest extends YunkaiBaseTest {
     scenario("a simple chat group without additional information is created") {
       val creator = (initialUsers last)._1
       val participants = (initialUsers init) map (_._1)
-      val group = waitFuture(service.createChatGroup(creator._1, participants map (_.userId), None))
+      val group = waitFuture(service.createChatGroup(creator.userId, participants map (_.userId), None))
       val actual = waitFuture(service.getChatGroup(group.chatGroupId,
         Some(Seq(ChatGroupProp.Creator, ChatGroupProp.Participants))))
       group.chatGroupId should be(actual.chatGroupId)
@@ -55,7 +55,7 @@ class GroupManagerTest extends YunkaiBaseTest {
         ChatGroupProp.Name -> "Group name",
         ChatGroupProp.MaxUsers -> "200"
       )
-      val group = waitFuture(service.createChatGroup(creator._1, participants map (_.userId), Some(miscInfo)))
+      val group = waitFuture(service.createChatGroup(creator.userId, participants map (_.userId), Some(miscInfo)))
       val actual = waitFuture(service.getChatGroup(group.chatGroupId, Some(Seq(ChatGroupProp.Creator,
         ChatGroupProp.Participants, ChatGroupProp.GroupDesc, ChatGroupProp.Name, ChatGroupProp.MaxUsers))))
       group.chatGroupId should be(actual.chatGroupId)
@@ -83,15 +83,42 @@ class GroupManagerTest extends YunkaiBaseTest {
     }
   }
 
+  feature("the GroupManager can get group members") {
+    scenario("the chat group ID is incorrect") {
+      Given(s"a fake chat group ID $fakeGroupId")
+      When("retrieving its member list")
+      Then("a NotFoundException should be thrown")
+
+      intercept[NotFoundException] {
+        waitFuture(service.getChatGroupMembers(fakeGroupId, None))
+      }
+    }
+
+    scenario("default") {
+      val chatGroup = initialChatGroups.head._2
+      val gid = chatGroup.chatGroupId
+      Given(s"a chatgroup gid")
+      When("retrieving its member list")
+      Then("the returned list should be correct")
+
+      val members = waitFuture(service.getChatGroupMembers(gid, None))
+      val memberIdList = members map (_.userId)
+      memberIdList should contain only (chatGroup.participants: _*)
+    }
+  }
+
   feature("the GroupManager can update chat group information") {
     scenario("the chat group ID is incorrect") {
       val fakeId = initialChatGroups.keySet.max + 1
+      val operator = initialChatGroups.head._2.creator
       intercept[NotFoundException] {
-        waitFuture(service.updateChatGroup(fakeId, Map(ChatGroupProp.Name -> "new name")))
+        waitFuture(service.updateChatGroup(fakeId, operator, Map(ChatGroupProp.Name -> "new name")))
       }
     }
     scenario("a correct chat group ID is provided") {
       val (groupId, group) = initialChatGroups.head
+      val operator = group.creator
+
       Given(s"a chat group $groupId")
 
       val name = "New group name"
@@ -101,7 +128,7 @@ class GroupManagerTest extends YunkaiBaseTest {
       val maxUsers = "200"
       When("updateChatGroup is invoked")
 
-      val updated = waitFuture(service.updateChatGroup(groupId, Map(
+      val updated = waitFuture(service.updateChatGroup(groupId, operator, Map(
         ChatGroupProp.Name -> name,
         ChatGroupProp.GroupDesc -> desc,
         ChatGroupProp.Avatar -> avatar,
@@ -172,7 +199,7 @@ class GroupManagerTest extends YunkaiBaseTest {
         Some(Seq(ChatGroupProp.Creator, ChatGroupProp.Participants))))
       val operatorId = group.creator
       val maxUser = group.participants.length
-      waitFuture(service.updateChatGroup(group.chatGroupId, Map(ChatGroupProp.MaxUsers -> maxUser.toString)))
+      waitFuture(service.updateChatGroup(group.chatGroupId, operatorId, Map(ChatGroupProp.MaxUsers -> maxUser.toString)))
       intercept[GroupMembersLimitException] {
         waitFuture(service.addChatGroupMembers(group.chatGroupId, operatorId, initialUsers map (_._1.userId)))
       }

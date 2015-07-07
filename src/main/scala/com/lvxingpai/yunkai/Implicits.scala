@@ -4,11 +4,12 @@ import java.util.{List => JList}
 
 import com.fasterxml.jackson.databind.node.{LongNode, TextNode}
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
-import com.lvxingpai.yunkai.database.mongo.MorphiaFactory
+import com.lvxingpai.yunkai.service.MorphiaFactory
+import com.lvxingpai.yunkai.model.{ContactRequest => DBContactRequest}
 import com.twitter.util.FuturePool
 
-import scala.language.implicitConversions
 import scala.collection.JavaConversions._
+import scala.language.implicitConversions
 
 /**
  * Created by zephyre on 5/19/15.
@@ -20,6 +21,13 @@ object Implicits {
 
   implicit lazy val defaultExecutionContext = scala.concurrent.ExecutionContext
     .fromExecutorService(defaultFuturePool.executor)
+
+  object YunkaiConversions {
+    implicit def contactRequestConversion(req: DBContactRequest): ContactRequest = {
+      ContactRequest(req.id.toString, req.sender, req.receiver, req.status, req.requestMessage,
+        req.rejectMessage, req.timestamp, req.expire)
+    }
+  }
 
   object JsonConversions {
     implicit def string2JsonNode(text: String): JsonNode = TextNode.valueOf(Option(text) getOrElse "")

@@ -12,7 +12,7 @@ import scala.beans.BeanProperty
  * Created by zephyre on 6/25/15.
  */
 @Entity
-@Indexes(Array(new Index(fields=Array(new Field("sender"), new Field("receiver")), options = new IndexOptions(unique = true))))
+@Indexes(Array(new Index(fields = Array(new Field("sender"), new Field("receiver")), options = new IndexOptions(unique = true))))
 class ContactRequest {
 
   @BeanProperty
@@ -84,7 +84,7 @@ object ContactRequest {
     req.receiver = receiver
     req.requestMessage = message.orNull
     req.status = ContactRequest.RequestStatus.PENDING.id
-    // 默认情况下，请求七天后过期
+    // 默认情况下，请求一天后过期
     val defaultExpireDelay = 7 * 24 * 3600 * 1000L
     val current = System.currentTimeMillis()
     req.expire = current + expire.getOrElse(defaultExpireDelay)

@@ -1,4 +1,4 @@
-package com.lvxingpai.yunkai.database.mongo
+package com.lvxingpai.yunkai.service
 
 import java.util.UUID
 
@@ -24,13 +24,14 @@ object MorphiaFactory {
 
   lazy val client = {
     val conf = Global.conf
-    val mongoBackends = conf.getConfig("backends.mongo").entrySet().toSeq
-    val serverAddresses = mongoBackends map (backend => {
-      val tmp = backend.getValue.unwrapped().toString.split(":")
-      val host = tmp(0)
-      val port = tmp(1).toInt
+    val mongoBackends = conf.getConfig("backends.mongo")
+    val serverAddresses = mongoBackends.root().toSeq map (item => {
+      val (key, _) = item
+      val host = mongoBackends.getString(s"$key.host")
+      val port = mongoBackends.getInt(s"$key.port")
       new ServerAddress(host, port)
     })
+
     val user = conf.getString("yunkai.mongo.user")
     val password = conf.getString("yunkai.mongo.password")
     val dbName = conf.getString("yunkai.mongo.db")
@@ -54,13 +55,15 @@ object MorphiaFactory {
     val dbName = Global.conf.getString("yunkai.mongo.db")
     val ds = morphia.createDatastore(client, dbName)
 
-    // 对于没有使用手机号码注册的用户，使用UUID生成placeholder
-    ds.createQuery(classOf[UserInfo]).field(UserInfo.fdTel).equal(null).retrievedFields(true,
-      UserInfo.fdUserId).asList().toSeq foreach (entry => {
-      val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).equal(entry.userId)
-      val ops = ds.createUpdateOperations(classOf[UserInfo]).set(UserInfo.fdTel, UUID.randomUUID().toString)
-      ds.update(query, ops)
+    // 消除fdTel为null的项目
+    val cls = classOf[UserInfo]
+    val query = ds.createQuery(cls) field UserInfo.fdTel equal null
+    query.asList().toSeq foreach (u => {
+      val query = ds.createQuery(cls) field UserInfo.fdUserId equal u.userId
+      val ops = ds.createUpdateOperations(cls).set(UserInfo.fdTel, UUID.randomUUID().toString)
+      ds.updateFirst(query, ops)
     })
+
     ds.ensureIndexes()
     ds.ensureCaps()
     ds

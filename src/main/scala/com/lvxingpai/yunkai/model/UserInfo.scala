@@ -48,15 +48,15 @@ class UserInfo {
   //  @BeanProperty
   //  var contacts: Seq[Long] = null
 
-//  @BeanProperty
-//  var chatGroups: JList[Long] = null
+  //  @BeanProperty
+  //  var chatGroups: JList[Long] = null
 
   @Version
   var version: Long = 0
 }
 
 object UserInfo {
-
+  val fdId = "id"
   val fdUserId = "userId"
   val fdNickName = "nickName"
   val fdAvatar = "avatar"
