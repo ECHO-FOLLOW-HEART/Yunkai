@@ -41,6 +41,16 @@ object Implicits {
     implicit def seq2JsonNode[T](seq: Seq[T]): JsonNode = new ObjectMapper().valueToTree(seqAsJavaList(seq))
 
     implicit def JsonNode2string(node: JsonNode): String = new ObjectMapper().writeValueAsString(node)
+
+    implicit def user2JsonNode(user: com.lvxingpai.yunkai.model.UserInfo): JsonNode = {
+      val node = new ObjectMapper().createObjectNode()
+      //    targets.put("id", user.id.toString)
+      node.put("userId", user.userId)
+      node.put("nickName", user.nickName)
+      val avatarValue = Option(user.avatar).getOrElse[String]("")
+      node.put("avatar", avatarValue)
+      node
+    }
   }
 
 }
