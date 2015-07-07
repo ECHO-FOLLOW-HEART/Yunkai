@@ -5,6 +5,7 @@ import java.util.UUID
 
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.yunkai._
+import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai.model.{ContactRequest, UserInfo, _}
 import com.lvxingpai.yunkai.serialization.{TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse}
 import com.lvxingpai.yunkai.service.{RedisFactory, SmsCenter}
@@ -174,22 +175,13 @@ object AccountManager {
           "user" -> sender,
           "targets" -> receiver
         )
-        EventEmitter.emitEvent(EventEmitter.evtAddContacts, eventArgs)
+        EventEmitter.emitEvent(EventEmitter.evtAddContact, eventArgs)
       })
 
       Future.collect(jobs) map (_ => ())
     })
   }
 
-  implicit def user2JsonNode(user: UserInfo): JsonNode = {
-    val targets = new ObjectMapper().createObjectNode()
-    //    targets.put("id", user.id.toString)
-    targets.put("userId", user.userId)
-    targets.put("nickName", user.nickName)
-    val avatarValue = Option(user.avatar).getOrElse("")
-    targets.put("avatar", avatarValue)
-    targets
-  }
 
   /**
    * 删除好友
@@ -222,9 +214,9 @@ object AccountManager {
           val userBInfo = m(elem).get
           val eventArgs: Map[String, JsonNode] = Map(
             "user" -> userAInfo,
-            "targets" -> userBInfo
+            "target" -> userBInfo
           )
-          EventEmitter.emitEvent(EventEmitter.evtRemoveContacts, eventArgs)
+          EventEmitter.emitEvent(EventEmitter.evtRemoveContact, eventArgs)
         }
       }
     })
@@ -556,7 +548,7 @@ object AccountManager {
       } else {
         val query = userIds length match {
           case 1 => ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).equal(userIds head)
-          case _ => ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(userIds)
+          case _ => ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(seqAsJavaList(userIds))
         }
         // 获得需要处理的字段名
         val allowedProperties = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar,
@@ -822,7 +814,7 @@ object AccountManager {
       } yield {
         elem foreach (userInfo => {
           val eventArgs: Map[String, JsonNode] = Map(
-            "user" -> userInfo
+            "user" -> user2JsonNode(userInfo)
           )
           EventEmitter.emitEvent(EventEmitter.evtResetPassword, eventArgs)
         })
