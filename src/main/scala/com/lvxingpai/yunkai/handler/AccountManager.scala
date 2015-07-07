@@ -363,19 +363,32 @@ object AccountManager {
                 throw ex
           }
         // 触发发送好友请求
-        import Implicits.JsonConversions._
         val senderInfo = users(sender).get
         val receiverInfo = users(receiver).get
-        val eventArgs: Map[String, JsonNode] = Map(
-          "requestId" -> newRequest.id.toString,
-          "message" -> message.orNull[String],
-          "sender" -> senderInfo,
-          "receiver" -> receiverInfo
-        )
-        EventEmitter.emitEvent(EventEmitter.evtSendContactRequest, eventArgs)
+        sendContactRequestEvents(EventEmitter.evtSendContactRequest, newRequest.id, message, senderInfo, receiverInfo)
         newRequest.id
       }
     }
+  }
+
+  /**
+   * 生成contactRequest相关事件的eventArgs
+   * @param requestId
+   * @param message
+   * @param sender
+   * @param receiver
+   */
+  private def sendContactRequestEvents(eventName: String, requestId: ObjectId, message: Option[String], sender: UserInfo, receiver: UserInfo) {
+    import Implicits.JsonConversions._
+
+    val eventArgs: Map[String, JsonNode] = Map(
+      "requestId" -> requestId.toString,
+      "message" -> message.getOrElse[String](""),
+      "sender" -> sender,
+      "receiver" -> receiver
+    )
+
+    EventEmitter.emitEvent(eventName, eventArgs)
   }
 
   /**
@@ -412,14 +425,8 @@ object AccountManager {
         for {
           userInfos <- users
         } yield {
-          import Implicits.JsonConversions._
-          val eventArgs: Map[String, JsonNode] = Map(
-            "requestId" -> newRequest.id.toString,
-            "message" -> message.orNull[String],
-            "sender" -> userInfos(senderId).get,
-            "receiver" -> userInfos(receiverId).get
-          )
-          EventEmitter.emitEvent(EventEmitter.evtRejectContactRequest, eventArgs)
+          sendContactRequestEvents(EventEmitter.evtRejectContactRequest, newRequest.id, message,
+            userInfos(senderId).get, userInfos(receiverId).get)
         }
       }
     })
@@ -457,13 +464,8 @@ object AccountManager {
         for {
           userInfos <- users
         } yield {
-          import Implicits.JsonConversions._
-          val eventArgs: Map[String, JsonNode] = Map(
-            "requestId" -> newRequest.id.toString,
-            "sender" -> userInfos(senderId).get,
-            "receiver" -> userInfos(receiverId).get
-          )
-          EventEmitter.emitEvent(EventEmitter.evtAcceptContactRequest, eventArgs)
+          sendContactRequestEvents(EventEmitter.evtAcceptContactRequest, newRequest.id, None,
+            userInfos(senderId).get, userInfos(receiverId).get)
         }
       }
     })
@@ -619,7 +621,7 @@ object AccountManager {
         import Implicits.JsonConversions._
         val eventArgs: Map[String, JsonNode] = Map(
           "user" -> userInfo,
-          "source" -> source
+          "source" -> string2JsonNode(source)
         )
         EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
 
