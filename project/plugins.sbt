@@ -8,3 +8,5 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.0.0-M1")
 
 // AspectJ
 addSbtPlugin("com.typesafe.sbt" % "sbt-aspectj" % "0.10.2")
+
+addSbtPlugin("com.typesafe.sbt" % "sbt-scalariform" % "1.3.0")

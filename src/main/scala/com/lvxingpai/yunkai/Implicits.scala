@@ -1,11 +1,11 @@
 package com.lvxingpai.yunkai
 
-import java.util.{List => JList}
+import java.util.{ List => JList }
 
-import com.fasterxml.jackson.databind.node.{LongNode, TextNode}
-import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import com.fasterxml.jackson.databind.node.{ LongNode, TextNode }
+import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.lvxingpai.yunkai.service.MorphiaFactory
-import com.lvxingpai.yunkai.model.{ContactRequest => DBContactRequest}
+import com.lvxingpai.yunkai.model.{ ContactRequest => DBContactRequest }
 import com.twitter.util.FuturePool
 
 import scala.collection.JavaConversions._

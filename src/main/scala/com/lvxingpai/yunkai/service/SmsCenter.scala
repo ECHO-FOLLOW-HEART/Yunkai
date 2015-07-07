@@ -41,8 +41,7 @@ object SmsCenter {
         }
       }
       client.asInstanceOf[FinagledClient]
-    }
-    else {
+    } else {
       val backends = conf.getConfig("backends.smscenter")
       val servers = backends.root().toSeq map (item => {
         val (key, _) = item

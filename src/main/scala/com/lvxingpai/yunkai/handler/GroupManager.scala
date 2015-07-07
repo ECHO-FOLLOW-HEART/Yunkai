@@ -1,20 +1,20 @@
 package com.lvxingpai.yunkai.handler
 
 import com.fasterxml.jackson.databind.node._
-import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai._
-import com.lvxingpai.yunkai.model.{ChatGroup, UserInfo}
+import com.lvxingpai.yunkai.model.{ ChatGroup, UserInfo }
 import com.lvxingpai.yunkai.service.MorphiaFactory
-import com.mongodb.{BasicDBList, BasicDBObject, BasicDBObjectBuilder}
-import com.twitter.util.{Future, FuturePool}
+import com.mongodb.{ BasicDBList, BasicDBObject, BasicDBObjectBuilder }
+import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
 
 import scala.collection.JavaConversions._
 
 //import scala.collection.Map
 
-import scala.language.{implicitConversions, postfixOps}
+import scala.language.{ implicitConversions, postfixOps }
 
 /**
  * Created by zephyre on 6/19/15.
@@ -224,7 +224,7 @@ object GroupManager {
 
   // 获取用户讨论组信息
   def getUserChatGroups(userId: Long, fields: Seq[ChatGroupProp] = Seq(), offset: Option[Int] = None,
-                        limit: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ChatGroup]] = {
+    limit: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ChatGroup]] = {
     import ChatGroup._
 
     // 默认最大的获取数量
@@ -390,8 +390,7 @@ object GroupManager {
   }
 
   // 获得讨论组成员
-  def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]] = None)
-                         (implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = futurePool {
+  def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = futurePool {
     val groupInfo = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId).get()
     if (groupInfo == null)
       throw NotFoundException(Some(s"Cannot find chat group $chatGroupId"))

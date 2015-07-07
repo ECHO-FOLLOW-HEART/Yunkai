@@ -1,8 +1,8 @@
 package com.lvxingpai.yunkai.handler
 
-import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.lvxingpai.apium.ApiumPlant.ConnectionParam
-import com.lvxingpai.apium.{ApiumPlant, ApiumSeed}
+import com.lvxingpai.apium.{ ApiumPlant, ApiumSeed }
 import com.lvxingpai.yunkai.Global
 
 import scala.language.postfixOps

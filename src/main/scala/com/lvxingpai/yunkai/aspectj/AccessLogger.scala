@@ -2,9 +2,8 @@ package com.lvxingpai.yunkai.aspectj
 
 import com.lvxingpai.yunkai.Global
 import org.aspectj.lang.JoinPoint
-import org.aspectj.lang.annotation.{Aspect, Before}
+import org.aspectj.lang.annotation.{ Aspect, Before }
 import org.slf4j.LoggerFactory
-
 
 /**
  * Created by zephyre on 7/6/15.

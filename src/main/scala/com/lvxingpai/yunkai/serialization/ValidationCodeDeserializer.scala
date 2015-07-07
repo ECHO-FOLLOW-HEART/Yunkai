@@ -1,8 +1,8 @@
 package com.lvxingpai.yunkai.serialization
 
 import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.node.{NullNode, NumericNode}
-import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer, JsonNode}
+import com.fasterxml.jackson.databind.node.{ NullNode, NumericNode }
+import com.fasterxml.jackson.databind.{ DeserializationContext, JsonDeserializer, JsonNode }
 import com.lvxingpai.yunkai.OperationCode
 import com.lvxingpai.yunkai.model.ValidationCode
 
