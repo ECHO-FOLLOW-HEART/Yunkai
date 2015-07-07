@@ -1,9 +1,9 @@
 package com.lvxingpai.yunkai.model
 
-import javax.validation.constraints.{Max, Min, NotNull}
+import javax.validation.constraints.{ Max, Min, NotNull }
 
 import org.bson.types.ObjectId
-import org.mongodb.morphia.annotations.{Entity, Id, Indexed, Property}
+import org.mongodb.morphia.annotations.{ Entity, Id, Indexed, Property }
 
 import scala.beans.BeanProperty
 

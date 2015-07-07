@@ -2,15 +2,15 @@ package com.lvxingpai.yunkai.handler
 
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits._
-import com.lvxingpai.yunkai.model.{ChatGroup, UserInfo}
-import com.lvxingpai.yunkai.{NotFoundException, UserInfoProp, Userservice, _}
+import com.lvxingpai.yunkai.model.{ ChatGroup, UserInfo }
+import com.lvxingpai.yunkai.{ NotFoundException, UserInfoProp, Userservice, _ }
 import com.twitter.util.Future
 
 import scala.collection.JavaConversions._
 
 //import scala.collection.Map
 
-import scala.language.{implicitConversions, postfixOps}
+import scala.language.{ implicitConversions, postfixOps }
 
 /**
  * 提供Yunkai服务
@@ -54,13 +54,13 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.removeContacts(userA, userList: _*)
 
   override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]], offset: Option[Int],
-                              count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
+    count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
     AccountManager.getContactList(userId, fields = fields.getOrElse(Seq()), offset = offset, count = count) map
       (_ map UserServiceHandler.userInfoConversion)
   }
 
   override def searchUserInfo(queryFields: scala.collection.Map[UserInfoProp, String],
-                              fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
+    fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
     for {
       userList <- AccountManager.searchUserInfo(Map(queryFields.toSeq: _*), fields, offset, count)
     } yield {
@@ -87,8 +87,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def resetPasswordByToken(userId: Long, newPassword: String, token: String): Future[Unit] =
     AccountManager.resetPasswordByToken(userId, newPassword, token)
 
-  override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp,
-    String]]): Future[yunkai.UserInfo] = {
+  override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
     val tel = miscInfo flatMap (_.get(UserInfoProp.Tel))
     AccountManager.createUser(nickName, password, tel) map (userInfo => {
       if (userInfo == null)
@@ -133,7 +132,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def getUserChatGroups(userId: Long, fields: Option[Seq[ChatGroupProp]], offset: Option[Int],
-                                 count: Option[Int]): Future[Seq[yunkai.ChatGroup]] = {
+    count: Option[Int]): Future[Seq[yunkai.ChatGroup]] = {
     val result = GroupManager.getUserChatGroups(userId, fields.getOrElse(Seq()))
     for {
       items <- result
@@ -162,7 +161,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def createChatGroup(creator: Long, participants: Seq[Long],
-                               chatGroupProps: Option[scala.collection.Map[ChatGroupProp, String]]): Future[yunkai.ChatGroup] = {
+    chatGroupProps: Option[scala.collection.Map[ChatGroupProp, String]]): Future[yunkai.ChatGroup] = {
     // 处理额外信息
     val miscInfo = Map(chatGroupProps.getOrElse(scala.collection.Map()).toSeq map (entry => {
       val prop = entry._1
@@ -202,7 +201,7 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def getContactRequests(userId: Long, offset: Option[Int], limit: Option[Int]): Future[Seq[ContactRequest]] = {
     import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
-    import com.lvxingpai.yunkai.{ContactRequest => YunkaiContactRequest}
+    import com.lvxingpai.yunkai.{ ContactRequest => YunkaiContactRequest }
 
     val defaultOffset = 0
     val defaultCount = 50
@@ -226,7 +225,6 @@ class UserServiceHandler extends Userservice.FutureIface {
       }
     })
   }
-
 
 }
 

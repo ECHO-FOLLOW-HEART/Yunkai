@@ -3,8 +3,8 @@ package com.lvxingpai.yunkai
 import java.util.UUID
 
 import com.lvxingpai.yunkai.Implicits._
-import com.lvxingpai.yunkai.handler.{AccountManager, UserServiceHandler}
-import com.lvxingpai.yunkai.model.{ChatGroup => ChatGroupMorphia, ContactRequest => ContactRequestMorphia, UserInfo => UserInfoMorphia, ValidationCode}
+import com.lvxingpai.yunkai.handler.{ AccountManager, UserServiceHandler }
+import com.lvxingpai.yunkai.model.{ ChatGroup => ChatGroupMorphia, ContactRequest => ContactRequestMorphia, UserInfo => UserInfoMorphia, ValidationCode }
 import com.lvxingpai.yunkai.serialization._
 import com.lvxingpai.yunkai.service.RedisFactory
 import com.twitter.util.Future
@@ -382,7 +382,7 @@ class AccountManagerTest extends YunkaiBaseTest {
       waitFuture(service.addContacts(self.userId, targets map (_.userId)))
       val contactList = waitFuture(service.getContactList(self.userId, Some(Seq(UserInfoProp.UserId)), None, None))
       val targetIds = targets map (_.userId)
-      contactList map (_.userId) should contain allOf(targetIds head, targetIds(1), targetIds drop 2: _*)
+      contactList map (_.userId) should contain allOf (targetIds head, targetIds(1), targetIds drop 2: _*)
     }
     scenario("a contact is added multiple times") {
       val service = new UserServiceHandler()
@@ -395,7 +395,7 @@ class AccountManagerTest extends YunkaiBaseTest {
       val thisContacts = waitFuture(service.getContactList(self.userId, Some(Seq(UserInfoProp.UserId)), None, None))
       val idList1 = originalContacts map (_.userId)
       val idList2 = thisContacts map (_.userId)
-      idList1 should contain allOf(idList2 head, idList2(1), idList2 drop 2: _*)
+      idList1 should contain allOf (idList2 head, idList2(1), idList2 drop 2: _*)
     }
   }
 
@@ -429,13 +429,13 @@ class AccountManagerTest extends YunkaiBaseTest {
 
       waitFuture(service.addContacts(self.userId, targets map (_.userId)))
       val originalContacts = waitFuture(service.getContactList(self.userId, Some(properties), None, None))
-      Given("that %s has %s as the contact list" format(self.nickName, originalContacts map (_.nickName) mkString ", "))
+      Given("that %s has %s as the contact list" format (self.nickName, originalContacts map (_.nickName) mkString ", "))
 
       val userToDel = originalContacts.head
-      When("%s is removed from %s's contact list" format(userToDel.nickName, self.nickName))
+      When("%s is removed from %s's contact list" format (userToDel.nickName, self.nickName))
       waitFuture(service.removeContact(self.userId, userToDel.userId))
 
-      Then("%s's contact list should not contain %s, and vice versa" format(self.nickName, userToDel.nickName))
+      Then("%s's contact list should not contain %s, and vice versa" format (self.nickName, userToDel.nickName))
       // retrieve the contact lists of self and userToDel
       val ret = waitFuture(Future.collect(Seq(self, userToDel) map (u => service.getContactList(u.userId, Some(properties),
         None, None))))
@@ -456,7 +456,7 @@ class AccountManagerTest extends YunkaiBaseTest {
       val contacts = Map(waitFuture(service.getContactList(self.userId, Some(properties), None, None)) map (u => u.userId -> u): _*)
       val outsiders = targets filterKeys (userId => !(contacts contains userId))
 
-      Given("%s and its contact list %s" format(self.nickName, contacts.values map (_.nickName) mkString ", "))
+      Given("%s and its contact list %s" format (self.nickName, contacts.values map (_.nickName) mkString ", "))
       When("testing their relationship")
       Then("bolean results should be returned")
 

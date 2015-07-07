@@ -91,6 +91,8 @@ parallelExecution in Test := false
 
 fork in run := true
 
+scalariformSettings
+
 // AspectJ settings start
 
 //AspectjKeys.compileOnly in Aspectj := true

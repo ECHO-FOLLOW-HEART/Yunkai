@@ -3,8 +3,8 @@ package com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.handler.UserServiceHandler
 import com.lvxingpai.yunkai.service.MorphiaFactory
 import com.twitter.util.TimeConversions._
-import com.twitter.util.{Await, Duration, Future}
-import org.scalatest.{BeforeAndAfter, FeatureSpec, GivenWhenThen, ShouldMatchers}
+import com.twitter.util.{ Await, Duration, Future }
+import org.scalatest.{ BeforeAndAfter, FeatureSpec, GivenWhenThen, ShouldMatchers }
 
 import scala.collection.JavaConversions._
 import scala.language.postfixOps

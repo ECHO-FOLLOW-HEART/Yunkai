@@ -3,7 +3,7 @@ package com.lvxingpai.yunkai.model
 import javax.validation.constraints.NotNull
 
 import org.bson.types.ObjectId
-import org.mongodb.morphia.annotations.{Entity, Id, Indexed}
+import org.mongodb.morphia.annotations.{ Entity, Id, Indexed }
 
 import scala.beans.BeanProperty
 

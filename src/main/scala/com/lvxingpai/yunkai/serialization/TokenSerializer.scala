@@ -1,14 +1,14 @@
 package com.lvxingpai.yunkai.serialization
 
 import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.databind.{SerializerProvider, JsonSerializer}
+import com.fasterxml.jackson.databind.{ SerializerProvider, JsonSerializer }
 import com.lvxingpai.yunkai.Token
 import scala.language.postfixOps
 
 /**
  * Created by zephyre on 7/4/15.
  */
-class TokenSerializer extends JsonSerializer[Token]{
+class TokenSerializer extends JsonSerializer[Token] {
   override def serialize(value: Token, gen: JsonGenerator, serializers: SerializerProvider): Unit = {
     gen.writeStartObject()
     gen.writeStringField("fingerprint", value.fingerprint)

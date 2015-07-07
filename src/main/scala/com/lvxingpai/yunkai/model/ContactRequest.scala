@@ -1,7 +1,7 @@
 package com.lvxingpai.yunkai.model
 
-import java.lang.{Integer => JInt, Long => JLong}
-import javax.validation.constraints.{Max, Min, NotNull, Size}
+import java.lang.{ Integer => JInt, Long => JLong }
+import javax.validation.constraints.{ Max, Min, NotNull, Size }
 
 import org.bson.types.ObjectId
 import org.mongodb.morphia.annotations._
@@ -74,7 +74,6 @@ class ContactRequest {
   @Size(max = 400)
   var rejectMessage: String = null
 }
-
 
 object ContactRequest {
 

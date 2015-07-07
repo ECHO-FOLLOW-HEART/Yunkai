@@ -1,7 +1,7 @@
 package com.lvxingpai.yunkai
 
 import com.lvxingpai.yunkai.service.RedisFactory
-import com.twitter.util.{Future, FuturePool}
+import com.twitter.util.{ Future, FuturePool }
 
 /**
  * 自增长ID生成器

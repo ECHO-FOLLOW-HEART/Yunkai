@@ -1,6 +1,6 @@
 package com.lvxingpai.yunkai.model
 
-import javax.validation.constraints.{Min, NotNull}
+import javax.validation.constraints.{ Min, NotNull }
 
 import org.bson.types.ObjectId
 import org.mongodb.morphia.annotations._

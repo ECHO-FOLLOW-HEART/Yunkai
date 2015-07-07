@@ -45,7 +45,7 @@ class GroupManagerTest extends YunkaiBaseTest {
       group.chatGroupId should be(actual.chatGroupId)
       group.creator should be(actual.creator)
       val members = actual.participants
-      group.participants should contain allOf(members head, members(1), members drop 2: _*)
+      group.participants should contain allOf (members head, members(1), members drop 2: _*)
     }
     scenario("a chat group with additional information is created") {
       val creator = (initialUsers last)._1
@@ -61,7 +61,7 @@ class GroupManagerTest extends YunkaiBaseTest {
       group.chatGroupId should be(actual.chatGroupId)
       group.creator should be(actual.creator)
       val members = actual.participants
-      group.participants should contain allOf(members head, members(1), members drop 2: _*)
+      group.participants should contain allOf (members head, members(1), members drop 2: _*)
       group.groupDesc.get should be(actual.groupDesc.get)
       group.name should be(actual.name)
       group.maxUsers should be(actual.maxUsers)
@@ -158,7 +158,7 @@ class GroupManagerTest extends YunkaiBaseTest {
         preset.chatGroupId should be(g.chatGroupId)
         preset.name should be(g.name)
         preset.creator should be(g.creator)
-        preset.participants should contain allOf(g.participants head, g.participants(1), g.participants drop 2: _*)
+        preset.participants should contain allOf (g.participants head, g.participants(1), g.participants drop 2: _*)
       })
     }
   }
@@ -192,7 +192,7 @@ class GroupManagerTest extends YunkaiBaseTest {
       val operatorId = group.creator
       waitFuture(service.addChatGroupMembers(group.chatGroupId, operatorId, others))
       val updated = waitFuture(service.getChatGroup(group.chatGroupId, Some(Seq(ChatGroupProp.Participants))))
-      updated.participants should contain allOf(initMembers.head, initMembers(1), others: _*)
+      updated.participants should contain allOf (initMembers.head, initMembers(1), others: _*)
     }
     scenario("the number of members exceeds the maxium") {
       val group = waitFuture(service.getChatGroup(initialChatGroups.head._1,
@@ -205,7 +205,7 @@ class GroupManagerTest extends YunkaiBaseTest {
       }
       val newGroup = waitFuture(service.getChatGroup(initialChatGroups.head._1, Some(Seq(ChatGroupProp.Participants))))
       val oldMembers = group.participants
-      newGroup.participants should contain inOrderOnly(oldMembers.head, oldMembers(1), oldMembers.drop(2): _*)
+      newGroup.participants should contain inOrderOnly (oldMembers.head, oldMembers(1), oldMembers.drop(2): _*)
     }
   }
 

@@ -2,7 +2,7 @@ package com.lvxingpai.yunkai.model
 
 import java.security.MessageDigest
 
-import com.lvxingpai.yunkai.{InvalidArgsException, OperationCode}
+import com.lvxingpai.yunkai.{ InvalidArgsException, OperationCode }
 
 import scala.language.postfixOps
 
@@ -12,8 +12,8 @@ import scala.language.postfixOps
  * Created by zephyre on 7/2/15.
  */
 case class ValidationCode(code: String, action: OperationCode, userId: Option[Long] = None, tel: String,
-                          countryCode: Option[Int], createTime: Long = System.currentTimeMillis,
-                          var checked: Boolean = false) {
+    countryCode: Option[Int], createTime: Long = System.currentTimeMillis,
+    var checked: Boolean = false) {
   val fingerprint: String = ValidationCode.calcFingerprint(action, userId, Some(tel), countryCode)
 }
 
