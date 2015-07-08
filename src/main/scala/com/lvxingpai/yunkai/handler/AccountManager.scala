@@ -535,6 +535,18 @@ object AccountManager {
   }
 
   /**
+   *
+   * 如果user的tel字段为UUID（占位符情况），说明用户没有tel信息，将其置为null
+   * @param user
+   * @return
+   */
+  def filterUUIDTel(user: UserInfo): UserInfo = {
+    if (user.tel != null && user.tel.length == 36)
+      user.tel = null
+    user
+  }
+
+  /**
    * 批量获得多个用户的信息
    *
    * @param userIds 需要查找的用户的ID
@@ -556,7 +568,7 @@ object AccountManager {
           UserInfoProp.Id) map userInfoPropToFieldName
 
         query.retrievedFields(true, retrievedFields: _*)
-        val results = Map(query.asList() map (v => v.userId -> v): _*)
+        val results = Map(query.asList() map filterUUIDTel map (v => v.userId -> v): _*)
         Map(userIds map (v => v -> (results get v)): _*)
       }
     }
@@ -960,9 +972,8 @@ object AccountManager {
       // 获得符合条件的userId
       futurePool {
         query.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
-        if (retrievedFields nonEmpty)
-          query.retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
-        query.asList().toSeq
+          .retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
+        query.asList().toSeq map filterUUIDTel
       }
     }
   }
