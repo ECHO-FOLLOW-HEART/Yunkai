@@ -194,12 +194,12 @@ service userservice {
   // 发送手机验证码
   // 如果发送过于频繁，会出现OverQuotaLimitException
   // 如果参数不合法，比如既不提供tel，又不提供userId，会抛出InvalidArgsException
-  void sendValidationCode(1:OperationCode action, 2:optional i32 countryCode, 3:string tel, 4:optional i64 userId) throws (1:OverQuotaLimitException ex, 2:InvalidArgsException ex2)
+  void sendValidationCode(1:OperationCode action, 2:string tel, 3:optional i32 countryCode) throws (1:OverQuotaLimitException ex, 2:InvalidArgsException ex2)
 
 //   根据fingerprint读取Token
 //  Token fetchToken(1:string fingerprint) throws (1:NotFoundException ex)
 
-  string checkValidationCode(1:string code, 2:OperationCode action, 3:optional i32 countryCode, 4:optional string tel, 5:optional i64 userId) throws (1:ValidationCodeException ex)
+  string checkValidationCode(1:string code, 2:OperationCode action, 3:string tel, 4:optional i32 countryCode) throws (1:ValidationCodeException ex)
 
   // 用户修改密码（如果原先没有密码，则oldPassword可以设置为""）
   // AuthException: 旧密码错误

@@ -4,8 +4,8 @@ import java.security.MessageDigest
 import java.util.UUID
 
 import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
-import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
+import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.model.{ ContactRequest, UserInfo, _ }
 import com.lvxingpai.yunkai.serialization.{ TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse }
 import com.lvxingpai.yunkai.service.{ RedisFactory, SmsCenter }
@@ -688,8 +688,8 @@ object AccountManager {
    *
    * @return
    */
-  def checkValidationCode(valCode: String, action: OperationCode, countryCode: Option[Int] = None, tel: Option[String] = None, userId: Option[Long] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[String]] = {
-    val redisKey = ValidationCode.calcRedisKey(action, userId, tel, countryCode)
+  def checkValidationCode(valCode: String, action: OperationCode, tel: String, countryCode: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[String]] = {
+    val redisKey = ValidationCode.calcRedisKey(action, tel, countryCode)
     val magicCode = try {
       Global.conf.getString("smscenter.magicCode")
     } catch {
@@ -707,13 +707,7 @@ object AccountManager {
           // * The code coincides
           // * The action conincides
           val checkResult = (magicCode.nonEmpty && magicCode == valCode) ||
-            (code.code == valCode && code.action == action && !code.checked &&
-              (action match {
-                // 分两种情况：注册用户时，validation code的电话号码必须一致
-                // 其它情况下，validation code的userId必须一致
-                case item if item.value == OperationCode.Signup.value => tel.get == code.tel
-                case _ => userId.get == code.userId.get
-              }))
+            (code.code == valCode && code.action == action && !code.checked)
 
           // Set the validation code to CHECKED status no matter the check result is true or not.
           val expire = 10 * 60 * 1000L // 10分钟后过期
@@ -721,7 +715,7 @@ object AccountManager {
           // Generate a token
           if (checkResult) {
             val tokenKey = "yunkai:token/%s" format UUID.randomUUID().toString
-            val token = Token(tokenKey, action, userId, countryCode, tel, System.currentTimeMillis)
+            val token = Token(tokenKey, action, code.userId, countryCode, Some(code.tel), System.currentTimeMillis)
             client.setex(tokenKey, expire / 1000, token)
             client.del(redisKey)
             Some(tokenKey)
@@ -750,46 +744,76 @@ object AccountManager {
     }
   }
 
-  def sendValidationCode(action: OperationCode, countryCode: Option[Int] = None, tel: String, userId: Option[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def sendValidationCode(action: OperationCode, tel: String, countryCode: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
     val resendInterval = 60 * 1000L // 1分钟的发送间隔
-    val redisKey = ValidationCode.calcRedisKey(action, userId, Some(tel), countryCode)
     val digits = f"${Random.nextInt(1000000)}%06d"
+    val redisKey = ValidationCode.calcRedisKey(action, tel, countryCode)
 
+    import OperationCode.{ ResetPassword, Signup, UpdateTel }
+    implicit val format = ValidationCodeRedisFormat()
+    implicit val parse = ValidationCodeRedisParse()
+
+    // 发送短信
     def sendSms(): Future[Unit] = {
       val message = action match {
-        case item if item.value == OperationCode.Signup.value =>
+        case item if item.value == Signup.value =>
           s"为手机%s注册旅行派账户。验证码：$digits" format tel
-        case item if item.value == OperationCode.ResetPassword.value =>
+        case item if item.value == ResetPassword.value =>
           s"正在重置密码。验证码：$digits"
-        case item if item.value == OperationCode.UpdateTel.value =>
+        case item if item.value == UpdateTel.value =>
           s"正在绑定手机。验证码：$digits"
       }
       SmsCenter.client.sendSms(message, Seq(tel)) map (s => ())
     }
 
-    futurePool {
-      RedisFactory.pool.withClient(client => {
-        implicit val format = ValidationCodeRedisFormat()
-        implicit val parse = ValidationCodeRedisParse()
+    // 是否超过发送限额
+    val quotaExceeds = futurePool {
+      RedisFactory.pool withClient (_.get[ValidationCode](redisKey) map
+        (_.createTime + resendInterval < System.currentTimeMillis) getOrElse true)
+    }
 
-        // 确定是否可以再次发送验证码
-        val canSend = client.get[ValidationCode](redisKey) map (_.createTime + resendInterval
-          < System.currentTimeMillis) getOrElse true
+    // 通过手机号查找用户。返回值（true, user)。前者表示检验结果，后者表示对应的用户信息
+    val telSearch: Future[Option[UserInfo]] = {
+      val result = searchUserInfo(Map(UserInfoProp.Tel -> tel), None, None, None)
+      action match {
+        case item if item.value == Signup.value =>
+          result map (_.headOption)
+        case item if item.value == ResetPassword.value || item.value == UpdateTel.value =>
+          result map (v => if (v.length == 1) v.headOption else None)
+        case _ => throw InvalidArgsException(Some("Invalid operation code"))
+      }
+    }
 
-        if (!canSend)
+    // 当且仅当上述两个条件达成的时候，才生成验证码并发送
+    for {
+      quotaFlag <- quotaExceeds
+      telSearchResult <- telSearch
+      _ <- {
+        if (!quotaFlag)
           throw OverQuotaLimitException()
-        else {
-          val expire = 10 * 60 * 1000L // 10分钟后过期
-          val code = ValidationCode(digits, action, userId, tel, countryCode)
-          client.setex(redisKey, expire / 1000, code)
+
+        val expire = 10 * 60 * 1000L // 10分钟后过期
+        val code = action match {
+          case item if item.value == Signup.value =>
+            if (telSearchResult nonEmpty)
+              // 手机号码已存在
+              throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
+            else
+              ValidationCode(digits, action, None, tel, countryCode)
+          case item if item.value == ResetPassword.value || item.value == UpdateTel.value =>
+            if (telSearchResult isEmpty)
+              // 不存在相应的用户
+              throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
+            else
+              ValidationCode(digits, action, Some(telSearchResult.get.userId), tel, countryCode)
         }
-      })
-    } flatMap (result => {
-      if (result)
-        sendSms()
-      else
-        Future()
-    })
+
+        if (RedisFactory.pool.withClient(_.setex(redisKey, expire / 1000, code)))
+          sendSms()
+        else
+          Future()
+      }
+    } yield ()
   }
 
   /**
@@ -880,14 +904,11 @@ object AccountManager {
       // * action一致
       // * userId一致
       // * 未过期
-      val result = opt exists (valCode => {
-        valCode.action == action && (action match {
-          case item if item.value == OperationCode.Signup.value => tel.get == valCode.tel.get
-          case _ => userId.get == valCode.userId.get
-        })
+      opt exists (token => {
+        (userId.nonEmpty || tel.nonEmpty) &&
+          userId.map(_ == token.userId.getOrElse(0)).getOrElse(true) &&
+          tel.map(_ == token.tel.getOrElse("")).getOrElse(true)
       })
-
-      result
     }
   }
 
