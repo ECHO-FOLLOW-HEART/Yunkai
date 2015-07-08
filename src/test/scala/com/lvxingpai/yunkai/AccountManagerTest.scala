@@ -139,11 +139,11 @@ class AccountManagerTest extends YunkaiBaseTest {
       val (user, password) = initialUsers.head
       val newPassword = UUID.randomUUID().toString.take(8)
 
-      waitFuture(service.sendValidationCode(action, None, tel, Some(user.userId)))
+      waitFuture(service.sendValidationCode(action, tel, None))
       val digits = RedisFactory.pool.withClient(client => {
-        client.get[ValidationCode](ValidationCode.calcRedisKey(action, Some(user.userId), Some(tel), None)).get.code
+        client.get[ValidationCode](ValidationCode.calcRedisKey(action, tel, None)).get.code
       })
-      val token = waitFuture(service.checkValidationCode(digits, action, None, Some(tel), Some(user.userId)))
+      val token = waitFuture(service.checkValidationCode(digits, action, tel, None))
       waitFuture(service.resetPasswordByToken(user.userId, newPassword, token))
       val newUser = waitFuture(service.login(user.tel.get, newPassword, ""))
       newUser.userId should be(user.userId)
@@ -165,26 +165,27 @@ class AccountManagerTest extends YunkaiBaseTest {
 
         When("the validation code is sent")
         Then("the code should reside in Reids")
-        waitFuture(service.sendValidationCode(action, None, tel, Some(userId)))
+        waitFuture(service.sendValidationCode(action, tel, None))
 
         var digits = ""
         RedisFactory.pool.withClient(client => {
-          val code = client.get[ValidationCode](ValidationCode.calcRedisKey(action, Some(userId), Some(tel), None)).get
+          val code = client.get[ValidationCode](ValidationCode.calcRedisKey(action, tel, None)).get
           code.action.value should be(action.value)
           code.tel should be(tel)
-          code.userId.get should be(userId)
+          if (action.value != Signup.value)
+            code.userId.get should be(userId)
           digits = code.code
         })
 
         When("the validation code is being checked")
         Then("a token shoulde be returned")
-        val token = waitFuture(service.checkValidationCode(digits, action, None, Some(tel), Some(userId)))
+        val token = waitFuture(service.checkValidationCode(digits, action, tel, None))
         token should not be empty
 
         When("the validation code is checked for the second time")
         Then("a ValidationCodeException should be raised")
         intercept[ValidationCodeException] {
-          waitFuture(service.checkValidationCode(digits, action, None, Some(tel), Some(userId)))
+          waitFuture(service.checkValidationCode(digits, action, tel, None))
         }
       })
     }

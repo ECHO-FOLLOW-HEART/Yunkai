@@ -2,7 +2,7 @@ package com.lvxingpai.yunkai.model
 
 import java.security.MessageDigest
 
-import com.lvxingpai.yunkai.{ InvalidArgsException, OperationCode }
+import com.lvxingpai.yunkai.OperationCode
 
 import scala.language.postfixOps
 
@@ -14,7 +14,7 @@ import scala.language.postfixOps
 case class ValidationCode(code: String, action: OperationCode, userId: Option[Long] = None, tel: String,
     countryCode: Option[Int], createTime: Long = System.currentTimeMillis,
     var checked: Boolean = false) {
-  val fingerprint: String = ValidationCode.calcFingerprint(action, userId, Some(tel), countryCode)
+  val fingerprint: String = ValidationCode.calcFingerprint(action, tel, countryCode)
 }
 
 object ValidationCode {
@@ -25,20 +25,14 @@ object ValidationCode {
    * 如果未提供userId，则：action + countryCode + tel
    * 否则报错：InvalidArgsException
    */
-  def calcFingerprint(action: OperationCode, userId: Option[Long] = None, tel: Option[String] = None, countryCode: Option[Int] = None): String = {
-    val track = try {
-      userId getOrElse s"00${countryCode.getOrElse(86)}${tel.get}"
-    } catch {
-      case _: NoSuchElementException =>
-        throw InvalidArgsException()
-    }
-    val plain = s"action=${action.value}&track=$track"
+  def calcFingerprint(action: OperationCode, tel: String, countryCode: Option[Int] = None): String = {
+    val plain = s"action=${action.value}&tel=00${countryCode.getOrElse(86)}$tel"
     val bytes = MessageDigest.getInstance("MD5").digest(plain.getBytes)
     bytes map ("%02x" format _) mkString
   }
 
-  def calcRedisKey(action: OperationCode, userId: Option[Long] = None, tel: Option[String] = None, countryCode: Option[Int] = None): String = {
-    val fingerprint = calcFingerprint(action, userId, tel, countryCode)
+  def calcRedisKey(action: OperationCode, tel: String, countryCode: Option[Int] = None): String = {
+    val fingerprint = calcFingerprint(action, tel, countryCode)
     s"yunkai:valcode/$fingerprint"
   }
 }
