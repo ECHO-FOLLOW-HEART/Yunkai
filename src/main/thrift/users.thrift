@@ -163,6 +163,7 @@ service userservice {
   // 取消好友请求
   void cancelContactRequest(1:string requestId) throws (1:NotFoundException ex)
 
+  // 获得某个用户接收到的好友请求列表，按照时间逆序排列
   list<ContactRequest> getContactRequests(1:i64 userId, 2:optional i32 offset, 3:optional i32 limit) throws (1:NotFoundException ex)
 
   // 添加单个好友

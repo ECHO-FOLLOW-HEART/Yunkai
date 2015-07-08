@@ -286,6 +286,10 @@ object AccountManager {
    */
   private def isDuplicateKeyException(ex: MongoCommandException): Boolean = ex.getErrorMessage contains "duplicate key"
 
+  /**
+   * 获得某个接收者（注意，不是请求发送者）名下所有的好友列表，按照时间逆序排列
+   * @return
+   */
   def getContactRequestList(userId: Long, offset: Int, limit: Int)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ContactRequest]] = {
     for {
       userInfoOpt <- getUserById(userId)
@@ -294,6 +298,7 @@ object AccountManager {
         throw NotFoundException()
       else {
         ds.createQuery(classOf[ContactRequest]).field(ContactRequest.fdReceiver).equal(userId)
+          .order(s"-${ContactRequest.fdTimestamp}")
           .offset(offset).limit(limit).asList().toSeq
       }
     }
