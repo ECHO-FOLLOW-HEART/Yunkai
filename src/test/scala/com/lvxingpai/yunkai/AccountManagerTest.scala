@@ -157,21 +157,26 @@ class AccountManagerTest extends YunkaiBaseTest {
     implicit val parse = ValidationCodeRedisParse()
 
     scenario("a validation code is sent and checked") {
-      val userId = initialUsers.head._1.userId
-      val tel = "15313380327"
+
+      val user = initialUsers.head._1
+      val userId = user.userId
+      val tel = user.tel.get
 
       Signup :: ResetPassword :: UpdateTel :: Nil foreach (action => {
         Given("an action code of %s" format action.toString)
 
         When("the validation code is sent")
         Then("the code should reside in Reids")
-        waitFuture(service.sendValidationCode(action, tel, None))
+
+        val theTel = if (action.value == Signup.value) "13800138111" else tel
+
+        waitFuture(service.sendValidationCode(action, theTel, None))
 
         var digits = ""
         RedisFactory.pool.withClient(client => {
-          val code = client.get[ValidationCode](ValidationCode.calcRedisKey(action, tel, None)).get
+          val code = client.get[ValidationCode](ValidationCode.calcRedisKey(action, theTel, None)).get
           code.action.value should be(action.value)
-          code.tel should be(tel)
+          code.tel should be(theTel)
           if (action.value != Signup.value)
             code.userId.get should be(userId)
           digits = code.code
@@ -179,13 +184,13 @@ class AccountManagerTest extends YunkaiBaseTest {
 
         When("the validation code is being checked")
         Then("a token shoulde be returned")
-        val token = waitFuture(service.checkValidationCode(digits, action, tel, None))
+        val token = waitFuture(service.checkValidationCode(digits, action, theTel, None))
         token should not be empty
 
         When("the validation code is checked for the second time")
         Then("a ValidationCodeException should be raised")
         intercept[ValidationCodeException] {
-          waitFuture(service.checkValidationCode(digits, action, tel, None))
+          waitFuture(service.checkValidationCode(digits, action, theTel, None))
         }
       })
     }
