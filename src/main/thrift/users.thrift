@@ -116,6 +116,10 @@ exception UserExistsException {
   1:optional string message
 }
 
+exception ResourceConflictException {
+  1:optional string message
+}
+
 exception GroupMembersLimitException {
   1:optional string message
 }
@@ -213,7 +217,7 @@ service userservice {
   void updateTelNumber(1:i64 userId, 2:string tel, 3:string token) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2, 3:AuthException ex3)
 
   // 新用户注册。支持的UserInfoProp暂时只有tel
-  UserInfo createUser(1:string nickName, 2:string password, 3:optional map<UserInfoProp, string> miscInfo) throws (1: UserExistsException ex1, 2: InvalidArgsException ex2)
+  UserInfo createUser(1:string nickName, 2:string password, 3:optional map<UserInfoProp, string> miscInfo) throws (1:ResourceConflictException ex1, 2: InvalidArgsException ex2)
 
   // 搜索用户(参数1表示根据哪些字段搜索, 参数2表示返回的字段, 参数3表示当前页从第几个开始, 4表示一页返回多少个)
   list<UserInfo> searchUserInfo(1: map<UserInfoProp, string> queryFields, 2: optional list<UserInfoProp> fields, 3: optional i32 offset, 4: optional i32 count)

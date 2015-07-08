@@ -649,12 +649,19 @@ object AccountManager {
     } yield {
       val newUser = UserInfo(userId, nickName)
       newUser.tel = tel.getOrElse(UUID.randomUUID().toString)
-      try {
-        ds.save[UserInfo](newUser)
-        newUser
-      } catch {
-        case ex: DuplicateKeyException => throw new UserExistsException(Some(s"User $userId is existed"))
-      }
+
+      // 检查用户是否已经存在
+      val query = ds.createQuery(classOf[UserInfo]).retrievedFields(true, UserInfo.fdUserId)
+      query.or(query.criteria(UserInfo.fdUserId).equal(userId), query.criteria(UserInfo.fdTel).equal(newUser.tel))
+      if (query.get() != null)
+        throw new ResourceConflictException(Some(s"User $userId is existed"))
+      else
+        try {
+          ds.save[UserInfo](newUser)
+        } catch {
+          case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
+        }
+      newUser
     }
 
     val (salt, crypted) = saltPassword(password)
@@ -929,9 +936,13 @@ object AccountManager {
         val cls = classOf[UserInfo]
         val query = ds.createQuery(cls).field(fdUserId).equal(userId)
         val updateOps = ds.createUpdateOperations(cls).set(fdTel, tel)
-        val result = ds.updateFirst(query, updateOps)
-        if (!result.getUpdatedExisting)
-          throw NotFoundException(Some(s"Cannot find user $userId"))
+        try {
+          val result = ds.updateFirst(query, updateOps)
+          if (!result.getUpdatedExisting)
+            throw NotFoundException(Some(s"Cannot find user $userId"))
+        } catch {
+          case _: DuplicateKeyException => throw ResourceConflictException(Some(s"Phone number $tel already exists"))
+        }
       }
     })
   }
