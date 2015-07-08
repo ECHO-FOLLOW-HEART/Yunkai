@@ -946,7 +946,7 @@ object AccountManager {
     val criteriaList = queryFields.toSeq map (item => {
       item._1 match {
         case UserInfoProp.Tel => ds.createQuery(cls).criteria(UserInfo.fdTel).startsWith(item._2)
-        case UserInfoProp.NickName => ds.createQuery(cls).criteria(UserInfo.fdNickName).startsWithIgnoreCase(item._2)
+        case UserInfoProp.NickName => ds.createQuery(cls).criteria(UserInfo.fdNickName).startsWith(item._2)
         case _ => null
       }
     }) filter (_ != null)
