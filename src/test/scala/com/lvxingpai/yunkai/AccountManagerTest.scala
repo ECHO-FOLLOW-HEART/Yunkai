@@ -3,8 +3,8 @@ package com.lvxingpai.yunkai
 import java.util.UUID
 
 import com.lvxingpai.yunkai.Implicits._
-import com.lvxingpai.yunkai.handler.{AccountManager, UserServiceHandler}
-import com.lvxingpai.yunkai.model.{ChatGroup => ChatGroupMorphia, ContactRequest => ContactRequestMorphia, UserInfo => UserInfoMorphia, ValidationCode}
+import com.lvxingpai.yunkai.handler.{ AccountManager, UserServiceHandler }
+import com.lvxingpai.yunkai.model.{ ChatGroup => ChatGroupMorphia, ContactRequest => ContactRequestMorphia, UserInfo => UserInfoMorphia, ValidationCode }
 import com.lvxingpai.yunkai.serialization._
 import com.lvxingpai.yunkai.service.RedisFactory
 import com.twitter.util.Future

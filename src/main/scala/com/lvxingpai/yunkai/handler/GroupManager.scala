@@ -262,53 +262,54 @@ object GroupManager {
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     val futureUsers = AccountManager.getUsersByIdList(responseFields, userIdsToAdd :+ operatorId: _*)
 
-    // 在ChatGroup.participants中添加
-    def func1(group: ChatGroup, users: Map[Long, Option[UserInfo]]): Future[(Seq[Long], Seq[UserInfo])] = futurePool {
-      if (group == null || users.exists(_._2.isEmpty))
-        throw NotFoundException(Some("Cannot find all the users and the chat group"))
-      else {
-        val col = MorphiaFactory.getCollection(classOf[ChatGroup])
-
-        val usersToAdd = (users map (_._2.get)).toSeq
-        val maxUsers = group.maxUsers
-        val fieldName = ChatGroup.fdParticipants
-        val addUserCount = usersToAdd.length
-        val funcSpec =
-          s"""var l = (this.$fieldName == null) ? 0 : this.$fieldName.length;
-                                                                       |return l + $addUserCount <= $maxUsers""".stripMargin.trim
-
-        val query = BasicDBObjectBuilder.start().add(ChatGroup.fdChatGroupId, chatGroupId).add("$where", funcSpec).get()
-        val fields = BasicDBObjectBuilder.start(Map(ChatGroup.fdParticipants -> 1, ChatGroup.fdMaxUsers -> 1)).get()
-        val sort = new BasicDBObject()
-        val ops = new BasicDBObject("$push",
-          new BasicDBObject(ChatGroup.fdParticipants,
-            BasicDBObjectBuilder.start()
-              .add("$each", bufferAsJavaList(userIdsToAdd.toBuffer)).add("$slice", maxUsers).get()))
-        val doc = col.findAndModify(query, fields, sort, false, ops, true, false)
-        if (doc == null)
-          throw GroupMembersLimitException()
-        else {
-          val remainedParticipants = doc.get(ChatGroup.fdParticipants).asInstanceOf[BasicDBList].toSeq map (_.asInstanceOf[Long])
-          remainedParticipants -> usersToAdd
-        }
-      }
+    // 检查users是否都是有效的，并消除Option
+    def verifyUsers(users: Map[Long, Option[UserInfo]]): Map[Long, UserInfo] = {
+      if (users exists (_._2.isEmpty))
+        throw NotFoundException(Some("Cannot find all the users"))
+      users mapValues (_.get)
     }
+
     // 验证chatGroupId是否有误
-    def verify(group: Option[ChatGroup]): Future[ChatGroup] = {
+    def verify(group: Option[ChatGroup]): ChatGroup = {
       if (group isEmpty)
         throw NotFoundException(Some(s"Cannot find chat group $chatGroupId"))
       else
-        futurePool {
-          group.get
-        }
+        group.get
+    }
+
+    // 在ChatGroup.participants中添加成员。返回群组中的成员，以及被添加的成员列表。
+    def func1(group: ChatGroup, users: Map[Long, UserInfo]): Future[(Seq[Long], Seq[UserInfo])] = futurePool {
+      val col = MorphiaFactory.getCollection(classOf[ChatGroup])
+      val usersToAdd = (users map (_._2)).toSeq
+      val maxUsers = group.maxUsers
+      val fieldName = ChatGroup.fdParticipants
+      val addUserCount = usersToAdd.length
+      val funcSpec = s"""var l = (this.$fieldName == null) ? 0 : this.$fieldName.length; return l + $addUserCount <= $maxUsers""".stripMargin.trim
+
+      val query = BasicDBObjectBuilder.start().add(ChatGroup.fdChatGroupId, chatGroupId).add("$where", funcSpec).get()
+      val fields = BasicDBObjectBuilder.start(Map(ChatGroup.fdParticipants -> 1, ChatGroup.fdMaxUsers -> 1)).get()
+      val sort = new BasicDBObject()
+      val ops = new BasicDBObject("$addToSet", new BasicDBObject(ChatGroup.fdParticipants, BasicDBObjectBuilder
+        .start()
+        .add("$each", bufferAsJavaList(userIdsToAdd.toBuffer))
+        .add("$slice", maxUsers).get()))
+
+      val doc = col.findAndModify(query, fields, sort, false, ops, true, false)
+      if (doc == null)
+        throw GroupMembersLimitException()
+      else {
+        val currentMembers = doc.get(ChatGroup.fdParticipants).asInstanceOf[BasicDBList].toSeq map (_.asInstanceOf[Long])
+        currentMembers -> usersToAdd
+      }
     }
 
     for {
-      group <- futureGroup
-      group2 <- verify(group)
-      users <- futureUsers // Users to be removed(with both userId and nickName available)
-      entry <- func1(group2, users)
-      _ <- emitChatGroupMembersEvents(EventEmitter.evtAddGroupMembers, group2, users(operatorId).get, entry._2)
+      groupOpt <- futureGroup
+      group <- Future(verify(groupOpt))
+      usersOpt <- futureUsers // Users to be removed(with both userId and nickName available)
+      users <- Future(verifyUsers(usersOpt) - operatorId)
+      entry <- func1(group, users)
+      _ <- emitChatGroupMembersEvents(EventEmitter.evtAddGroupMembers, group, usersOpt(operatorId).get, entry._2)
     } yield {
       entry._1
     }
@@ -365,18 +366,6 @@ object GroupManager {
       for (elem <- users.values.toSeq)
         userInfos.add(elem.get)
     }
-
-    //    // 更新Conversation
-    //    def procConversation(group: ChatGroup): Future[ChatGroup] = {
-    //      // 更新Conversation的成员列表
-    //      // 目前先这么做，后面给成观察者模式
-    //      val queryConversation = ds.createQuery(classOf[Conversation]).field(Conversation.fdId).equal(chatGroupId)
-    //      val conversationUpdateOps = ds.createUpdateOperations(classOf[Conversation]).removeAll(Conversation.fdParticipants, userIds)
-    //      futurePool {
-    //        ds.updateFirst(queryConversation, conversationUpdateOps)
-    //        group
-    //      }
-    //    }
 
     for {
       group <- groupFuture
