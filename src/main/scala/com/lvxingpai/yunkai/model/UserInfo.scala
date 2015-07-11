@@ -1,11 +1,11 @@
 package com.lvxingpai.yunkai.model
 
-import java.util.UUID
+import java.util.{ List => JList, UUID }
 import javax.validation.constraints.{ Min, NotNull, Size }
 
 import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.NotBlank
-import org.mongodb.morphia.annotations.{ Entity, Id, Indexed, Version }
+import org.mongodb.morphia.annotations.{ Entity, Indexed, Version }
 
 import scala.beans.BeanProperty
 
@@ -13,11 +13,7 @@ import scala.beans.BeanProperty
  * Created by zephyre on 5/4/15.
  */
 @Entity
-class UserInfo {
-  @BeanProperty
-  @Id
-  var id: ObjectId = null
-
+class UserInfo extends AbstractEntity {
   @BeanProperty
   @NotNull
   @Min(value = 1)
@@ -45,14 +41,11 @@ class UserInfo {
   @Size(min = 6, max = 32)
   var tel: String = null
 
-  //  @BeanProperty
-  //  var contacts: Seq[Long] = null
-
-  //  @BeanProperty
-  //  var chatGroups: JList[Long] = null
-
   @Version
   var version: Long = 0
+
+  @BeanProperty
+  var roles: JList[Int] = null
 }
 
 object UserInfo {
@@ -65,6 +58,7 @@ object UserInfo {
   val fdTel = "tel"
   val fdGender = "gender"
   val fdChatGroups = "chatGroups"
+  val fdRoles = "roles"
 
   def apply(userId: Long, nickName: String): UserInfo = {
     val result = new UserInfo

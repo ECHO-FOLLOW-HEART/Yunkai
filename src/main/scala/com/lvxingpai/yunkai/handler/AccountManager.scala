@@ -56,7 +56,7 @@ object AccountManager {
       case UserInfoProp.Avatar => UserInfo.fdAvatar
       case UserInfoProp.Tel => UserInfo.fdTel
       case UserInfoProp.Gender => UserInfo.fdGender
-      case UserInfoProp.ChatGroups => UserInfo.fdChatGroups
+      case UserInfoProp.Roles => UserInfo.fdRoles
       case _ => throw new IllegalArgumentException("Illegal arguemnt: %s" format prop.toString)
     }
   }
@@ -114,6 +114,35 @@ object AccountManager {
       }
     } else
       throw new InvalidArgsException(Some("Invalid updated fields"))
+  }
+
+  /**
+   * 更改用户的身份列表
+   *
+   * @return
+   */
+  def updateUserRoles(userId: Long, addRoles: Boolean, roles: Seq[Role])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+    import UserInfo._
+
+    val cls = classOf[UserInfo]
+    val query = ds.createQuery(cls) field fdUserId equal userId retrievedFields (true, fdRoles)
+
+    futurePool {
+      val rolesJ = seqAsJavaList(roles map (_.value))
+      val result = if (roles != null && roles.nonEmpty) {
+        val ops = if (addRoles)
+          ds.createUpdateOperations(cls).addAll(fdRoles, rolesJ, false)
+        else
+          ds.createUpdateOperations(cls).removeAll(fdRoles, rolesJ)
+        ds.findAndModify(query, ops, false)
+      } else
+        query.get()
+
+      if (result == null)
+        throw NotFoundException(Some(s"Cannot find user: $userId"))
+      else
+        result
+    }
   }
 
   /**
@@ -563,7 +592,7 @@ object AccountManager {
         }
         // 获得需要处理的字段名
         val allowedProperties = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar,
-          UserInfoProp.Signature, UserInfoProp.Gender, UserInfoProp.Tel)
+          UserInfoProp.Signature, UserInfoProp.Gender, UserInfoProp.Tel, UserInfoProp.Roles)
         val retrievedFields = (fields filter (allowedProperties.contains(_))) ++ Seq(UserInfoProp.UserId,
           UserInfoProp.Id) map userInfoPropToFieldName
 

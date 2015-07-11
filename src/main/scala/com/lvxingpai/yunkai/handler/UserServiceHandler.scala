@@ -226,6 +226,8 @@ class UserServiceHandler extends Userservice.FutureIface {
     })
   }
 
+  override def updateUserRoles(userId: Long, addRoles: Boolean, roles: Option[Seq[Role]]): Future[yunkai.UserInfo] =
+    AccountManager.updateUserRoles(userId, addRoles, roles getOrElse Seq()) map (user => user)
 }
 
 object UserServiceHandler {
@@ -251,7 +253,8 @@ object UserServiceHandler {
     val signature = Option(user.signature)
     val tel = Option(user.tel)
 
-    yunkai.UserInfo(id.toString, userId, nickName, avatar, gender, signature, tel)
+    val roles = Option(user.roles) map (_.toSeq map Role.apply) getOrElse Seq()
+    yunkai.UserInfo(id.toString, userId, nickName, avatar, gender, signature, tel, loginStatus = false, roles = roles)
   }
 
   implicit def chatGroupConversion(chatGroup: ChatGroup): yunkai.ChatGroup = {
