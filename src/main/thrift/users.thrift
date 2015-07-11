@@ -9,9 +9,19 @@ enum Gender {
 }
 
 // 聊天群组的类型。CHATGROUP为普通讨论组
-enum GroupType{
+enum GroupType {
   CHATGROUP,
   FORUM
+}
+
+// 用户身份（达人、商家、管理员等）
+enum Role {
+  // 管理员
+  ADMIN = 10,
+  // 达人用户
+  VIP_USER = 5,
+  // 商户
+  SELLER = 20
 }
 
 // 由一个用户向另外一个用户发起的好友申请
@@ -35,6 +45,11 @@ struct UserInfo {
   5: optional Gender gender,
   6: optional string signature,
   7: optional string tel,
+  8: bool loginStatus,
+  9: optional i64 loginTime,
+  10: optional i64 logoutTime,
+  11: list<string> loginSource
+  100: list<Role> roles
 }
 
 // 讨论组信息
@@ -82,7 +97,7 @@ enum UserInfoProp {
   GENDER,
   SIGNATURE,
   TEL,
-  CHAT_GROUPS
+  ROLES
 }
 
 //Created by pengyt on 2015/5/26.
@@ -149,6 +164,11 @@ service userservice {
   // 更新用户的信息。支持的UserInfoProp有：nickName, signature, gender和avatar
   // InvalidArgsException: 如果要更新的内容不合法，则会抛出该异常
   UserInfo updateUserInfo(1:i64 userId, 2:map<UserInfoProp, string> userInfo) throws (1:NotFoundException ex1, 2:InvalidArgsException ex2)
+
+  // 更改用户的身份
+  // 返回：更新以后用户的身份列表
+  // NotFoundException: 如果userId所对应的用户不存在
+  UserInfo updateUserRoles(1:i64 userId, 2:bool addUser, 3:optional list<Role> roles) throws (1:NotFoundException ex)
 
   // 判断两个用户是否为好友关系
   bool isContact(1:i64 userA, 2:i64 userB) throws (1:NotFoundException ex)
