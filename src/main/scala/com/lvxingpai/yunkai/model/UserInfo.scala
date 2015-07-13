@@ -41,6 +41,27 @@ class UserInfo extends AbstractEntity {
   @Size(min = 6, max = 32)
   var tel: String = null
 
+  //  @BeanProperty
+  //  var contacts: Seq[Long] = null
+
+  //  @BeanProperty
+  //  var chatGroups: JList[Long] = null
+
+  @BeanProperty
+  @NotNull
+  var loginStatus: Boolean = false
+
+  @BeanProperty
+  @NotNull
+  var loginTime: Long = 0
+
+  @BeanProperty
+  @NotNull
+  var logoutTime: Long = 0
+
+  @BeanProperty
+  var loginSource: JList[String] = null
+
   @Version
   var version: Long = 0
 
@@ -59,6 +80,10 @@ object UserInfo {
   val fdGender = "gender"
   val fdChatGroups = "chatGroups"
   val fdRoles = "roles"
+  val fdLoginStatus = "loginStatus"
+  val fdLoginTime = "loginTime"
+  val fdLogoutTime = "logoutTime"
+  val fdLoginSource = "loginSource"
 
   def apply(userId: Long, nickName: String): UserInfo = {
     val result = new UserInfo
