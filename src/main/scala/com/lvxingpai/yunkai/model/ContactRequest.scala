@@ -79,6 +79,7 @@ object ContactRequest {
 
   def apply(sender: Long, receiver: Long, message: Option[String], expire: Option[Long]): ContactRequest = {
     val req = new ContactRequest
+    req.id = new ObjectId()
     req.sender = sender
     req.receiver = receiver
     req.requestMessage = message.orNull

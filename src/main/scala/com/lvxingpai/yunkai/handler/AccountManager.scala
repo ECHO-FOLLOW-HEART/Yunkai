@@ -150,29 +150,44 @@ object AccountManager {
    *
    * @return
    */
+//  def isContact(userA: Long, userB: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+//    val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
+//
+//    //    val userList = getUsersByIdList(Seq(), user1, user2)
+//    val relationship = futurePool {
+//      val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1)
+//        .field(Relationship.fdUserB).equal(user2)
+//        .retrievedFields(true, Relationship.fdId)
+//        .get
+//      rel != null
+//    }
+//
+//    for {
+//      //      l <- userList
+//      rel <- relationship
+//    } yield {
+//      //      if (l exists (_._2 isEmpty))
+//      //        throw NotFoundException()
+//      //      else
+//      rel
+//    }
+//  }
+
   def isContact(userA: Long, userB: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
     val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
-
-    //    val userList = getUsersByIdList(Seq(), user1, user2)
     val relationship = futurePool {
       val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1)
         .field(Relationship.fdUserB).equal(user2)
+        .field(Relationship.fdRelA).equal(true)
+        .field(Relationship.fdRelB).equal(true)
         .retrievedFields(true, Relationship.fdId)
         .get
       rel != null
     }
-
     for {
-      //      l <- userList
       rel <- relationship
-    } yield {
-      //      if (l exists (_._2 isEmpty))
-      //        throw NotFoundException()
-      //      else
-      rel
-    }
+    } yield rel
   }
-
   /**
    * 添加好友
    *
@@ -185,6 +200,7 @@ object AccountManager {
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
 
     getUsersByIdList(responseFields, userId +: targetUsersFiltered: _*) flatMap (m => {
+      import Relationship._
       // 相应的用户必须存在
       if (m exists (_._2 isEmpty))
         throw NotFoundException()
@@ -192,10 +208,22 @@ object AccountManager {
 
       val jobs = targetUsersFiltered map (target => futurePool {
         val (user1, user2) = if (userId <= target) (userId, target) else (target, userId)
-        val op = ds.createUpdateOperations(cls).set(Relationship.fdUserA, user1).set(Relationship.fdUserB, user2)
-        val query = ds.createQuery(cls).field(Relationship.fdUserA).equal(user1)
-          .field(Relationship.fdUserB).equal(user2)
-        ds.updateFirst(query, op, true)
+        val updateOps = if(userId <= target){
+          ds.createUpdateOperations(cls).set(fdUserA, user1)
+            .set(fdUserB, user2)
+            .set(fdRelA, true)
+            .set(fdRelB, true)
+            .set(s"$fdReqA.status", ContactRequest.RequestStatus.ACCEPTED.id)
+        } else {
+          ds.createUpdateOperations(cls).set(fdUserA, user1)
+            .set(fdUserB, user2)
+            .set(fdRelA, true)
+            .set(fdRelB, true)
+            .set(s"$fdRelB.status", ContactRequest.RequestStatus.ACCEPTED.id)
+        }
+        val query = ds.createQuery(cls).field(fdUserA).equal(user1)
+          .field(fdUserB).equal(user2)
+        ds.updateFirst(query, updateOps, true)
 
         // 触发添加联系人的事件
         val sender = m(userId).get
@@ -232,9 +260,17 @@ object AccountManager {
             .criteria(Relationship.fdUserB).equal(l last)
         }
 
+        // 查询好友, 修改relA或者relB的值, 修改reqA中status属性或者reqB中status属性
+
         val query = ds.createQuery(classOf[Relationship])
         query.or(targetUsersFiltered map (buildQuery(userId, _)): _*)
-        ds.delete(query)
+        for(ele <- targetUsersFiltered) {
+          val updateOps = if(userId <= ele) ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdRelA, false)
+          else ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdRelB, false)
+          ds.updateFirst(query, updateOps)
+        }
+
+//        ds.delete(query)
 
         // 触发删除联系人的事件
         val userAInfo = m(userId).get
@@ -265,7 +301,7 @@ object AccountManager {
     count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
     val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
       (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
-    val queryRel = ds.createQuery(classOf[Relationship])
+    val queryRel = ds.createQuery(classOf[Relationship]).field(Relationship.fdRelA).equal(true).field(Relationship.fdRelB).equal(true)
     queryRel.or(criteria: _*)
     val defaultOffset = 0
     val defaultCount = 1000
@@ -287,26 +323,26 @@ object AccountManager {
     } yield contactsMap.toSeq.map(_._2.orNull) filter (_ != null)
   }
 
-  /**
-   * 给定一个ContactRequest，生成相应的MongoDB update operation
-   * @param req
-   * @param ds
-   * @return
-   */
-  private def buildContactRequestUpdateOps(req: ContactRequest)(implicit ds: Datastore): UpdateOperations[ContactRequest] = {
-    import ContactRequest._
-    val updateOps = ds.createUpdateOperations(classOf[ContactRequest])
-      .set(fdSender, req.sender)
-      .set(fdReceiver, req.receiver)
-      .set(fdTimestamp, req.timestamp)
-      .set(fdExpire, req.expire)
-      .set(fdStatus, req.status)
-    if (req.requestMessage != null)
-      updateOps.set(fdRequestMessage, req.requestMessage)
-    if (req.rejectMessage != null)
-      updateOps.set(fdRejectMessage, req.rejectMessage)
-    updateOps
-  }
+//  /**
+//   * 给定一个ContactRequest，生成相应的MongoDB update operation
+//   * @param req
+//   * @param ds
+//   * @return
+//   */
+//  private def buildContactRequestUpdateOps(req: ContactRequest)(implicit ds: Datastore): UpdateOperations[ContactRequest] = {
+//    import ContactRequest._
+//    val updateOps = ds.createUpdateOperations(classOf[ContactRequest])
+//      .set(fdSender, req.sender)
+//      .set(fdReceiver, req.receiver)
+//      .set(fdTimestamp, req.timestamp)
+//      .set(fdExpire, req.expire)
+//      .set(fdStatus, req.status)
+//    if (req.requestMessage != null)
+//      updateOps.set(fdRequestMessage, req.requestMessage)
+//    if (req.rejectMessage != null)
+//      updateOps.set(fdRejectMessage, req.rejectMessage)
+//    updateOps
+//  }
 
   /**
    * 当产生逐渐冲突时，MongoDB会抛出MongoCommandException异常，在其中的detailedMessage部分。
@@ -319,20 +355,20 @@ object AccountManager {
    * 获得某个接收者（注意，不是请求发送者）名下所有的好友列表，按照时间逆序排列
    * @return
    */
-  def getContactRequestList(userId: Long, offset: Int, limit: Int)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ContactRequest]] = {
-    for {
-      userInfoOpt <- getUserById(userId)
-    } yield {
-      if (userInfoOpt isEmpty)
-        throw NotFoundException()
-      else {
-        ds.createQuery(classOf[ContactRequest]).field(ContactRequest.fdReceiver).equal(userId)
-          .order(s"-${ContactRequest.fdTimestamp}")
-          .offset(offset).limit(limit).asList().toSeq
-      }
-    }
-  }
+//  def getContactRequestList(userId: Long, offset: Int, limit: Int)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ContactRequest]] = {
+//    for {
+//      userInfoOpt <- getUserById(userId)
+//    } yield {
+//      if (userInfoOpt isEmpty)
+//        throw NotFoundException()
+//      else {
+//        ds.createQuery(classOf[ContactRequest]).field(ContactRequest.fdReceiver).equal(userId)
+//          .order(s"-${ContactRequest.fdTimestamp}")
+//          .offset(offset).limit(limit).asList().toSeq
+//      }
+//    }
 
+//}
   /**
    * 发送好友请求
    * @param sender    请求发送者
@@ -352,7 +388,7 @@ object AccountManager {
       else if (users exists (_._2.isEmpty))
         throw NotFoundException()
       else {
-        import ContactRequest._
+        import Relationship._
 
         val req = ContactRequest(sender, receiver, message, None)
 
@@ -362,8 +398,8 @@ object AccountManager {
         // * 发送过好友申请，且前一申请的状态为PENDING，且已经过期
         // UPDATED: 我决定放开这个限制，可以无限制地发送请求，只不过requestId不会改变
 
-        val cls = classOf[ContactRequest]
-        val query = ds.createQuery(cls).field(fdSender).equal(sender).field(fdReceiver).equal(receiver)
+        val cls = classOf[Relationship]
+        val query = ds.createQuery(cls).field(fdUserA).equal(sender).field(fdUserB).equal(receiver)
 
         // val criteria1 = ds.createQuery(cls).criteria(fdStatus).equal(CANCELLED.id)
         //        val criteria2 = ds.createQuery(cls).criteria(fdStatus).equal(PENDING.id)
@@ -374,8 +410,13 @@ object AccountManager {
         // criteria3))
         //          ds.createQuery(cls).and(criteria2, criteria3)))
 
-        val updateOps = buildContactRequestUpdateOps(req).unset(fdRejectMessage) //.set(fdContactRequestId, UUID.randomUUID().toString)
+        //val updateOps = buildContactRequestUpdateOps(req).unset(fdRejectMessage) //.set(fdContactRequestId, UUID.randomUUID().toString)
         val newRequest = try {
+          val updateOps = if(sender <= receiver) { // 更新Relationship  reqA
+            ds.createUpdateOperations(classOf[Relationship]).set(fdReqA, req).set(fdUserA, sender).set(fdUserB, receiver).unset(s"$fdReqA.fdRejectMessage").set(fdId, new ObjectId())
+          } else {  // 更新Relationship  reqB
+            ds.createUpdateOperations(classOf[Relationship]).set(fdReqB, req).set(fdUserA, receiver).set(fdUserB, sender).unset(s"$fdReqB.fdRejectMessage").set(fdId, new ObjectId())
+          }
           ds.findAndModify(query, updateOps, false, true)
         } catch {
           // 如果发生该异常，说明系统中已经存在一个好友请求，且不允许重复发送请求
@@ -389,7 +430,8 @@ object AccountManager {
         // 触发发送好友请求
         val senderInfo = users(sender).get
         val receiverInfo = users(receiver).get
-        sendContactRequestEvents(EventEmitter.evtSendContactRequest, newRequest.id, message, senderInfo, receiverInfo)
+        val reqId = if(sender <= receiver) newRequest.reqA.id else newRequest.reqB.id
+        sendContactRequestEvents(EventEmitter.evtSendContactRequest, reqId, message, senderInfo, receiverInfo)
         newRequest.id
       }
     }
@@ -424,14 +466,22 @@ object AccountManager {
   def rejectContactRequest(requestId: String, message: Option[String] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
     import ContactRequest.RequestStatus._
     import ContactRequest._
+    import Relationship._
 
     getContactRequest(requestId)(ds, futurePool) map (oldRequest => {
       if (oldRequest isEmpty)
         throw NotFoundException(Some(s"Cannot find the request $requestId"))
       else {
-        val cls = classOf[ContactRequest]
-        val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
+//        val cls = classOf[ContactRequest]
+        val cls = classOf[Relationship]
+
+        val query = ds.createQuery(cls).field(s"$fdReqA.id").equal(new ObjectId(requestId))
+        val criteria = ds.createQuery(cls).criteria(s"$fdRelB.id").equal(new ObjectId(requestId))
+        query.or(criteria)
+//        val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
+        // 如果reqId在relationship的reqA中, 那么更新操作变为更改relationship的reqA的status属性, 否则变为更改relationship的reqB的status属性
         val updateOps = ds.createUpdateOperations(cls).set(fdStatus, REJECTED.id)
+
         if (message nonEmpty)
           updateOps.set(fdRejectMessage, message.get)
 
@@ -459,39 +509,57 @@ object AccountManager {
    * @param requestId 请求ID
    * @return
    */
-  def acceptContactRequest(requestId: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
-    import ContactRequest.RequestStatus._
-    import ContactRequest._
+//  def acceptContactRequest(requestId: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+//    import ContactRequest.RequestStatus._
+//    import ContactRequest._
+//
+//    getContactRequest(requestId = requestId)(ds, futurePool) flatMap (oldRequest => {
+//      if (oldRequest isEmpty)
+//        throw NotFoundException(Some(s"Cannot find the request $requestId"))
+//      else {
+//        val cls = classOf[ContactRequest]
+//
+//        val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
+//        val updateOps = ds.createUpdateOperations(cls).set(fdStatus, ACCEPTED.id)
+//
+//        val newRequest = ds.findAndModify(query, updateOps, false, false)
+//        if (newRequest == null)
+//          throw InvalidStateException()
+//
+//        addContact(newRequest.sender, newRequest.receiver)
+//        // 触发接受好友请求
+//        val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
+//        val senderId = oldRequest.get.sender
+//        val receiverId = oldRequest.get.receiver
+//        val users = getUsersByIdList(responseFields, senderId, receiverId)
+//        for {
+//          userInfos <- users
+//        } yield {
+//          sendContactRequestEvents(EventEmitter.evtAcceptContactRequest, newRequest.id, None,
+//            userInfos(senderId).get, userInfos(receiverId).get)
+//        }
+//      }
+//    })
+//  }
 
-    getContactRequest(requestId = requestId)(ds, futurePool) flatMap (oldRequest => {
+  def acceptContactRequest(sender: Long, receiver: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    getContactRequest(sender, receiver)(ds, futurePool) flatMap (oldRequest => {
       if (oldRequest isEmpty)
-        throw NotFoundException(Some(s"Cannot find the request $requestId"))
+        throw NotFoundException(Some("Cannot find the request"))
       else {
-        val cls = classOf[ContactRequest]
-
-        val query = ds.createQuery(cls).field(fdContactRequestId).equal(new ObjectId(requestId))
-        val updateOps = ds.createUpdateOperations(cls).set(fdStatus, ACCEPTED.id)
-
-        val newRequest = ds.findAndModify(query, updateOps, false, false)
-        if (newRequest == null)
-          throw InvalidStateException()
-
-        addContact(newRequest.sender, newRequest.receiver)
+        addContact(sender, receiver)
         // 触发接受好友请求
         val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
-        val senderId = oldRequest.get.sender
-        val receiverId = oldRequest.get.receiver
-        val users = getUsersByIdList(responseFields, senderId, receiverId)
+        val users = getUsersByIdList(responseFields, sender, receiver)
         for {
           userInfos <- users
         } yield {
-          sendContactRequestEvents(EventEmitter.evtAcceptContactRequest, newRequest.id, None,
-            userInfos(senderId).get, userInfos(receiverId).get)
+          sendContactRequestEvents(EventEmitter.evtAcceptContactRequest, oldRequest.get.id, None,
+            userInfos(sender).get, userInfos(receiver).get)
         }
       }
     })
   }
-
   /**
    * 取消一个好友请求
    * @param requestId 请求ID
@@ -522,8 +590,14 @@ object AccountManager {
    * @return
    */
   def getContactRequest(sender: Long, receiver: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ContactRequest]] = futurePool {
-    import ContactRequest._
-    val req = ds.createQuery(classOf[ContactRequest]).field(fdSender).equal(sender).field(fdReceiver).equal(receiver).get()
+//    import ContactRequest._
+    import Relationship._
+    val req = if(sender <= receiver){
+      ds.createQuery(classOf[Relationship]).field(fdUserA).equal(sender).field(fdUserB).equal(receiver).get.reqA
+    } else {
+      ds.createQuery(classOf[Relationship]).field(fdUserA).equal(receiver).field(fdUserB).equal(sender).get.reqB
+    }
+//    val req = ds.createQuery(classOf[ContactRequest]).field(fdSender).equal(sender).field(fdReceiver).equal(receiver).get()
     if (req == null)
       throw NotFoundException(Some("Cannot find the request"))
     else
@@ -535,12 +609,19 @@ object AccountManager {
    * @param requestId
    * @return
    */
-  def getContactRequest(requestId: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ContactRequest]] =
-    futurePool {
-      Option(ds.createQuery(classOf[ContactRequest]).field(ContactRequest.fdContactRequestId)
-        .equal(new ObjectId(requestId)).get())
-    }
-
+//  def getContactRequest(requestId: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ContactRequest]] =
+//    futurePool {
+//      Option(ds.createQuery(classOf[ContactRequest]).field(ContactRequest.fdContactRequestId)
+//        .equal(new ObjectId(requestId)).get())
+//    }
+  def getContactRequest(requestId: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ContactRequest]] = futurePool {
+    import Relationship._
+    val reqId = new ObjectId(requestId)
+    val req = ds.createQuery(classOf[Relationship]).field(s"$fdReqA.id").equal(reqId).get.reqA
+    if(req == null)
+      Option(ds.createQuery(classOf[Relationship]).field(s"$fdReqB.id").equal(reqId).get.reqB)
+    else Option(req)
+  }
   /**
    * 获得用户的好友个数
    *

@@ -17,6 +17,32 @@ class Relationship {
   @Id
   var id: ObjectId = null
 
+  /**
+   * A向B发出了好友请求
+   */
+  @BeanProperty
+  @Embedded
+  var reqA: ContactRequest = null
+
+  /**
+   * B向A发出了好友请求
+   */
+  @BeanProperty
+  @Embedded
+  var reqB: ContactRequest = null
+
+  /**
+   * true表示对A而言, B是A的好友; false表示对A而言, B不是A的好友
+   */
+  @BeanProperty
+  var relA: Boolean = false
+
+  /**
+   * true表示对B而言, A是B的好友; false表示对B而言, A不是B的好友
+   */
+  @BeanProperty
+  var relB: Boolean = false
+
   @BeanProperty
   @NotNull
   @Min(value = 1)
@@ -27,9 +53,15 @@ class Relationship {
   @Min(value = 1)
   var userB: Long = 0
 
+  /**
+   * B将A的备注设置为memoA
+   */
   @BeanProperty
   var memoA: String = null
 
+  /**
+   * A将B的备注设置为memoB
+   */
   @BeanProperty
   var memoB: String = null
 }
@@ -41,11 +73,18 @@ object Relationship {
   val fdUserB = "userB"
   val fdMemoA = "memoA"
   val fdMemoB = "memoB"
+  val fdReqA = "reqA"
+  val fdReqB = "reqB"
+  val fdRelA = "relA"
+  val fdRelB = "relB"
 
-  def apply(userA: Long, userB: Long): Relationship = {
+  def apply(userA: Long, userB: Long, reqA: ContactRequest = null, reqB: ContactRequest = null): Relationship = {
     val result = new Relationship
+    result.id = new ObjectId()
     result.userA = userA
     result.userB = userB
+    result.reqA = reqA
+    result.reqB = reqB
     result
   }
 }
