@@ -48,7 +48,8 @@ struct UserInfo {
   8: bool loginStatus,
   9: optional i64 loginTime,
   10: optional i64 logoutTime,
-  11: list<string> loginSource
+  11: list<string> loginSource,
+  20: optional string memo,
   100: list<Role> roles
 }
 
@@ -97,6 +98,10 @@ enum UserInfoProp {
   GENDER,
   SIGNATURE,
   TEL,
+  LOGIN_STATUS,
+  LOGIN_TIME,
+  LOGOUT_TIME,
+  LOGIN_SOURCE,
   ROLES
 }
 

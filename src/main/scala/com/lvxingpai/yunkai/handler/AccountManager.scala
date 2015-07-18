@@ -264,7 +264,7 @@ object AccountManager {
    * @return
    */
   def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq(), offset: Option[Int] = None,
-    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
+    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
     val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
       (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
     val queryRel = ds.createQuery(classOf[Relationship])
@@ -273,20 +273,38 @@ object AccountManager {
     val defaultCount = 1000
 
     // 获得好友的userId
-    val contactIds = futurePool {
+    val contactIdsMemos = futurePool {
       queryRel.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
-      val result = for {
+      val ret = for {
         rel <- queryRel.asList().toSeq
-        userIds <- Seq(rel.getUserA, rel.getUserB)
-      } yield userIds
-
-      result.toSet.toSeq filter (_ != userId)
+      } yield {
+        if (rel.userA == userId) (rel.userB -> rel.memoB) else (rel.userA -> rel.memoA)
+      }
+      //      result.toSet.toSeq filter (_ != userId)
+      Map(ret: _*)
     }
 
     for {
-      ids <- contactIds
-      contactsMap <- getUsersByIdList(fields, ids: _*)
-    } yield contactsMap.toSeq.map(_._2.orNull) filter (_ != null)
+      memoMap <- contactIdsMemos
+      userInfoMap <- getUsersByIdList(fields, memoMap.keys.toSeq filter (_ != userId): _*)
+    } yield {
+      val v = userInfoMap filter (_._2.nonEmpty)
+      (v mapValues (opt => {
+        val userInfo = opt.get
+        val memo = Option(memoMap(userInfo.userId))
+        val gender = Option(userInfo.gender match {
+          case "m" | "M" => Gender.Male
+          case "f" | "F" => Gender.Female
+          case "s" | "S" => Gender.Secret
+          case "u" | "U" | null => null
+          case _ => throw new IllegalArgumentException("Invalid gender")
+        })
+        val roles = Option(userInfo.roles) map (_.toSeq map Role.apply) getOrElse Seq()
+        yunkai.UserInfo(userInfo.id.toString, userInfo.userId, userInfo.nickName,
+          Option(userInfo.avatar), gender, Option(userInfo.signature), Option(userInfo.tel),
+          loginStatus = false, roles = roles)
+      })).values.toSeq
+    }
   }
 
   /**
