@@ -670,7 +670,7 @@ object AccountManager {
       throw InvalidArgsException()
 
     // 取得用户ID
-    val futureUserId = IdGenerator.generateId("yunkai:idgenerator/user")
+    val futureUserId = IdGenerator.generateId("yunkai:idgenerator/default")
 
     // 创建用户并保存
     val userInfo = for {
