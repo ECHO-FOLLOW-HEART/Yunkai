@@ -5,7 +5,9 @@ import java.util.UUID
 
 import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
+import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
 import com.lvxingpai.yunkai._
+import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.model.{ ContactRequest, UserInfo, _ }
 import com.lvxingpai.yunkai.serialization.{ TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse }
 import com.lvxingpai.yunkai.service.{ RedisFactory, SmsCenter }
@@ -809,7 +811,7 @@ object AccountManager {
     }
 
     // 通过手机号查找用户。返回值（true, user)。前者表示检验结果，后者表示对应的用户信息
-    val telSearch: Future[Option[UserInfo]] = {
+    val telSearch: Future[Option[yunkai.UserInfo]] = {
       val result = searchUserInfo(Map(UserInfoProp.Tel -> tel), None, None, None)
       action match {
         case item if item.value == Signup.value =>
@@ -1000,13 +1002,13 @@ object AccountManager {
    * @return
    */
   def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int] = None,
-    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = {
+    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
     val cls = classOf[UserInfo]
 
     val query = ds.createQuery(cls)
     val criteriaList = queryFields.toSeq map (item => {
       item._1 match {
-        case UserInfoProp.Tel => ds.createQuery(cls).criteria(UserInfo.fdTel).startsWith(item._2)
+        case UserInfoProp.Tel => ds.createQuery(cls).criteria(UserInfo.fdTel).equal(item._2)
         case UserInfoProp.NickName => ds.createQuery(cls).criteria(UserInfo.fdNickName).startsWith(item._2)
         case _ => null
       }
@@ -1034,7 +1036,8 @@ object AccountManager {
       futurePool {
         query.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
           .retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
-        query.asList().toSeq map filterUUIDTel
+
+        query.asList().toSeq.map[yunkai.UserInfo, Seq[yunkai.UserInfo]](v => v)
       }
     }
   }

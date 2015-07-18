@@ -60,13 +60,8 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def searchUserInfo(queryFields: scala.collection.Map[UserInfoProp, String],
-    fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
-    for {
-      userList <- AccountManager.searchUserInfo(Map(queryFields.toSeq: _*), fields, offset, count)
-    } yield {
-      userList map UserServiceHandler.userInfoConversion
-    }
-  }
+    fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] =
+    AccountManager.searchUserInfo(Map(queryFields.toSeq: _*), fields, offset, count)
 
   override def getContactCount(userId: Long): Future[Int] = AccountManager.getContactCount(userId)
 
