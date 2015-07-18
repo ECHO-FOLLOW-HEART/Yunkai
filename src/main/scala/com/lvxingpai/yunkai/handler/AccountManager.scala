@@ -308,6 +308,32 @@ object AccountManager {
   }
 
   /**
+   * 修改用户备注
+   * @param userA 修改人
+   * @param userB 被修改人
+   * @param memo  备注
+   * @param ds
+   * @param futurePool
+   * @return
+   */
+  def updateMemo(userA: Long, userB: Long, memo: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
+    val query = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1).field(Relationship.fdUserB).equal(user2)
+    val updateOps = if (userA <= userB)
+      ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdMemoB, memo)
+    else ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdMemoA, memo)
+    futurePool {
+      ds.updateFirst(query, updateOps)
+      // 触发修改备注事件
+      val updateInfo = new ObjectMapper().createObjectNode()
+      updateInfo.put("memoB", memo)
+      val eventArgs: Map[String, JsonNode] = Map(
+        "updateInfo" -> updateInfo
+      )
+      //      EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
+    }
+  }
+  /**
    * 给定一个ContactRequest，生成相应的MongoDB update operation
    * @param req
    * @param ds

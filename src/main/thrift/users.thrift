@@ -211,6 +211,9 @@ service userservice {
   list<UserInfo> getContactList(1:i64 userId, 2: optional list<UserInfoProp> fields, 3:optional i32 offset,
     4:optional i32 count) throws (1:NotFoundException ex)
 
+  // 修改用户备注
+  void updateMemo(1: i64 userA, 2: i64 userB, 3: string memo) throws (1:NotFoundException ex)
+
   // 获得用户的好友个数
   i32 getContactCount(1:i64 userId) throws (1:NotFoundException ex)
 

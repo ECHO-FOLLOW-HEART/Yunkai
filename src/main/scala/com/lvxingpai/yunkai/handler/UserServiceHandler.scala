@@ -58,6 +58,10 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.getContactList(userId, fields = fields.getOrElse(Seq()), offset = offset, count = count)
   }
 
+  override def updateMemo(userA: Long, userB: Long, memo: String): Future[Unit] = {
+    AccountManager.updateMemo(userA, userB, memo)
+  }
+
   override def searchUserInfo(queryFields: scala.collection.Map[UserInfoProp, String],
     fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] =
     AccountManager.searchUserInfo(Map(queryFields.toSeq: _*), fields, offset, count)
