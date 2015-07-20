@@ -302,7 +302,7 @@ object AccountManager {
         val roles = Option(userInfo.roles) map (_.toSeq map Role.apply) getOrElse Seq()
         yunkai.UserInfo(userInfo.id.toString, userInfo.userId, userInfo.nickName,
           Option(userInfo.avatar), gender, Option(userInfo.signature), Option(userInfo.tel),
-          loginStatus = false, roles = roles)
+          loginStatus = false, memo = memo, roles = roles)
       })).values.toSeq
     }
   }

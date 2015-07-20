@@ -102,6 +102,7 @@ enum UserInfoProp {
   LOGIN_TIME,
   LOGOUT_TIME,
   LOGIN_SOURCE,
+  MEMO,
   ROLES
 }
 
