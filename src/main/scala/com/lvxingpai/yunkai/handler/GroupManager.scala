@@ -2,6 +2,7 @@ package com.lvxingpai.yunkai.handler
 
 import com.fasterxml.jackson.databind.node._
 import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
+import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.model.{ ChatGroup, UserInfo }
@@ -71,7 +72,7 @@ object GroupManager {
 
     // 获得相关用户的详情
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
-    val futureUsers = AccountManager.getUsersByIdList(responseFields, participants: _*)
+    val futureUsers = AccountManager.getUsersByIdList(responseFields, None, participants: _*)
 
     for {
       gid <- futureGid
@@ -104,7 +105,8 @@ object GroupManager {
         targets.put("id", elem._2.get.id.toString)
         targets.put("userId", elem._2.get.userId)
         targets.put("nickName", elem._2.get.nickName)
-        val avatarValue = Option(elem._2.get.avatar).getOrElse("")
+        val avatarValue = elem._2.get.avatar.getOrElse("")
+
         targets.put("avatar", avatarValue)
       }
       val eventArgs: Map[String, JsonNode] = Map(
@@ -159,7 +161,7 @@ object GroupManager {
   def updateChatGroup(chatGroupId: Long, operatorId: Long, chatGroupProps: Map[ChatGroupProp, Any])(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ChatGroup]] = {
     // 检查修改人operatorId是否有效
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
-    val operator = AccountManager.getUserById(operatorId, responseFields)
+    val operator = AccountManager.getUserById(operatorId, responseFields, None)
 
     def func1(): Future[Option[ChatGroup]] = futurePool {
       // 所有被修改的字段都需要返回
@@ -186,7 +188,7 @@ object GroupManager {
       Option(result)
     }
     // 验证operatorId是否有误
-    def verify(user: Option[UserInfo]): Future[UserInfo] = {
+    def verify(user: Option[yunkai.UserInfo]): Future[yunkai.UserInfo] = {
       if (user isEmpty)
         throw NotFoundException(Some(s"Cannot find chat group $chatGroupId"))
       else
@@ -196,7 +198,7 @@ object GroupManager {
     }
     //    if(elem isEmpty)
     //      throw NotFoundException(Some(s"Can not found such =$operatorId"))
-    def emitEvent(group: Option[ChatGroup], operatorInfo: UserInfo): Future[Unit] = {
+    def emitEvent(group: Option[ChatGroup], operatorInfo: yunkai.UserInfo): Future[Unit] = {
       // 触发修改讨论组属性的事件
       val updateInfo = new ObjectMapper().createObjectNode()
       updateInfo.put("name", "New group name")
@@ -260,10 +262,10 @@ object GroupManager {
 
     // 查看是否所有的userId都有效
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
-    val futureUsers = AccountManager.getUsersByIdList(responseFields, userIdsToAdd :+ operatorId: _*)
+    val futureUsers = AccountManager.getUsersByIdList(responseFields, None, userIdsToAdd :+ operatorId: _*)
 
     // 检查users是否都是有效的，并消除Option
-    def verifyUsers(users: Map[Long, Option[UserInfo]]): Map[Long, UserInfo] = {
+    def verifyUsers(users: Map[Long, Option[yunkai.UserInfo]]): Map[Long, yunkai.UserInfo] = {
       if (users exists (_._2.isEmpty))
         throw NotFoundException(Some("Cannot find all the users"))
       users mapValues (_.get)
@@ -278,7 +280,7 @@ object GroupManager {
     }
 
     // 在ChatGroup.participants中添加成员。返回群组中的成员，以及被添加的成员列表。
-    def func1(group: ChatGroup, users: Map[Long, UserInfo]): Future[(Seq[Long], Seq[UserInfo])] = futurePool {
+    def func1(group: ChatGroup, users: Map[Long, yunkai.UserInfo]): Future[(Seq[Long], Seq[yunkai.UserInfo])] = futurePool {
       val col = MorphiaFactory.getCollection(classOf[ChatGroup])
       val usersToAdd = (users map (_._2)).toSeq
       val maxUsers = group.maxUsers
@@ -319,7 +321,7 @@ object GroupManager {
    * 发送讨论组添加或删除成员的事件
    * @return
    */
-  private def emitChatGroupMembersEvents(eventName: String, group: ChatGroup, operator: UserInfo, userList: Seq[UserInfo])(implicit futurePool: FuturePool): Future[Unit] = {
+  private def emitChatGroupMembersEvents(eventName: String, group: ChatGroup, operator: yunkai.UserInfo, userList: Seq[yunkai.UserInfo])(implicit futurePool: FuturePool): Future[Unit] = {
     val userInfos = new ObjectMapper().createArrayNode()
     userList foreach (user => {
       val node: JsonNode = user
@@ -340,7 +342,7 @@ object GroupManager {
   def removeChatGroupMembers(chatGroupId: Long, operatorId: Long, userToRemove: Seq[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[Long]] = {
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     // 查看operatorId是否有效
-    val futureOperator = AccountManager.getUserById(operatorId, responseFields)
+    val futureOperator = AccountManager.getUserById(operatorId, responseFields, None)
     val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId)
       .retrievedFields(true, ChatGroup.fdParticipants, ChatGroup.fdChatGroupId, ChatGroup.fdName, ChatGroup.fdAvatar)
     val ops = ds.createUpdateOperations(classOf[ChatGroup]).removeAll(ChatGroup.fdParticipants, bufferAsJavaList(userToRemove.toBuffer))
@@ -358,8 +360,8 @@ object GroupManager {
         }
     }
     // 查看是否所有的userId都有效
-    val futureUsers = AccountManager.getUsersByIdList(Seq(UserInfoProp.UserId, UserInfoProp.NickName), userToRemove: _*)
-    val userInfos: Seq[UserInfo] = Seq()
+    val futureUsers = AccountManager.getUsersByIdList(Seq(UserInfoProp.UserId, UserInfoProp.NickName), None, userToRemove: _*)
+    val userInfos: Seq[yunkai.UserInfo] = Seq()
     for {
       users <- futureUsers
     } yield {
