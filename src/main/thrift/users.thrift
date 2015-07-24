@@ -161,11 +161,11 @@ exception OverQuotaLimitException {
 
 service userservice {
   // 获得单个用户信息
-  UserInfo getUserById(1:i64 userId, 2: optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
+  UserInfo getUserById(1:i64 userId, 2: optional list<UserInfoProp> fields, 3: optional i64 selfId) throws (1:NotFoundException ex)
 
   // 获得多个用户的信息
   // 返回值是key-value结构。key表示用户的ID，value为用户信息。如果某个key对应的value为null，说明没有找到对应的用户
-  map<i64, UserInfo> getUsersById(1:list<i64> userIdList, 2: optional list<UserInfoProp> fields)
+  map<i64, UserInfo> getUsersById(1:list<i64> userIdList, 2: optional list<UserInfoProp> fields, 3: optional i64 selfId)
 
   // 更新用户的信息。支持的UserInfoProp有：nickName, signature, gender和avatar
   // InvalidArgsException: 如果要更新的内容不合法，则会抛出该异常
@@ -284,5 +284,5 @@ service userservice {
   list<i64> removeChatGroupMembers(1: i64 chatGroupId, 2: i64 operatorId, 3: list<i64> userIds) throws (1:NotFoundException ex)
 
   // 获得讨论组成员
-  list<UserInfo> getChatGroupMembers(1:i64 chatGroupId, 2:optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
+  list<UserInfo> getChatGroupMembers(1:i64 chatGroupId, 2:optional list<UserInfoProp> fields, 3:optional i64 selfId) throws (1:NotFoundException ex)
 }

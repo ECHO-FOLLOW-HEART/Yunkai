@@ -277,7 +277,7 @@ class AccountManagerTest extends YunkaiBaseTest {
 
       When("retrive the users' details according to the user ID lsit")
       val properties = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar, UserInfoProp.Tel)
-      val userMap = waitFuture(new UserServiceHandler().getUsersById(userIdList, Some(properties)))
+      val userMap = waitFuture(new UserServiceHandler().getUsersById(userIdList, Some(properties), None))
 
       Then("the user corresponding to the fake user ID should be null")
       userMap(fakeUserId) should be(null)

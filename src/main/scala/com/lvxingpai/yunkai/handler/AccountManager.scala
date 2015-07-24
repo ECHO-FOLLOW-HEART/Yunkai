@@ -37,9 +37,9 @@ object AccountManager {
    *
    * @return 用户信息
    */
-  def getUserById(userId: Long, fields: Seq[UserInfoProp] = Seq())(implicit ds: Datastore, futurePool: FuturePool): Future[Option[UserInfo]] = {
+  def getUserById(userId: Long, fields: Seq[UserInfoProp] = Seq(), selfId: Option[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Option[yunkai.UserInfo]] = {
     for {
-      userMap <- getUsersByIdList(fields, userId)
+      userMap <- getUsersByIdList(fields, selfId, userId)
     } yield userMap.toSeq.head._2
   }
 
@@ -107,7 +107,7 @@ object AccountManager {
         updateInfo.put("signature", "new signature")
 
         val eventArgs: Map[String, JsonNode] = Map(
-          "user" -> result,
+          "user" -> userInfoMorphia2Yunkai(result),
           "updateInfo" -> updateInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
@@ -186,7 +186,7 @@ object AccountManager {
     val targetUsersFiltered = (targetUsers filter (_ != userId)).toSet.toSeq
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
 
-    getUsersByIdList(responseFields, userId +: targetUsersFiltered: _*) flatMap (m => {
+    getUsersByIdList(responseFields, None, userId +: targetUsersFiltered: _*) flatMap (m => {
       // 相应的用户必须存在
       if (m exists (_._2 isEmpty))
         throw NotFoundException()
@@ -202,6 +202,7 @@ object AccountManager {
         // 触发添加联系人的事件
         val sender = m(userId).get
         val receiver = m(target).get
+
         val eventArgs: Map[String, JsonNode] = Map(
           "user" -> sender,
           "target" -> receiver
@@ -223,7 +224,7 @@ object AccountManager {
    */
   def removeContacts(userId: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
     val targetUsersFiltered = (targetUsers filter (_ != userId)).toSet.toSeq
-    getUsersByIdList(Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar), userId +: targetUsersFiltered: _*) map (m => {
+    getUsersByIdList(Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar), None, userId +: targetUsersFiltered: _*) map (m => {
       // 相应的用户必须存在
       if (m exists (_._2 isEmpty))
         throw NotFoundException()
@@ -273,39 +274,65 @@ object AccountManager {
     val defaultCount = 1000
 
     // 获得好友的userId
-    val contactIdsMemos = futurePool {
+    val contactIds = futurePool {
       queryRel.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
-      val ret = for {
+      val result = for {
         rel <- queryRel.asList().toSeq
-      } yield {
-        if (rel.userA == userId) (rel.userB -> rel.memoB) else (rel.userA -> rel.memoA)
-      }
-      //      result.toSet.toSeq filter (_ != userId)
-      Map(ret: _*)
+        userIds <- Seq(rel.getUserA, rel.getUserB)
+      } yield userIds
+
+      result.toSet.toSeq filter (_ != userId)
     }
 
     for {
-      memoMap <- contactIdsMemos
-      userInfoMap <- getUsersByIdList(fields, memoMap.keys.toSeq filter (_ != userId): _*)
-    } yield {
-      val v = userInfoMap filter (_._2.nonEmpty)
-      (v mapValues (opt => {
-        val userInfo = opt.get
-        val memo = Option(memoMap(userInfo.userId))
-        val gender = Option(userInfo.gender match {
-          case "m" | "M" => Gender.Male
-          case "f" | "F" => Gender.Female
-          case "s" | "S" => Gender.Secret
-          case "u" | "U" | null => null
-          case _ => throw new IllegalArgumentException("Invalid gender")
-        })
-        val roles = Option(userInfo.roles) map (_.toSeq map Role.apply) getOrElse Seq()
-        yunkai.UserInfo(userInfo.id.toString, userInfo.userId, userInfo.nickName,
-          Option(userInfo.avatar), gender, Option(userInfo.signature), Option(userInfo.tel),
-          loginStatus = false, memo = memo, roles = roles)
-      })).values.toSeq
-    }
+      ids <- contactIds
+      contactsMap <- getUsersByIdList(fields, Option(userId), ids: _*)
+    } yield contactsMap.toSeq.map(_._2.orNull) filter (_ != null)
   }
+
+  //  def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq(), offset: Option[Int] = None,
+  //    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
+  //    val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
+  //      (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
+  //    val queryRel = ds.createQuery(classOf[Relationship])
+  //    queryRel.or(criteria: _*)
+  //    val defaultOffset = 0
+  //    val defaultCount = 1000
+  //
+  //    // 获得好友的userId
+  //    val contactIdsMemos = futurePool {
+  //      queryRel.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
+  //      val ret = for {
+  //        rel <- queryRel.asList().toSeq
+  //      } yield {
+  //        if (rel.userA == userId) (rel.userB -> rel.memoB) else (rel.userA -> rel.memoA)
+  //      }
+  //      //      result.toSet.toSeq filter (_ != userId)
+  //      Map(ret: _*)
+  //    }
+  //
+  //    for {
+  //      memoMap <- contactIdsMemos
+  //      userInfoMap <- getUsersByIdList(fields,None ,memoMap.keys.toSeq filter (_ != userId): _*)
+  //    } yield {
+  //      val v = userInfoMap filter (_._2.nonEmpty)
+  //      (v mapValues (opt => {
+  //        val userInfo = opt.get
+  //        val memo = Option(memoMap(userInfo.userId))
+  //        val gender = Option(userInfo.gender match {
+  //          case "m" | "M" => Gender.Male
+  //          case "f" | "F" => Gender.Female
+  //          case "s" | "S" => Gender.Secret
+  //          case "u" | "U" | null => null
+  //          case _ => throw new IllegalArgumentException("Invalid gender")
+  //        })
+  //        val roles = Option(userInfo.roles) map (_.toSeq map Role.apply) getOrElse Seq()
+  //        yunkai.UserInfo(userInfo.id.toString, userInfo.userId, userInfo.nickName,
+  //          Option(userInfo.avatar), gender, Option(userInfo.signature), Option(userInfo.tel),
+  //          loginStatus = false, memo = memo, roles = roles)
+  //      })).values.toSeq
+  //    }
+  //  }
 
   /**
    * 修改用户备注
@@ -367,7 +394,7 @@ object AccountManager {
    */
   def getContactRequestList(userId: Long, offset: Int, limit: Int)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ContactRequest]] = {
     for {
-      userInfoOpt <- getUserById(userId)
+      userInfoOpt <- getUserById(userId, Seq(), None)
     } yield {
       if (userInfoOpt isEmpty)
         throw NotFoundException()
@@ -390,7 +417,7 @@ object AccountManager {
     // 检查用户是否存在
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     for {
-      users <- getUsersByIdList(responseFields, sender, receiver)
+      users <- getUsersByIdList(responseFields, None, sender, receiver)
       relationship <- isContact(sender, receiver)
     } yield {
       if (relationship)
@@ -454,8 +481,8 @@ object AccountManager {
     val eventArgs: Map[String, JsonNode] = Map(
       "requestId" -> requestId.toString,
       "message" -> message.getOrElse[String](""),
-      "sender" -> sender,
-      "receiver" -> receiver
+      "sender" -> userInfoMorphia2Yunkai(sender),
+      "receiver" -> userInfoMorphia2Yunkai(receiver)
     )
 
     EventEmitter.emitEvent(eventName, eventArgs)
@@ -489,7 +516,7 @@ object AccountManager {
         val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
         val senderId = oldRequest.get.sender
         val receiverId = oldRequest.get.receiver
-        val users = getUsersByIdList(responseFields, senderId, receiverId)
+        val users = getUsersByIdList(responseFields, None, senderId, receiverId)
         for {
           userInfos <- users
         } yield {
@@ -527,7 +554,7 @@ object AccountManager {
         val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
         val senderId = oldRequest.get.sender
         val receiverId = oldRequest.get.receiver
-        val users = getUsersByIdList(responseFields, senderId, receiverId)
+        val users = getUsersByIdList(responseFields, None, senderId, receiverId)
         for {
           userInfos <- users
         } yield {
@@ -594,7 +621,7 @@ object AccountManager {
    * @return
    */
   def getContactCount(userId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Int] = {
-    val userFuture = getUserById(userId)
+    val userFuture = getUserById(userId, Seq(), None)
 
     userFuture map (userInfo => {
       if (userInfo isEmpty)
@@ -627,10 +654,10 @@ object AccountManager {
    * @param userIds 需要查找的用户的ID
    * @return
    */
-  def getUsersByIdList(fields: Seq[UserInfoProp], userIds: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[UserInfo]]] = {
+  def getUsersByIdList(fields: Seq[UserInfoProp], selfId: Option[Long], userIds: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[yunkai.UserInfo]]] = {
     futurePool {
       if (userIds isEmpty) {
-        Map[Long, Option[UserInfo]]()
+        Map[Long, Option[yunkai.UserInfo]]()
       } else {
         val query = userIds length match {
           case 1 => ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).equal(userIds head)
@@ -643,8 +670,26 @@ object AccountManager {
           UserInfoProp.Id) map userInfoPropToFieldName
 
         query.retrievedFields(true, retrievedFields: _*)
-        val results = Map(query.asList() map filterUUIDTel map (v => v.userId -> v): _*)
-        Map(userIds map (v => v -> (results get v)): _*)
+        val results = Map(query.asList() map filterUUIDTel map (item => item.userId -> item): _*)
+        if (selfId == None) {
+          Map(userIds map (v => v -> (results get v map userInfoMorphia2Yunkai)): _*)
+        } else {
+          // 设置备注
+          val userInfos = results map { user =>
+            {
+              val (userId1, userId2, retrievedField) = if (selfId.get <= user._1) (selfId.get, user._1, Relationship.fdMemoB) else (user._1, selfId.get, Relationship.fdMemoA)
+              val query = ds.createQuery(classOf[Relationship]).field("userA").equal(userId1).field("userB").equal(userId2)
+                .retrievedFields(true, retrievedField)
+              val rel = query.get
+              val memo = if (rel == null) "" else {
+                if (selfId.get <= user._1) rel.memoB else rel.memoA
+              }
+              user._2.memo = memo
+              user
+            }
+          }
+          Map(userIds map (v => v -> (userInfos get v map userInfoMorphia2Yunkai)): _*)
+        }
       }
     }
   }
@@ -698,7 +743,7 @@ object AccountManager {
       if (verified) {
         import Implicits.JsonConversions._
         val eventArgs: Map[String, JsonNode] = Map(
-          "user" -> userInfo,
+          "user" -> userInfoMorphia2Yunkai(userInfo),
           "source" -> string2JsonNode(source)
         )
         EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
@@ -756,7 +801,7 @@ object AccountManager {
     // 触发创建新用户的事件
     userInfo map (v => {
       val eventArgs: Map[String, JsonNode] = Map(
-        "user" -> v
+        "user" -> userInfoMorphia2Yunkai(v)
       )
       EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
     })
@@ -921,7 +966,7 @@ object AccountManager {
     def emitEvent(): Future[Unit] = {
       // 触发重置用户密码的事件
       val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
-      val user = getUserById(userId, responseFields)
+      val user = getUserById(userId, responseFields, None)
       for {
         elem <- user
       } yield {

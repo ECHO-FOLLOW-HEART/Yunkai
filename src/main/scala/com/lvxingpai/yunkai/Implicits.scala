@@ -45,11 +45,11 @@ object Implicits {
         case "u" | "U" | null => null
         case _ => throw new IllegalArgumentException("Invalid gender")
       })
-
+      val memo = if (user.memo != null) Option(user.memo) else None
       val roles = Option(user.roles) map (_.toSeq map Role.apply) getOrElse Seq()
 
       UserInfo(user.id.toString, user.userId, user.nickName, Option(user.avatar), signature = Option(user.signature),
-        roles = roles, gender = gender, tel = tel, loginStatus = false)
+        roles = roles, memo = memo, gender = gender, tel = tel, loginStatus = false)
     }
 
     implicit def userInfoYunkai2Morphia(user: UserInfo): model.UserInfo = {
@@ -81,12 +81,12 @@ object Implicits {
 
     implicit def JsonNode2string(node: JsonNode): String = new ObjectMapper().writeValueAsString(node)
 
-    implicit def user2JsonNode(user: com.lvxingpai.yunkai.model.UserInfo): JsonNode = {
+    implicit def user2JsonNode(user: com.lvxingpai.yunkai.UserInfo): JsonNode = {
       val node = new ObjectMapper().createObjectNode()
       //    targets.put("id", user.id.toString)
       node.put("userId", user.userId)
       node.put("nickName", user.nickName)
-      val avatarValue = Option(user.avatar).getOrElse[String]("")
+      val avatarValue = user.avatar.getOrElse[String]("")
       node.put("avatar", avatarValue)
       node
     }

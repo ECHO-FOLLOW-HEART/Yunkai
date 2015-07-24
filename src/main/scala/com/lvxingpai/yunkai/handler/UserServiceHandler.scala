@@ -21,8 +21,8 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   import UserServiceHandler.userInfoConversion
 
-  override def getUserById(userId: Long, fields: Option[Seq[UserInfoProp]]): Future[yunkai.UserInfo] = {
-    AccountManager.getUserById(userId, fields.getOrElse(Seq())) map (userInfo => {
+  override def getUserById(userId: Long, fields: Option[Seq[UserInfoProp]], selfId: Option[Long] = None): Future[yunkai.UserInfo] = {
+    AccountManager.getUserById(userId, fields.getOrElse(Seq()), selfId) map (userInfo => {
       if (userInfo nonEmpty)
         userInfo.get
       else
@@ -146,15 +146,13 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def removeChatGroupMembers(chatGroupId: Long, operatorId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
     GroupManager.removeChatGroupMembers(chatGroupId, operatorId, userIds)
 
-  override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]]): Future[Seq[yunkai.UserInfo]] = {
-    GroupManager.getChatGroupMembers(chatGroupId, fields) map (userList => {
-      userList map UserServiceHandler.userInfoConversion
-    })
+  override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]], selfId: Option[Long]): Future[Seq[yunkai.UserInfo]] = {
+    GroupManager.getChatGroupMembers(chatGroupId, fields, selfId)
   }
 
-  override def getUsersById(userIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[UserInfoProp]]): Future[Map[Long, yunkai.UserInfo]] = {
-    AccountManager.getUsersByIdList(fields.getOrElse(Seq()), userIdList: _*) map (resultMap => {
-      resultMap mapValues (value => (value map userInfoConversion).orNull)
+  override def getUsersById(userIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[UserInfoProp]], selfId: Option[Long]): Future[Map[Long, yunkai.UserInfo]] = {
+    AccountManager.getUsersByIdList(fields.getOrElse(Seq()), selfId, userIdList: _*) map (resultMap => {
+      resultMap mapValues (_.orNull)
     })
   }
 

@@ -90,7 +90,7 @@ class GroupManagerTest extends YunkaiBaseTest {
       Then("a NotFoundException should be thrown")
 
       intercept[NotFoundException] {
-        waitFuture(service.getChatGroupMembers(fakeGroupId, None))
+        waitFuture(service.getChatGroupMembers(fakeGroupId, None, None))
       }
     }
 
@@ -101,7 +101,7 @@ class GroupManagerTest extends YunkaiBaseTest {
       When("retrieving its member list")
       Then("the returned list should be correct")
 
-      val members = waitFuture(service.getChatGroupMembers(gid, None))
+      val members = waitFuture(service.getChatGroupMembers(gid, None, None))
       val memberIdList = members map (_.userId)
       memberIdList should contain only (chatGroup.participants: _*)
     }
