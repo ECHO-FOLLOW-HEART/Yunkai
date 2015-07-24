@@ -381,22 +381,30 @@ object GroupManager {
   }
 
   // 获得讨论组成员
-  def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[UserInfo]] = futurePool {
-    val groupInfo = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, chatGroupId).get()
-    if (groupInfo == null)
-      throw NotFoundException(Some(s"Cannot find chat group $chatGroupId"))
-
-    val participants = Option(groupInfo.participants) getOrElse seqAsJavaList(Seq())
-
-    val queryUserInfo = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(participants)
-    val retrievedFields = fields.getOrElse(Seq()) ++ Seq(UserInfoProp.UserId, UserInfoProp.Id) map {
-      case UserInfoProp.UserId => UserInfo.fdUserId
-      case UserInfoProp.NickName => UserInfo.fdNickName
-      case UserInfoProp.Avatar => UserInfo.fdAvatar
-      case _ => ""
-    } filter (_ nonEmpty)
-    if (retrievedFields nonEmpty)
-      queryUserInfo.retrievedFields(true, retrievedFields :+ UserInfo.fdUserId: _*)
-    queryUserInfo.toList
+  def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]] = None, selfId: Option[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
+    // 取得participants
+    def func1(gId: Long): Future[Seq[Long]] = futurePool {
+      val groupInfo = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, gId).get()
+      if (groupInfo == null)
+        throw NotFoundException(Some(s"Cannot find chat group $gId"))
+      groupInfo.participants.toSet.toSeq
+    }
+    // 返回的fields
+    val retrievedFields = fields.getOrElse(Seq()) ++ Seq(UserInfoProp.UserId, UserInfoProp.Id)
+    // 获取结果
+    def func2(fields1: Seq[UserInfoProp], selfId1: Option[Long], members: Seq[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
+      val userMap = AccountManager.getUsersByIdList(fields1, selfId1, members: _*) map (resultMap => {
+        resultMap mapValues (_.orNull)
+      })
+      userMap map (userList => {
+        userList.toSeq map (item => {
+          item._2
+        })
+      })
+    }
+    for {
+      members <- func1(chatGroupId)
+      results <- func2(retrievedFields, selfId, members)
+    } yield results
   }
 }

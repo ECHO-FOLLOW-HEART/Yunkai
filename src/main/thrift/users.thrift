@@ -284,5 +284,5 @@ service userservice {
   list<i64> removeChatGroupMembers(1: i64 chatGroupId, 2: i64 operatorId, 3: list<i64> userIds) throws (1:NotFoundException ex)
 
   // 获得讨论组成员
-  list<UserInfo> getChatGroupMembers(1:i64 chatGroupId, 2:optional list<UserInfoProp> fields) throws (1:NotFoundException ex)
+  list<UserInfo> getChatGroupMembers(1:i64 chatGroupId, 2:optional list<UserInfoProp> fields, 3:optional i64 selfId) throws (1:NotFoundException ex)
 }
