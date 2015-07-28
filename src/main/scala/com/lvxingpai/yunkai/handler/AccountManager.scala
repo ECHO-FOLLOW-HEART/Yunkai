@@ -78,7 +78,7 @@ object AccountManager {
     // The value of a gender should be among ["m", "f", "s", null]
     if (userInfo.contains(UserInfoProp.Gender)) {
       val gender = userInfo(UserInfoProp.Gender)
-      if (gender != null && gender != "f" && gender != "m" && gender != "s" && gender != "F" && gender != "M" && gender != "S")
+      if (gender != null && gender != "f" && gender != "m" && gender != "s" && gender != "b" && gender != "F" && gender != "M" && gender != "S" && gender != "B")
         throw new InvalidArgsException(Some(s"Invalid gender $gender"))
     }
 

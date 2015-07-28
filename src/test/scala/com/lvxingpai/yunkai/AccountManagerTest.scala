@@ -239,10 +239,12 @@ class AccountManagerTest extends YunkaiBaseTest {
 
       When("updating the user's gender")
       Then("the gender should be updated successfully")
-      Seq("m", "f", null) foreach (gender => {
+      Seq("m", "f", "s", "b", null) foreach (gender => {
         val genderValue: Option[Gender] = gender match {
           case "m" => Some(Gender.Male)
           case "f" => Some(Gender.Female)
+          case "s" => Some(Gender.Secret)
+          case "b" => Some(Gender.Both)
           case null => None
         }
         updatedUser = waitFuture(service.updateUserInfo(userInfo.userId, Map(UserInfoProp.Gender -> gender)))

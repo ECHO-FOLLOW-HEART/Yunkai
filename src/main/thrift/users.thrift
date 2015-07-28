@@ -5,7 +5,8 @@ namespace java com.lvxingpai.yunkai.java
 enum Gender {
   MALE,
   FEMALE,
-  SECRET
+  SECRET,
+  BOTH
 }
 
 // 聊天群组的类型。CHATGROUP为普通讨论组
