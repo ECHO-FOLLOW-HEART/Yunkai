@@ -251,6 +251,9 @@ service userservice {
   // 搜索用户(参数1表示根据哪些字段搜索, 参数2表示返回的字段, 参数3表示当前页从第几个开始, 4表示一页返回多少个)
   list<UserInfo> searchUserInfo(1: map<UserInfoProp, string> queryFields, 2: optional list<UserInfoProp> fields, 3: optional i32 offset, 4: optional i32 count)
 
+  // 第三方用户(微信)登录
+  UserInfo loginByOAuth(1: string code, 2:string source)
+
   // 用户退出登录
   // void logout(1: i64 userId)
 
