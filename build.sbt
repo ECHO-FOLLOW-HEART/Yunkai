@@ -51,7 +51,8 @@ libraryDependencies ++= Seq(
   "org.specs2" %% "specs2-mock" % "3.6",
   "com.lvxingpai" %% "appconfig" % "0.2.1-SNAPSHOT",
   "ch.qos.logback" % "logback-classic" % "1.1.3",
-  "com.lvxingpai" %% "apium" % "0.1-SNAPSHOT"
+  "com.lvxingpai" %% "apium" % "0.1-SNAPSHOT",
+  "commons-io" % "commons-io" % "2.4"
 )
 
 publishTo := {

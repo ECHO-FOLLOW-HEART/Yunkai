@@ -1,25 +1,27 @@
 package com.lvxingpai.yunkai.handler
 
+import java.net.URL
 import java.security.MessageDigest
 import java.util.UUID
 
-import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
+import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
 import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai
-import com.lvxingpai.yunkai.model.{ ContactRequest, UserInfo, _ }
-import com.lvxingpai.yunkai.serialization.{ TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse }
-import com.lvxingpai.yunkai.service.{ RedisFactory, SmsCenter }
-import com.mongodb.{ DuplicateKeyException, MongoCommandException }
-import com.twitter.util.{ Future, FuturePool }
+import com.lvxingpai.yunkai.model.{ContactRequest, UserInfo, _}
+import com.lvxingpai.yunkai.serialization.{TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse}
+import com.lvxingpai.yunkai.service.{RedisFactory, SmsCenter}
+import com.lvxingpai.yunkai.utils.RequestUtils
+import com.mongodb.{DuplicateKeyException, MongoCommandException}
+import com.twitter.util.{Future, FuturePool}
 import com.typesafe.config.ConfigException
 import org.bson.types.ObjectId
 import org.mongodb.morphia.Datastore
-import org.mongodb.morphia.query.{ CriteriaContainer, UpdateOperations }
+import org.mongodb.morphia.query.{CriteriaContainer, UpdateOperations}
 
 import scala.collection.JavaConversions._
-import scala.language.{ implicitConversions, postfixOps }
+import scala.language.{implicitConversions, postfixOps}
 import scala.util.Random
 
 /**
@@ -127,7 +129,7 @@ object AccountManager {
     import UserInfo._
 
     val cls = classOf[UserInfo]
-    val query = ds.createQuery(cls) field fdUserId equal userId retrievedFields (true, fdRoles)
+    val query = ds.createQuery(cls) field fdUserId equal userId retrievedFields(true, fdRoles)
 
     futurePool {
       val rolesJ = seqAsJavaList(roles map (_.value))
@@ -165,7 +167,7 @@ object AccountManager {
     }
 
     for {
-      //      l <- userList
+    //      l <- userList
       rel <- relationship
     } yield {
       //      if (l exists (_._2 isEmpty))
@@ -265,7 +267,7 @@ object AccountManager {
    * @return
    */
   def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq(), offset: Option[Int] = None,
-    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
+                     count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
     val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
       (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
     val queryRel = ds.createQuery(classOf[Relationship])
@@ -360,6 +362,7 @@ object AccountManager {
       //      EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
     }
   }
+
   /**
    * 给定一个ContactRequest，生成相应的MongoDB update operation
    * @param req
@@ -449,16 +452,16 @@ object AccountManager {
 
         val updateOps = buildContactRequestUpdateOps(req).unset(fdRejectMessage) //.set(fdContactRequestId, UUID.randomUUID().toString)
         val newRequest = try {
-          ds.findAndModify(query, updateOps, false, true)
-        } catch {
-          // 如果发生该异常，说明系统中已经存在一个好友请求，且不允许重复发送请求
-          // 比如：前一个请求处于PENDING状态，且未过期，或者前一个请求已经被拒绝等）
-          case ex: MongoCommandException =>
-            if (isDuplicateKeyException(ex))
-              throw InvalidStateException()
-            else
-              throw ex
-        }
+            ds.findAndModify(query, updateOps, false, true)
+          } catch {
+            // 如果发生该异常，说明系统中已经存在一个好友请求，且不允许重复发送请求
+            // 比如：前一个请求处于PENDING状态，且未过期，或者前一个请求已经被拒绝等）
+            case ex: MongoCommandException =>
+              if (isDuplicateKeyException(ex))
+                throw InvalidStateException()
+              else
+                throw ex
+          }
         // 触发发送好友请求
         val senderInfo = users(sender).get
         val receiverInfo = users(receiver).get
@@ -675,18 +678,18 @@ object AccountManager {
           Map(userIds map (v => v -> (results get v map userInfoMorphia2Yunkai)): _*)
         } else {
           // 设置备注
-          val userInfos = results map { user =>
-            {
-              val (userId1, userId2, retrievedField) = if (selfId.get <= user._1) (selfId.get, user._1, Relationship.fdMemoB) else (user._1, selfId.get, Relationship.fdMemoA)
-              val query = ds.createQuery(classOf[Relationship]).field("userA").equal(userId1).field("userB").equal(userId2)
-                .retrievedFields(true, retrievedField)
-              val rel = query.get
-              val memo = if (rel == null) "" else {
-                if (selfId.get <= user._1) rel.memoB else rel.memoA
-              }
-              user._2.memo = memo
-              user
+          val userInfos = results map { user => {
+            val (userId1, userId2, retrievedField) = if (selfId.get <= user._1) (selfId.get, user._1, Relationship.fdMemoB) else (user._1, selfId.get, Relationship.fdMemoA)
+            val query = ds.createQuery(classOf[Relationship]).field("userA").equal(userId1).field("userB").equal(userId2)
+              .retrievedFields(true, retrievedField)
+            val rel = query.get
+            val memo = if (rel == null) ""
+            else {
+              if (selfId.get <= user._1) rel.memoB else rel.memoA
             }
+            user._2.memo = memo
+            user
+          }
           }
           Map(userIds map (v => v -> (userInfos get v map userInfoMorphia2Yunkai)): _*)
         }
@@ -767,22 +770,22 @@ object AccountManager {
     val userInfo = for {
       userId <- futureUserId
     } yield {
-      val newUser = UserInfo(userId, nickName)
-      newUser.tel = tel.getOrElse(UUID.randomUUID().toString)
+        val newUser = UserInfo(userId, nickName)
+        newUser.tel = tel.getOrElse(UUID.randomUUID().toString)
 
-      // 检查用户是否已经存在
-      val query = ds.createQuery(classOf[UserInfo]).retrievedFields(true, UserInfo.fdUserId)
-      query.or(query.criteria(UserInfo.fdUserId).equal(userId), query.criteria(UserInfo.fdTel).equal(newUser.tel))
-      if (query.get() != null)
-        throw new ResourceConflictException(Some(s"User $userId is existed"))
-      else
-        try {
-          ds.save[UserInfo](newUser)
-        } catch {
-          case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
-        }
-      newUser
-    }
+        // 检查用户是否已经存在
+        val query = ds.createQuery(classOf[UserInfo]).retrievedFields(true, UserInfo.fdUserId)
+        query.or(query.criteria(UserInfo.fdUserId).equal(userId), query.criteria(UserInfo.fdTel).equal(newUser.tel))
+        if (query.get() != null)
+          throw new ResourceConflictException(Some(s"User $userId is existed"))
+        else
+          try {
+            ds.save[UserInfo](newUser)
+          } catch {
+            case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
+          }
+        newUser
+      }
 
     val (salt, crypted) = saltPassword(password)
 
@@ -807,6 +810,15 @@ object AccountManager {
     })
 
     userInfo
+  }
+
+  def createUserByAuth(code: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+
+    val urlStr = RequestUtils.getWeiXinUrl(code)
+
+    val url: URL = new URL(urlStr)
+
+    null
   }
 
   /**
@@ -876,7 +888,7 @@ object AccountManager {
     val digits = f"${Random.nextInt(1000000)}%06d"
     val redisKey = ValidationCode.calcRedisKey(action, tel, countryCode)
 
-    import OperationCode.{ ResetPassword, Signup, UpdateTel }
+    import OperationCode.{ResetPassword, Signup, UpdateTel}
     implicit val format = ValidationCodeRedisFormat()
     implicit val parse = ValidationCodeRedisParse()
 
@@ -921,19 +933,19 @@ object AccountManager {
 
         val expire = 10 * 60 * 1000L // 10分钟后过期
         val code = action match {
-          case item if item.value == Signup.value =>
-            if (telSearchResult nonEmpty)
+            case item if item.value == Signup.value =>
+              if (telSearchResult nonEmpty)
               // 手机号码已存在
-              throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
-            else
-              ValidationCode(digits, action, None, tel, countryCode)
-          case item if item.value == ResetPassword.value || item.value == UpdateTel.value =>
-            if (telSearchResult isEmpty)
+                throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
+              else
+                ValidationCode(digits, action, None, tel, countryCode)
+            case item if item.value == ResetPassword.value || item.value == UpdateTel.value =>
+              if (telSearchResult isEmpty)
               // 不存在相应的用户
-              throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
-            else
-              ValidationCode(digits, action, Some(telSearchResult.get.userId), tel, countryCode)
-        }
+                throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
+              else
+                ValidationCode(digits, action, Some(telSearchResult.get.userId), tel, countryCode)
+          }
 
         if (RedisFactory.pool.withClient(_.setex(redisKey, expire / 1000, code)))
           sendSms()
@@ -1091,7 +1103,7 @@ object AccountManager {
    * @return
    */
   def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int] = None,
-    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
+                     count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
     val cls = classOf[UserInfo]
 
     val query = ds.createQuery(cls)
