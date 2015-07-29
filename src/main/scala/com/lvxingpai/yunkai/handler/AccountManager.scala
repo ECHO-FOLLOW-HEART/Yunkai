@@ -871,7 +871,7 @@ object AccountManager {
     }
   }
 
-  def sendValidationCode(action: OperationCode, tel: String, countryCode: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def sendValidationCode(action: OperationCode, userId: Option[Long], tel: String, countryCode: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
     val resendInterval = 60 * 1000L // 1分钟的发送间隔
     val digits = f"${Random.nextInt(1000000)}%06d"
     val redisKey = ValidationCode.calcRedisKey(action, tel, countryCode)
@@ -927,12 +927,22 @@ object AccountManager {
               throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
             else
               ValidationCode(digits, action, None, tel, countryCode)
-          case item if item.value == ResetPassword.value || item.value == UpdateTel.value =>
+          case item if item.value == ResetPassword.value =>
             if (telSearchResult isEmpty)
               // 不存在相应的用户
               throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
             else
               ValidationCode(digits, action, Some(telSearchResult.get.userId), tel, countryCode)
+          case item if item.value == UpdateTel.value =>
+            if (userId isEmpty)
+              throw InvalidArgsException(Some(s"Not provide a userId"))
+            else {
+              getUserById(userId.get, Seq(), None) map (user => if (user isEmpty) {
+                throw InvalidArgsException(Some(s"The userId ${userId.get} is not exist"))
+              } else {
+                ValidationCode(digits, action, userId, tel, countryCode)
+              })
+            }
         }
 
         if (RedisFactory.pool.withClient(_.setex(redisKey, expire / 1000, code)))
