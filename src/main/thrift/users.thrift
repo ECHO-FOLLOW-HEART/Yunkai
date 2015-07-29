@@ -79,7 +79,6 @@ enum OperationCode {
   SIGNUP = 1            // 注册
   RESET_PASSWORD = 2    // 重置密码
   UPDATE_TEL = 3        // 绑定手机
-  BIND_TEL = 4
 }
 
 // 用户的某些操作（比如修改密码等），需要令牌，保证有相应的权限。
