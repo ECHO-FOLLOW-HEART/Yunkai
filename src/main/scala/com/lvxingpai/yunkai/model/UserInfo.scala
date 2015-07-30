@@ -50,7 +50,14 @@ class UserInfo extends AbstractEntity {
   @Transient
   var memo: String = null
 
+  @BeanProperty
+  var residence: String = null
+
+  @BeanProperty
+  var birthday: String = null
+
   var oauthIdList: JList[String] = null
+
   @BeanProperty
   var oauthInfoList: JList[OAuthInfo] = null
 }
@@ -66,6 +73,8 @@ object UserInfo {
   val fdGender = "gender"
   val fdChatGroups = "chatGroups"
   val fdRoles = "roles"
+  val fdResidence = "residence"
+  val fdBirthday = "birthday"
   val fdOauthInfoList = "oauthInfoList"
   val fdOauthIdList = "oauthIdList"
 
