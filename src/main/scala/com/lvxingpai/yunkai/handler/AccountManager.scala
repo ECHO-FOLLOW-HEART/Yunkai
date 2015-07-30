@@ -925,11 +925,12 @@ object AccountManager {
         case _ => throw InvalidArgsException(Some("Invalid operation code"))
       }
     }
-
+    val userIdFuture = getUserById(userId.get, Seq(), None)
     // 当且仅当上述两个条件达成的时候，才生成验证码并发送
     for {
       quotaFlag <- quotaExceeds
       telSearchResult <- telSearch
+      userId1 <- userIdFuture
       _ <- {
         if (!quotaFlag)
           throw OverQuotaLimitException()
@@ -952,11 +953,11 @@ object AccountManager {
             if (userId isEmpty)
               throw InvalidArgsException(Some(s"Not provide a userId"))
             else {
-              getUserById(userId.get, Seq(), None) map (user => if (user isEmpty) {
+               if (userId1 isEmpty) {
                 throw InvalidArgsException(Some(s"The userId ${userId.get} is not exist"))
               } else {
                 ValidationCode(digits, action, userId, tel, countryCode)
-              })
+              }
             }
         }
 
