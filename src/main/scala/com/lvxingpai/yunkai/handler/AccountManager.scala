@@ -1,5 +1,6 @@
 package com.lvxingpai.yunkai.handler
 
+import java.net.URL
 import java.security.MessageDigest
 import java.util.UUID
 
@@ -11,9 +12,11 @@ import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.model.{ ContactRequest, UserInfo, _ }
 import com.lvxingpai.yunkai.serialization.{ TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse }
 import com.lvxingpai.yunkai.service.{ RedisFactory, SmsCenter }
+import com.lvxingpai.yunkai.utils.RequestUtils
 import com.mongodb.{ DuplicateKeyException, MongoCommandException }
 import com.twitter.util.{ Future, FuturePool }
 import com.typesafe.config.ConfigException
+import org.apache.commons.io.IOUtils
 import org.bson.types.ObjectId
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.{ CriteriaContainer, UpdateOperations }
@@ -21,6 +24,7 @@ import org.mongodb.morphia.query.{ CriteriaContainer, UpdateOperations }
 import scala.collection.JavaConversions._
 import scala.language.{ implicitConversions, postfixOps }
 import scala.util.Random
+import java.util.regex.{ Pattern, Matcher }
 
 /**
  * 用户账户管理。包括但不限于：
@@ -360,6 +364,7 @@ object AccountManager {
       //      EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
     }
   }
+
   /**
    * 给定一个ContactRequest，生成相应的MongoDB update operation
    * @param req
@@ -681,7 +686,8 @@ object AccountManager {
               val query = ds.createQuery(classOf[Relationship]).field("userA").equal(userId1).field("userB").equal(userId2)
                 .retrievedFields(true, retrievedField)
               val rel = query.get
-              val memo = if (rel == null) "" else {
+              val memo = if (rel == null) ""
+              else {
                 if (selfId.get <= user._1) rel.memoB else rel.memoA
               }
               user._2.memo = memo
@@ -807,6 +813,15 @@ object AccountManager {
     })
 
     userInfo
+  }
+
+  def createUserByAuth(code: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+
+    val urlStr = RequestUtils.getWeiXinUrl(code)
+
+    val url: URL = new URL(urlStr)
+
+    null
   }
 
   /**
@@ -1139,5 +1154,91 @@ object AccountManager {
         query.asList().toSeq.map[yunkai.UserInfo, Seq[yunkai.UserInfo]](v => v)
       }
     }
+  }
+  def getUserByField(fields: String, value: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[yunkai.UserInfo]] = futurePool {
+    Option(ds.createQuery(classOf[UserInfo]).field(fields).hasThisOne(value).get) map userInfoMorphia2Yunkai
+  }
+  def isNumeric(str: String): Boolean = {
+    val pattern = Pattern.compile("[0-9]*")
+    val isNum = pattern.matcher(str)
+    isNum.matches()
+  }
+  /**
+   * 截取userID的后3位，区分重复的昵称
+   *
+   * @param u
+   */
+  def nickDuplicateRemoval(u: UserInfo): UserInfo = {
+    val uidStr = u.userId.toString
+    val size = uidStr.length
+    val doc = uidStr.substring(size - 4, size - 1)
+    u.nickName = u.nickName + "_" + doc
+    u
+  }
+  def oauthToUserInfo4WX(json: JsonNode)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
+    val nickName = json.get("nickname").asText()
+    val avatar = json.get("headimgurl").asText()
+    val gender = if (json.get("sex").asText().equals("1")) "M" else "F"
+    // 取得用户ID
+    val futureUserId = IdGenerator.generateId("yunkai:idgenerator/default")
+    val provider = "weixin"
+    val oauthId = json.get("openid").asText()
+    val oauthInfo = OAuthInfo(provider, oauthId, nickName)
+    if (isNumeric(nickName))
+      oauthInfo.nickName = nickName + "_桃子"
+
+    val oauthInfoList = seqAsJavaList(Seq(oauthInfo))
+    val userInfo = futureUserId map (userId => {
+      val user = UserInfo(userId, nickName)
+      user.avatar = avatar
+      user.gender = gender
+      user.oauthIdList = seqAsJavaList(Seq(oauthId))
+      user.oauthInfoList = oauthInfoList
+      //如果第三方昵称已被其他用户使用，则添加后缀
+      if (getUserByField(UserInfo.fdNickName, nickName) != null) {
+        nickDuplicateRemoval(user)
+      }
+      try {
+        ds.save[UserInfo](user)
+      } catch {
+        case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
+      }
+      user
+    })
+    userInfo map userInfoMorphia2Yunkai
+  }
+  /**
+   * 微信登录
+   */
+  def loginByWeixin(code: String, source: String)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
+    val wxUrl = RequestUtils.getWeiXinUrl(code)
+    val acc_url = new URL(wxUrl)
+    val acc_json = IOUtils.toString(acc_url, "UTF-8")
+    val mapper = new ObjectMapper()
+    val rootNode = mapper.readTree(acc_json)
+    // 如果请求失败
+
+    // 获取access_token
+    val access_token = rootNode.get("access_token").asText()
+    val openId = rootNode.get("openid").asText()
+
+    //请求用户信息
+    val infoUrl = RequestUtils.getInfoUrl(access_token, openId)
+    val info_url = new URL(infoUrl)
+    val info_json = IOUtils.toString(info_url, "UTF-8")
+    val info_mapper = new ObjectMapper()
+    val infoNode = info_mapper.readTree(info_json)
+
+    // 如果第三方用户已存在，视为第二次登录
+    def create(user: Option[yunkai.UserInfo]): Future[yunkai.UserInfo] = {
+      if (user nonEmpty)
+        Future(user.get)
+      else
+        oauthToUserInfo4WX(infoNode)
+    }
+    for {
+      user <- getUserByField(UserInfo.fdOauthIdList, infoNode.get("openid").asText())
+      result <- create(user)
+    } yield result
   }
 }
