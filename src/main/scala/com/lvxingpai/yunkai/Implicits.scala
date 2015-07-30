@@ -42,6 +42,7 @@ object Implicits {
         case "m" | "M" => Gender.Male
         case "f" | "F" => Gender.Female
         case "s" | "S" => Gender.Secret
+        case "b" | "B" => Gender.Both
         case "u" | "U" | null => null
         case _ => throw new IllegalArgumentException("Invalid gender")
       })

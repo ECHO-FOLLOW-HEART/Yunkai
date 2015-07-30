@@ -139,7 +139,7 @@ class AccountManagerTest extends YunkaiBaseTest {
       val (user, password) = initialUsers.head
       val newPassword = UUID.randomUUID().toString.take(8)
 
-      waitFuture(service.sendValidationCode(action, tel, None))
+      waitFuture(service.sendValidationCode(action, None, tel, None))
       val digits = RedisFactory.pool.withClient(client => {
         client.get[ValidationCode](ValidationCode.calcRedisKey(action, tel, None)).get.code
       })
@@ -170,7 +170,7 @@ class AccountManagerTest extends YunkaiBaseTest {
 
         val theTel = if (action.value == Signup.value) "13800138111" else tel
 
-        waitFuture(service.sendValidationCode(action, theTel, None))
+        waitFuture(service.sendValidationCode(action, None, theTel, None))
 
         var digits = ""
         RedisFactory.pool.withClient(client => {
@@ -239,10 +239,12 @@ class AccountManagerTest extends YunkaiBaseTest {
 
       When("updating the user's gender")
       Then("the gender should be updated successfully")
-      Seq("m", "f", null) foreach (gender => {
+      Seq("m", "f", "s", "b", null) foreach (gender => {
         val genderValue: Option[Gender] = gender match {
           case "m" => Some(Gender.Male)
           case "f" => Some(Gender.Female)
+          case "s" => Some(Gender.Secret)
+          case "b" => Some(Gender.Both)
           case null => None
         }
         updatedUser = waitFuture(service.updateUserInfo(userInfo.userId, Map(UserInfoProp.Gender -> gender)))

@@ -82,7 +82,7 @@ object AccountManager {
     // The value of a gender should be among ["m", "f", "s", null]
     if (userInfo.contains(UserInfoProp.Gender)) {
       val gender = userInfo(UserInfoProp.Gender)
-      if (gender != null && gender != "f" && gender != "m" && gender != "s" && gender != "F" && gender != "M" && gender != "S")
+      if (gender != null && gender != "f" && gender != "m" && gender != "s" && gender != "b" && gender != "F" && gender != "M" && gender != "S" && gender != "B")
         throw new InvalidArgsException(Some(s"Invalid gender $gender"))
     }
 
@@ -886,7 +886,7 @@ object AccountManager {
     }
   }
 
-  def sendValidationCode(action: OperationCode, tel: String, countryCode: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def sendValidationCode(action: OperationCode, userId: Option[Long], tel: String, countryCode: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
     val resendInterval = 60 * 1000L // 1分钟的发送间隔
     val digits = f"${Random.nextInt(1000000)}%06d"
     val redisKey = ValidationCode.calcRedisKey(action, tel, countryCode)
@@ -925,11 +925,12 @@ object AccountManager {
         case _ => throw InvalidArgsException(Some("Invalid operation code"))
       }
     }
-
+    val userIdFuture = getUserById(userId.get, Seq(), None)
     // 当且仅当上述两个条件达成的时候，才生成验证码并发送
     for {
       quotaFlag <- quotaExceeds
       telSearchResult <- telSearch
+      userId1 <- userIdFuture
       _ <- {
         if (!quotaFlag)
           throw OverQuotaLimitException()
@@ -942,12 +943,22 @@ object AccountManager {
               throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
             else
               ValidationCode(digits, action, None, tel, countryCode)
-          case item if item.value == ResetPassword.value || item.value == UpdateTel.value =>
+          case item if item.value == ResetPassword.value =>
             if (telSearchResult isEmpty)
               // 不存在相应的用户
               throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
             else
               ValidationCode(digits, action, Some(telSearchResult.get.userId), tel, countryCode)
+          case item if item.value == UpdateTel.value =>
+            if (userId isEmpty)
+              throw InvalidArgsException(Some(s"Not provide a userId"))
+            else {
+               if (userId1 isEmpty) {
+                throw InvalidArgsException(Some(s"The userId ${userId.get} is not exist"))
+              } else {
+                ValidationCode(digits, action, userId, tel, countryCode)
+              }
+            }
         }
 
         if (RedisFactory.pool.withClient(_.setex(redisKey, expire / 1000, code)))

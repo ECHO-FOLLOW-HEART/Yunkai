@@ -5,7 +5,8 @@ namespace java com.lvxingpai.yunkai.java
 enum Gender {
   MALE,
   FEMALE,
-  SECRET
+  SECRET,
+  BOTH
 }
 
 // 聊天群组的类型。CHATGROUP为普通讨论组
@@ -227,7 +228,7 @@ service userservice {
   // 发送手机验证码
   // 如果发送过于频繁，会出现OverQuotaLimitException
   // 如果参数不合法，比如既不提供tel，又不提供userId，会抛出InvalidArgsException
-  void sendValidationCode(1:OperationCode action, 2:string tel, 3:optional i32 countryCode) throws (1:OverQuotaLimitException ex, 2:InvalidArgsException ex2)
+  void sendValidationCode(1:OperationCode action, 2:optional i64 userId, 3:string tel, 4:optional i32 countryCode) throws (1:OverQuotaLimitException ex, 2:InvalidArgsException ex2)
 
 //   根据fingerprint读取Token
 //  Token fetchToken(1:string fingerprint) throws (1:NotFoundException ex)
