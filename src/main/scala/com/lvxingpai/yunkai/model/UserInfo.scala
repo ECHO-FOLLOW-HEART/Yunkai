@@ -50,7 +50,6 @@ class UserInfo extends AbstractEntity {
   @Transient
   var memo: String = null
 
-  var oauthIdList: JList[String] = null
   @BeanProperty
   var oauthInfoList: JList[OAuthInfo] = null
 }

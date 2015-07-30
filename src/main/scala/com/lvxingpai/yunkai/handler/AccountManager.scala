@@ -1177,68 +1177,78 @@ object AccountManager {
     u
   }
   def oauthToUserInfo4WX(json: JsonNode)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
-    val nickName = json.get("nickname").asText()
-    val avatar = json.get("headimgurl").asText()
-    val gender = if (json.get("sex").asText().equals("1")) "M" else "F"
-    // 取得用户ID
-    val futureUserId = IdGenerator.generateId("yunkai:idgenerator/default")
-    val provider = "weixin"
-    val oauthId = json.get("openid").asText()
-    val oauthInfo = OAuthInfo(provider, oauthId, nickName)
-    if (isNumeric(nickName))
-      oauthInfo.nickName = nickName + "_桃子"
+    val userInfo = futurePool{
+      val nickName = json.get("nickname").asText()
+      val avatar = json.get("headimgurl").asText()
+      val gender = if (json.get("sex").asText().equals("1")) "M" else "F"
+      // 取得用户ID
+      val futureUserId = IdGenerator.generateId("yunkai:idgenerator/default")
+      val provider = "weixin"
+      val oauthId = json.get("openid").asText()
+      val oauthInfo = OAuthInfo(provider, oauthId, nickName)
+      if (isNumeric(nickName))
+        oauthInfo.nickName = nickName + "_桃子"
 
-    val oauthInfoList = seqAsJavaList(Seq(oauthInfo))
-    val userInfo = futureUserId map (userId => {
-      val user = UserInfo(userId, nickName)
-      user.avatar = avatar
-      user.gender = gender
-      user.oauthIdList = seqAsJavaList(Seq(oauthId))
-      user.oauthInfoList = oauthInfoList
-      //如果第三方昵称已被其他用户使用，则添加后缀
-      if (getUserByField(UserInfo.fdNickName, nickName) != null) {
-        nickDuplicateRemoval(user)
-      }
-      try {
-        ds.save[UserInfo](user)
-      } catch {
-        case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
-      }
-      user
-    })
-    userInfo map userInfoMorphia2Yunkai
+      val oauthInfoList = seqAsJavaList(Seq(oauthInfo))
+      futureUserId map (userId => {
+        val user = UserInfo(userId, nickName)
+        user.avatar = avatar
+        user.gender = gender
+        //user.oauthIdList = seqAsJavaList(Seq(oauthId))
+        user.oauthInfoList = oauthInfoList
+        //如果第三方昵称已被其他用户使用，则添加后缀
+        if (getUserByField(UserInfo.fdNickName, nickName) != null) {
+          nickDuplicateRemoval(user)
+        }
+        try {
+          ds.save[UserInfo](user)
+        } catch {
+          case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
+        }
+        user
+      })
+    }
+    userInfo flatMap (item => item map userInfoMorphia2Yunkai)
   }
   /**
    * 微信登录
    */
   def loginByWeixin(code: String, source: String)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
-    val wxUrl = RequestUtils.getWeiXinUrl(code)
-    val acc_url = new URL(wxUrl)
-    val acc_json = IOUtils.toString(acc_url, "UTF-8")
-    val mapper = new ObjectMapper()
-    val rootNode = mapper.readTree(acc_json)
-    // 如果请求失败
+    val futureInfoNode = futurePool{
+      val wxUrl = RequestUtils.getWeiXinUrl(code)
+      val acc_url = new URL(wxUrl)
+      val acc_json = IOUtils.toString(acc_url, "UTF-8")
+      val mapper = new ObjectMapper()
+      val rootNode = mapper.readTree(acc_json)
+      // 如果请求失败
 
-    // 获取access_token
-    val access_token = rootNode.get("access_token").asText()
-    val openId = rootNode.get("openid").asText()
+      // 获取access_token
+      val access_token = rootNode.get("access_token").asText()
+      val openId = rootNode.get("openid").asText()
 
-    //请求用户信息
-    val infoUrl = RequestUtils.getInfoUrl(access_token, openId)
-    val info_url = new URL(infoUrl)
-    val info_json = IOUtils.toString(info_url, "UTF-8")
-    val info_mapper = new ObjectMapper()
-    val infoNode = info_mapper.readTree(info_json)
+      //请求用户信息
+      val infoUrl = RequestUtils.getInfoUrl(access_token, openId)
+      val info_url = new URL(infoUrl)
+      val info_json = IOUtils.toString(info_url, "UTF-8")
+      val info_mapper = new ObjectMapper()
+      val infoNode = info_mapper.readTree(info_json)
+      infoNode
+    }
+    val futureOauthId = for {
+      node <- futureInfoNode
+    } yield node.get("openid").asText()
 
     // 如果第三方用户已存在，视为第二次登录
     def create(user: Option[yunkai.UserInfo]): Future[yunkai.UserInfo] = {
       if (user nonEmpty)
         Future(user.get)
-      else
-        oauthToUserInfo4WX(infoNode)
+      else{
+        futureInfoNode flatMap (info => oauthToUserInfo4WX(info))
+      }
     }
     for {
-      user <- getUserByField(UserInfo.fdOauthIdList, infoNode.get("openid").asText())
+      oauthId <- futureOauthId
+      user <- getUserByField("oauthInfoList.oauthId", oauthId)
       result <- create(user)
     } yield result
   }
