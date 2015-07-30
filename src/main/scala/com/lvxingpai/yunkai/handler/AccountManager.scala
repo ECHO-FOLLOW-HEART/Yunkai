@@ -1145,8 +1145,8 @@ object AccountManager {
       }
     }
   }
-  def getUserByField(fields: String, value: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[UserInfo]] = futurePool {
-    Option(ds.createQuery(classOf[UserInfo]).field(fields).hasThisOne(value).get)
+  def getUserByField(fields: String, value: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[yunkai.UserInfo]] = futurePool {
+    Option(ds.createQuery(classOf[UserInfo]).field(fields).hasThisOne(value).get) map userInfoMorphia2Yunkai
   }
   def isNumeric(str: String): Boolean = {
     val pattern = Pattern.compile("[0-9]*")
@@ -1182,6 +1182,7 @@ object AccountManager {
       val user = UserInfo(userId, nickName)
       user.avatar = avatar
       user.gender = gender
+      user.oauthIdList = seqAsJavaList(Seq(oauthId))
       user.oauthInfoList = oauthInfoList
       //如果第三方昵称已被其他用户使用，则添加后缀
       if (getUserByField(UserInfo.fdNickName, nickName) != null) {
@@ -1219,14 +1220,14 @@ object AccountManager {
     val infoNode = info_mapper.readTree(info_json)
 
     // 如果第三方用户已存在，视为第二次登录
-    def create(user: Option[UserInfo]): Future[yunkai.UserInfo] = {
+    def create(user: Option[yunkai.UserInfo]): Future[yunkai.UserInfo] = {
       if (user nonEmpty)
         Future(user.get)
       else
         oauthToUserInfo4WX(infoNode)
     }
     for {
-      user <- getUserByField(UserInfo.fdOauthIds, infoNode.get("openid").asText())
+      user <- getUserByField(UserInfo.fdOauthIdList, infoNode.get("openid").asText())
       result <- create(user)
     } yield result
   }
