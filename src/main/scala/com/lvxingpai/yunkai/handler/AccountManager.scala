@@ -947,7 +947,7 @@ object AccountManager {
           case item if item.value == Signup.value =>
             if (telSearchResult nonEmpty)
               // 手机号码已存在
-              throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
+              throw ResourceConflictException(Some(s"The phone number $tel already exists"))
             else
               ValidationCode(digits, action, None, tel, countryCode)
           case item if item.value == ResetPassword.value =>
