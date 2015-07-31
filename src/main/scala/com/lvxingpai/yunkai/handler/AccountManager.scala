@@ -735,9 +735,12 @@ object AccountManager {
     for {
       userInfo <- futurePool {
         val retrievedFields = Seq(UserInfo.fdId, UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
-          UserInfo.fdSignature, UserInfo.fdTel)
-        ds.createQuery(classOf[UserInfo]).field(UserInfo.fdTel).equal(loginName)
-          .retrievedFields(true, retrievedFields: _*).get()
+          UserInfo.fdSignature, UserInfo.fdTel, UserInfo.fdLoginStatus, UserInfo.fdLoginSource, UserInfo.fdLoginTime)
+
+        val query = ds.find(classOf[UserInfo], UserInfo.fdTel, loginName).retrievedFields(true, retrievedFields: _*)
+        val updateOps = ds.createUpdateOperations(classOf[UserInfo]).set(UserInfo.fdLoginStatus, true).set(UserInfo.fdLoginTime, java.lang.System.currentTimeMillis()).add(UserInfo.fdLoginSource, source, false)
+
+        ds.findAndModify(query, updateOps, false)
       }
       verified <- {
         if (userInfo == null)
@@ -759,6 +762,8 @@ object AccountManager {
         throw AuthException()
     }
   }
+
+  // logout: 释放资源, 修改UserInfo的logoutTime和loginSource字段(删除本次登录的来源)
 
   // 新用户注册
   def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
