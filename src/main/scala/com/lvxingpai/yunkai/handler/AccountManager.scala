@@ -925,7 +925,9 @@ object AccountManager {
         case _ => throw InvalidArgsException(Some("Invalid operation code"))
       }
     }
-    val userIdFuture = getUserById(userId.get, Seq(), None)
+
+    val userIdFuture = if(userId nonEmpty) getUserById(userId.get, Seq(), None) else futurePool{None}
+
     // 当且仅当上述两个条件达成的时候，才生成验证码并发送
     for {
       quotaFlag <- quotaExceeds
