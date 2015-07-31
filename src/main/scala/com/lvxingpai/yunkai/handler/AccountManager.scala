@@ -3,28 +3,28 @@ package com.lvxingpai.yunkai.handler
 import java.net.URL
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.regex.Pattern
 
-import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
+import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
 import com.lvxingpai.yunkai._
-import com.lvxingpai.yunkai
-import com.lvxingpai.yunkai.model.{ ContactRequest, UserInfo, _ }
-import com.lvxingpai.yunkai.serialization.{ TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse }
-import com.lvxingpai.yunkai.service.{ RedisFactory, SmsCenter }
+import com.lvxingpai.yunkai.model.{ContactRequest, UserInfo, _}
+import com.lvxingpai.yunkai.serialization.{TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse}
+import com.lvxingpai.yunkai.service.{RedisFactory, SmsCenter}
 import com.lvxingpai.yunkai.utils.RequestUtils
-import com.mongodb.{ DuplicateKeyException, MongoCommandException }
-import com.twitter.util.{ Future, FuturePool }
+import com.mongodb.{DuplicateKeyException, MongoCommandException}
+import com.twitter.util.{Future, FuturePool}
 import com.typesafe.config.ConfigException
 import org.apache.commons.io.IOUtils
 import org.bson.types.ObjectId
 import org.mongodb.morphia.Datastore
-import org.mongodb.morphia.query.{ CriteriaContainer, UpdateOperations }
+import org.mongodb.morphia.query.{CriteriaContainer, UpdateOperations}
 
 import scala.collection.JavaConversions._
-import scala.language.{ implicitConversions, postfixOps }
+import scala.language.{implicitConversions, postfixOps}
 import scala.util.Random
-import java.util.regex.{ Pattern, Matcher }
 
 /**
  * 用户账户管理。包括但不限于：
@@ -891,7 +891,7 @@ object AccountManager {
     val digits = f"${Random.nextInt(1000000)}%06d"
     val redisKey = ValidationCode.calcRedisKey(action, tel, countryCode)
 
-    import OperationCode.{ ResetPassword, Signup, UpdateTel }
+    import OperationCode.{ResetPassword, Signup, UpdateTel}
     implicit val format = ValidationCodeRedisFormat()
     implicit val parse = ValidationCodeRedisParse()
 
@@ -953,7 +953,7 @@ object AccountManager {
             if (userId isEmpty)
               throw InvalidArgsException(Some(s"Not provide a userId"))
             else {
-               if (userId1 isEmpty) {
+              if (userId1 isEmpty) {
                 throw InvalidArgsException(Some(s"The userId ${userId.get} is not exist"))
               } else {
                 ValidationCode(digits, action, userId, tel, countryCode)
@@ -1177,7 +1177,7 @@ object AccountManager {
     u
   }
   def oauthToUserInfo4WX(json: JsonNode)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
-    val userInfo = futurePool{
+    val userInfo = futurePool {
       val nickName = json.get("nickname").asText()
       val avatar = json.get("headimgurl").asText()
       val gender = if (json.get("sex").asText().equals("1")) "M" else "F"
@@ -1214,7 +1214,7 @@ object AccountManager {
    * 微信登录
    */
   def loginByWeixin(code: String, source: String)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
-    val futureInfoNode = futurePool{
+    val futureInfoNode = futurePool {
       val wxUrl = RequestUtils.getWeiXinUrl(code)
       val acc_url = new URL(wxUrl)
       val acc_json = IOUtils.toString(acc_url, "UTF-8")
@@ -1242,7 +1242,7 @@ object AccountManager {
     def create(user: Option[yunkai.UserInfo]): Future[yunkai.UserInfo] = {
       if (user nonEmpty)
         Future(user.get)
-      else{
+      else {
         futureInfoNode flatMap (info => oauthToUserInfo4WX(info))
       }
     }

@@ -1,7 +1,7 @@
 package com.lvxingpai.yunkai.model
 
 import javax.validation.constraints.NotNull
-import org.mongodb.morphia.annotations.{Indexed, Embedded}
+import org.mongodb.morphia.annotations.{ Indexed, Embedded }
 /**
  * Created by pengyt on 2015/7/28.
  */
