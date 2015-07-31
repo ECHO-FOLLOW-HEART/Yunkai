@@ -253,9 +253,13 @@ object UserServiceHandler {
     })
     val signature = Option(user.signature)
     val tel = Option(user.tel)
+    val loginStatus = user.loginStatus
+    val loginTime = Option(user.loginTime)
+    val logoutTime = Option(user.logoutTime)
+    val loginSource = Option(user.loginSource) map (_.toSeq) getOrElse Seq()
 
     val roles = Option(user.roles) map (_.toSeq map Role.apply) getOrElse Seq()
-    yunkai.UserInfo(id.toString, userId, nickName, avatar, gender, signature, tel, loginStatus = false, roles = roles)
+    yunkai.UserInfo(id.toString, userId, nickName, avatar, gender, signature, tel, loginStatus, loginTime, logoutTime, loginSource, roles = roles)
   }
 
   implicit def chatGroupConversion(chatGroup: ChatGroup): yunkai.ChatGroup = {

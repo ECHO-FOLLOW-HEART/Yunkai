@@ -759,9 +759,12 @@ object AccountManager {
     for {
       userInfo <- futurePool {
         val retrievedFields = Seq(UserInfo.fdId, UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
-          UserInfo.fdSignature, UserInfo.fdTel)
-        ds.createQuery(classOf[UserInfo]).field(UserInfo.fdTel).equal(loginName)
-          .retrievedFields(true, retrievedFields: _*).get()
+          UserInfo.fdSignature, UserInfo.fdTel, UserInfo.fdLoginStatus, UserInfo.fdLoginSource, UserInfo.fdLoginTime)
+
+        val query = ds.find(classOf[UserInfo], UserInfo.fdTel, loginName).retrievedFields(true, retrievedFields: _*)
+        val updateOps = ds.createUpdateOperations(classOf[UserInfo]).set(UserInfo.fdLoginStatus, true).set(UserInfo.fdLoginTime, java.lang.System.currentTimeMillis()).add(UserInfo.fdLoginSource, source, false)
+
+        ds.findAndModify(query, updateOps, false)
       }
       verified <- {
         if (userInfo == null)
@@ -783,6 +786,8 @@ object AccountManager {
         throw AuthException()
     }
   }
+
+  // logout: 释放资源, 修改UserInfo的logoutTime和loginSource字段(删除本次登录的来源)
 
   // 新用户注册
   def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
@@ -950,10 +955,13 @@ object AccountManager {
       }
     }
 
+    val userIdFuture = if (userId nonEmpty) getUserById(userId.get, Seq(), None) else futurePool { None }
+
     // 当且仅当上述两个条件达成的时候，才生成验证码并发送
     for {
       quotaFlag <- quotaExceeds
       telSearchResult <- telSearch
+      userId1 <- userIdFuture
       _ <- {
         if (!quotaFlag)
           throw OverQuotaLimitException()
@@ -963,7 +971,7 @@ object AccountManager {
           case item if item.value == Signup.value =>
             if (telSearchResult nonEmpty)
               // 手机号码已存在
-              throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
+              throw ResourceConflictException(Some(s"The phone number $tel already exists"))
             else
               ValidationCode(digits, action, None, tel, countryCode)
           case item if item.value == ResetPassword.value =>
@@ -976,11 +984,11 @@ object AccountManager {
             if (userId isEmpty)
               throw InvalidArgsException(Some(s"Not provide a userId"))
             else {
-              getUserById(userId.get, Seq(), None) map (user => if (user isEmpty) {
+              if (userId1 isEmpty) {
                 throw InvalidArgsException(Some(s"The userId ${userId.get} is not exist"))
               } else {
                 ValidationCode(digits, action, userId, tel, countryCode)
-              })
+              }
             }
         }
 
@@ -1200,68 +1208,78 @@ object AccountManager {
     u
   }
   def oauthToUserInfo4WX(json: JsonNode)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
-    val nickName = json.get("nickname").asText()
-    val avatar = json.get("headimgurl").asText()
-    val gender = if (json.get("sex").asText().equals("1")) "M" else "F"
-    // 取得用户ID
-    val futureUserId = IdGenerator.generateId("yunkai:idgenerator/default")
-    val provider = "weixin"
-    val oauthId = json.get("openid").asText()
-    val oauthInfo = OAuthInfo(provider, oauthId, nickName)
-    if (isNumeric(nickName))
-      oauthInfo.nickName = nickName + "_桃子"
+    val userInfo = futurePool {
+      val nickName = json.get("nickname").asText()
+      val avatar = json.get("headimgurl").asText()
+      val gender = if (json.get("sex").asText().equals("1")) "M" else "F"
+      // 取得用户ID
+      val futureUserId = IdGenerator.generateId("yunkai:idgenerator/default")
+      val provider = "weixin"
+      val oauthId = json.get("openid").asText()
+      val oauthInfo = OAuthInfo(provider, oauthId, nickName)
+      if (isNumeric(nickName))
+        oauthInfo.nickName = nickName + "_桃子"
 
-    val oauthInfoList = seqAsJavaList(Seq(oauthInfo))
-    val userInfo = futureUserId map (userId => {
-      val user = UserInfo(userId, nickName)
-      user.avatar = avatar
-      user.gender = gender
-      user.oauthIdList = seqAsJavaList(Seq(oauthId))
-      user.oauthInfoList = oauthInfoList
-      //如果第三方昵称已被其他用户使用，则添加后缀
-      if (getUserByField(UserInfo.fdNickName, nickName) != null) {
-        nickDuplicateRemoval(user)
-      }
-      try {
-        ds.save[UserInfo](user)
-      } catch {
-        case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
-      }
-      user
-    })
-    userInfo map userInfoMorphia2Yunkai
+      val oauthInfoList = seqAsJavaList(Seq(oauthInfo))
+      futureUserId map (userId => {
+        val user = UserInfo(userId, nickName)
+        user.avatar = avatar
+        user.gender = gender
+        //user.oauthIdList = seqAsJavaList(Seq(oauthId))
+        user.oauthInfoList = oauthInfoList
+        //如果第三方昵称已被其他用户使用，则添加后缀
+        if (getUserByField(UserInfo.fdNickName, nickName) != null) {
+          nickDuplicateRemoval(user)
+        }
+        try {
+          ds.save[UserInfo](user)
+        } catch {
+          case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
+        }
+        user
+      })
+    }
+    userInfo flatMap (item => item map userInfoMorphia2Yunkai)
   }
   /**
    * 微信登录
    */
   def loginByWeixin(code: String, source: String)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
-    val wxUrl = RequestUtils.getWeiXinUrl(code)
-    val acc_url = new URL(wxUrl)
-    val acc_json = IOUtils.toString(acc_url, "UTF-8")
-    val mapper = new ObjectMapper()
-    val rootNode = mapper.readTree(acc_json)
-    // 如果请求失败
+    val futureInfoNode = futurePool {
+      val wxUrl = RequestUtils.getWeiXinUrl(code)
+      val acc_url = new URL(wxUrl)
+      val acc_json = IOUtils.toString(acc_url, "UTF-8")
+      val mapper = new ObjectMapper()
+      val rootNode = mapper.readTree(acc_json)
+      // 如果请求失败
 
-    // 获取access_token
-    val access_token = rootNode.get("access_token").asText()
-    val openId = rootNode.get("openid").asText()
+      // 获取access_token
+      val access_token = rootNode.get("access_token").asText()
+      val openId = rootNode.get("openid").asText()
 
-    //请求用户信息
-    val infoUrl = RequestUtils.getInfoUrl(access_token, openId)
-    val info_url = new URL(infoUrl)
-    val info_json = IOUtils.toString(info_url, "UTF-8")
-    val info_mapper = new ObjectMapper()
-    val infoNode = info_mapper.readTree(info_json)
+      //请求用户信息
+      val infoUrl = RequestUtils.getInfoUrl(access_token, openId)
+      val info_url = new URL(infoUrl)
+      val info_json = IOUtils.toString(info_url, "UTF-8")
+      val info_mapper = new ObjectMapper()
+      val infoNode = info_mapper.readTree(info_json)
+      infoNode
+    }
+    val futureOauthId = for {
+      node <- futureInfoNode
+    } yield node.get("openid").asText()
 
     // 如果第三方用户已存在，视为第二次登录
     def create(user: Option[yunkai.UserInfo]): Future[yunkai.UserInfo] = {
       if (user nonEmpty)
         Future(user.get)
-      else
-        oauthToUserInfo4WX(infoNode)
+      else {
+        futureInfoNode flatMap (info => oauthToUserInfo4WX(info))
+      }
     }
     for {
-      user <- getUserByField(UserInfo.fdOauthIdList, infoNode.get("openid").asText())
+      oauthId <- futureOauthId
+      user <- getUserByField("oauthInfoList.oauthId", oauthId)
       result <- create(user)
     } yield result
   }
