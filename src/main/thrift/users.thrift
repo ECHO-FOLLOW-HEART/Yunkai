@@ -51,7 +51,9 @@ struct UserInfo {
   10: optional i64 logoutTime,
   11: list<string> loginSource,
   20: optional string memo,
-  100: list<Role> roles
+  100: list<Role> roles,
+  110: optional string birth,
+  120: optional string residence
 }
 
 // 讨论组信息
@@ -104,7 +106,9 @@ enum UserInfoProp {
   LOGOUT_TIME,
   LOGIN_SOURCE,
   MEMO,
-  ROLES
+  ROLES,
+  BIRTHDAY,
+  RESIDENCE
 }
 
 //Created by pengyt on 2015/5/26.
