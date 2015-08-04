@@ -909,7 +909,7 @@ object AccountManager {
       RedisFactory.pool.withClient(client => {
         implicit val parse = TokenRedisParse()
         val result = client.get[Token](token)
-        client.del(token)
+        //client.del(token)
         result
       })
     }
@@ -1045,7 +1045,7 @@ object AccountManager {
       // 更新Credential
       val updateOps = ds.createUpdateOperations(classOf[Credential]).set(Credential.fdSalt, salt)
         .set(Credential.fdPasswdHash, crypted)
-      ds.updateFirst(query, updateOps)
+      ds.updateFirst(query, updateOps, true)
       emitEvent()
       ()
     }
@@ -1067,7 +1067,12 @@ object AccountManager {
    * @return
    */
   def resetPasswordByToken(userId: Long, newPassword: String, token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
-    verifyToken(OperationCode.ResetPassword, token, userId = Some(userId)) flatMap (checked => {
+    val result = for {
+      checked1 <- verifyToken(OperationCode.ResetPassword, token, userId = Some(userId))
+      checked2 <- verifyToken(OperationCode.UpdateTel, token, userId = Some(userId))
+    } yield checked1 || checked2
+
+    result flatMap (checked => {
       if (!checked)
         throw AuthException()
       else
