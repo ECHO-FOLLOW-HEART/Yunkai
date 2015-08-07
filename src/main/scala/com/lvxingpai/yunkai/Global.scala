@@ -31,7 +31,12 @@ object Global {
     val backendKeys = defaultConf.getConfig(s"backendKeys.$runLevel")
     val confKeys = defaultConf.getConfig(s"confKeys.$runLevel")
 
+    /**
+     * conf里面存放若干key。根据这些key，去etcd中获取对应的配置信息。
+     * @return
+     */
     def func(conf: Config, builder: EtcdBuilder): Future[Config] = {
+      // 将conf中的key取出，逐一添加到builder中，最后生成完整的配置信息
       val entries = conf.entrySet().toSeq map (item => item.getKey -> item.getValue.unwrapped().toString)
       entries.foldLeft(builder)((b, pair) => {
         b.addKey(pair._1, pair._2)
