@@ -811,14 +811,9 @@ object AccountManager {
       if (query.get() != null)
         throw new ResourceConflictException(Some(s"User $userId is existed"))
       else
-        try {
-          ds.save[UserInfo](newUser)
-        } catch {
-          case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
-        }
-      newUser
+        newUser
     }
-
+    val result = userInfo map userSaveEmitEvent
     val (salt, crypted) = saltPassword(password)
 
     // 创建并保存新用户Credential实例
@@ -832,16 +827,7 @@ object AccountManager {
         case ex: DuplicateKeyException => throw new InvalidArgsException(Some(s"User $userId credential is existed"))
       }
     }
-
-    // 触发创建新用户的事件
-    userInfo map (v => {
-      val eventArgs: Map[String, JsonNode] = Map(
-        "user" -> userInfoMorphia2Yunkai(v)
-      )
-      EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
-    })
-
-    userInfo
+    result flatMap (item => item)
   }
 
   def createUserByAuth(code: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
@@ -1212,6 +1198,19 @@ object AccountManager {
     u.nickName = u.nickName + "_" + doc
     u
   }
+  def userSaveEmitEvent(userInfo: UserInfo)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = futurePool {
+    try {
+      ds.save[UserInfo](userInfo)
+    } catch {
+      case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User ${userInfo.userId} is existed"))
+    }
+    // 触发创建新用户的事件
+    val eventArgs: Map[String, JsonNode] = Map(
+      "user" -> userInfoMorphia2Yunkai(userInfo)
+    )
+    EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
+    userInfo
+  }
   def oauthToUserInfo4WX(json: JsonNode)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
     val userInfo = futurePool {
       val nickName = json.get("nickname").asText()
@@ -1236,16 +1235,13 @@ object AccountManager {
         if (getUserByField(UserInfo.fdNickName, nickName) != null) {
           nickDuplicateRemoval(user)
         }
-        try {
-          ds.save[UserInfo](user)
-        } catch {
-          case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
-        }
         user
       })
     }
-    userInfo flatMap (item => item map userInfoMorphia2Yunkai)
+    val result = userInfo flatMap (item => { item map userSaveEmitEvent })
+    result flatMap (u => u map userInfoMorphia2Yunkai)
   }
+
   /**
    * 微信登录
    */
