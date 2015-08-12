@@ -5,6 +5,7 @@ import java.util.UUID
 import com.lvxingpai.yunkai.Global
 import com.lvxingpai.yunkai.model._
 import com.mongodb._
+import com.typesafe.config.ConfigException
 import org.mongodb.morphia.Morphia
 import org.mongodb.morphia.annotations.Property
 import org.slf4j.LoggerFactory
@@ -33,12 +34,25 @@ object MorphiaFactory {
       new ServerAddress(host, port)
     })
 
-    val user = conf.getString("yunkai.mongo.user")
-    val password = conf.getString("yunkai.mongo.password")
     val dbName = conf.getString("yunkai.mongo.db")
-    val credential = MongoCredential.createScramSha1Credential(user, dbName, password.toCharArray)
+    val userOpt = Option(try {
+      conf.getString("yunkai.mongo.user")
+    } catch {
+      case _: ConfigException.Missing => null
+    })
+    val passwordOpt = Option(try {
+      conf.getString("yunkai.mongo.password")
+    } catch {
+      case _: ConfigException.Missing => null
+    })
+    val credentialOpt = for {
+      user <- userOpt
+      password <- passwordOpt
+    } yield {
+      MongoCredential.createScramSha1Credential(user, dbName, password.toCharArray)
+    }
 
-    LoggerFactory.getLogger(MorphiaFactory.getClass).info(s"Connected to MongoDB: dbName=$dbName, user=$user")
+    LoggerFactory.getLogger(MorphiaFactory.getClass).info(s"Connected to MongoDB: dbName=$dbName")
 
     val options = new MongoClientOptions.Builder()
       //连接超时
@@ -51,7 +65,10 @@ object MorphiaFactory {
       .threadsAllowedToBlockForConnectionMultiplier(50)
       .build()
 
-    new MongoClient(serverAddresses, Seq(credential), options)
+    if (credentialOpt nonEmpty)
+      new MongoClient(serverAddresses, Seq(credentialOpt.get), options)
+    else
+      new MongoClient(serverAddresses, options)
   }
 
   lazy val datastore = {

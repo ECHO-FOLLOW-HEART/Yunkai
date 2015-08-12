@@ -16,7 +16,7 @@ class OAuthInfo {
   /**
    * 用户在第三方账号体系中的id
    */
-  @Indexed(unique = true)
+  @Indexed
   @NotNull
   var oauthId: String = ""
 

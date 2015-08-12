@@ -5,25 +5,25 @@ import java.security.MessageDigest
 import java.util.UUID
 import java.util.regex.Pattern
 
-import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
 import com.lvxingpai.yunkai._
-import com.lvxingpai.yunkai.model.{ContactRequest, UserInfo, _}
-import com.lvxingpai.yunkai.serialization.{TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse}
-import com.lvxingpai.yunkai.service.{RedisFactory, SmsCenter}
+import com.lvxingpai.yunkai.model.{ ContactRequest, UserInfo, _ }
+import com.lvxingpai.yunkai.serialization.{ TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse }
+import com.lvxingpai.yunkai.service.{ RedisFactory, SmsCenter }
 import com.lvxingpai.yunkai.utils.RequestUtils
-import com.mongodb.{DuplicateKeyException, MongoCommandException}
-import com.twitter.util.{Future, FuturePool}
+import com.mongodb.{ DuplicateKeyException, MongoCommandException }
+import com.twitter.util.{ Future, FuturePool }
 import com.typesafe.config.ConfigException
 import org.apache.commons.io.IOUtils
 import org.bson.types.ObjectId
 import org.mongodb.morphia.Datastore
-import org.mongodb.morphia.query.{CriteriaContainer, UpdateOperations}
+import org.mongodb.morphia.query.{ CriteriaContainer, UpdateOperations }
 
 import scala.collection.JavaConversions._
-import scala.language.{implicitConversions, postfixOps}
+import scala.language.{ implicitConversions, postfixOps }
 import scala.util.Random
 
 /**
@@ -63,6 +63,8 @@ object AccountManager {
       case UserInfoProp.Tel => UserInfo.fdTel
       case UserInfoProp.Gender => UserInfo.fdGender
       case UserInfoProp.Roles => UserInfo.fdRoles
+      case UserInfoProp.Residence => UserInfo.fdResidence
+      case UserInfoProp.Birthday => UserInfo.fdBirthday
       case _ => throw new IllegalArgumentException("Illegal arguemnt: %s" format prop.toString)
     }
   }
@@ -75,29 +77,51 @@ object AccountManager {
    * @return
    */
   def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, Any])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = futurePool {
-    // 只允许更新一小部分字段信息
-    val allowedFields = Seq(UserInfoProp.NickName, UserInfoProp.Signature, UserInfoProp.Gender, UserInfoProp.Avatar)
-    val filteredUserInfo = userInfo filter (item => allowedFields contains item._1)
+    import UserInfoProp._
 
-    // The value of a gender should be among ["m", "f", "s", null]
-    if (userInfo.contains(UserInfoProp.Gender)) {
-      val gender = userInfo(UserInfoProp.Gender)
-      if (gender != null && gender != "f" && gender != "m" && gender != "s" && gender != "b" && gender != "F" && gender != "M" && gender != "S" && gender != "B")
-        throw new InvalidArgsException(Some(s"Invalid gender $gender"))
+    // 将用户输入的userInfo规范化
+    def processUserInfo(prop: UserInfoProp, value: Any) = {
+      prop match {
+        case item if Seq(NickName, Signature, Residence) contains item => value.toString.trim
+        case item if item == Gender =>
+          val gender = value.toString.toLowerCase
+          if (Seq("m", "f", "s", "b") contains gender)
+            gender
+          else
+            throw new InvalidArgsException(Some(s"Invalid gender $gender"))
+        case item if item == Avatar =>
+          val avatar = value.toString
+          if (avatar startsWith "http://")
+            avatar
+          else
+            throw new InvalidArgsException(Some(s"Invalid avatar $avatar"))
+        case item if item == Birthday =>
+          val birthday = value.toString.trim
+          val pattern = """(\d{2})/(\d{2})/(\d{4})""".r
+          val m = pattern.findFirstMatchIn(birthday)
+          if (m isEmpty)
+            throw new InvalidArgsException(Some(s"Invalid date of birth: $birthday"))
+          else
+            birthday
+        case _ =>
+          None
+      }
     }
+
+    // 处理输入的用户信息
+    // 只允许更新一小部分字段信息
+    val filteredUserInfo = Map(userInfo.toSeq map (v => v._1 -> processUserInfo(v._1, v._2)) filter (_ != None): _*)
 
     // 获得需要处理的字段名
     val fieldNames = ((filteredUserInfo.keys.toSeq ++ Seq(UserInfoProp.UserId, UserInfoProp.Id))
       map userInfoPropToFieldName)
 
     if (filteredUserInfo nonEmpty) {
-      val query = ds.find(classOf[UserInfo], "userId", userId).retrievedFields(true, fieldNames: _*)
+      val query = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).equal(userId)
+        .retrievedFields(true, fieldNames: _*)
       val updateOps = filteredUserInfo.foldLeft(ds.createUpdateOperations(classOf[UserInfo]))((ops, entry) => {
         val (key, value) = entry
-        if (value != null)
-          ops.set(key, value)
-        else
-          ops.unset(key)
+        ops.set(key, value)
       })
 
       val result = ds.findAndModify(query, updateOps)
@@ -660,6 +684,8 @@ object AccountManager {
    * @return
    */
   def getUsersByIdList(fields: Seq[UserInfoProp], selfId: Option[Long], userIds: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[yunkai.UserInfo]]] = {
+    import UserInfoProp._
+
     futurePool {
       if (userIds isEmpty) {
         Map[Long, Option[yunkai.UserInfo]]()
@@ -669,10 +695,8 @@ object AccountManager {
           case _ => ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(seqAsJavaList(userIds))
         }
         // 获得需要处理的字段名
-        val allowedProperties = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar,
-          UserInfoProp.Signature, UserInfoProp.Gender, UserInfoProp.Tel, UserInfoProp.Roles)
-        val retrievedFields = (fields filter (allowedProperties.contains(_))) ++ Seq(UserInfoProp.UserId,
-          UserInfoProp.Id) map userInfoPropToFieldName
+        val allowedProperties = Seq(UserId, NickName, Avatar, Signature, Gender, Tel, Roles, Birthday, Residence)
+        val retrievedFields = (fields filter (allowedProperties.contains(_))) ++ Seq(UserId, Id) map userInfoPropToFieldName
 
         query.retrievedFields(true, retrievedFields: _*)
         val results = Map(query.asList() map filterUUIDTel map (item => item.userId -> item): _*)
@@ -735,9 +759,12 @@ object AccountManager {
     for {
       userInfo <- futurePool {
         val retrievedFields = Seq(UserInfo.fdId, UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
-          UserInfo.fdSignature, UserInfo.fdTel)
-        ds.createQuery(classOf[UserInfo]).field(UserInfo.fdTel).equal(loginName)
-          .retrievedFields(true, retrievedFields: _*).get()
+          UserInfo.fdSignature, UserInfo.fdTel, UserInfo.fdLoginStatus, UserInfo.fdLoginSource, UserInfo.fdLoginTime)
+
+        val query = ds.find(classOf[UserInfo], UserInfo.fdTel, loginName).retrievedFields(true, retrievedFields: _*)
+        val updateOps = ds.createUpdateOperations(classOf[UserInfo]).set(UserInfo.fdLoginStatus, true).set(UserInfo.fdLoginTime, java.lang.System.currentTimeMillis()).add(UserInfo.fdLoginSource, source, false)
+
+        ds.findAndModify(query, updateOps, false)
       }
       verified <- {
         if (userInfo == null)
@@ -759,6 +786,8 @@ object AccountManager {
         throw AuthException()
     }
   }
+
+  // logout: 释放资源, 修改UserInfo的logoutTime和loginSource字段(删除本次登录的来源)
 
   // 新用户注册
   def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
@@ -782,14 +811,9 @@ object AccountManager {
       if (query.get() != null)
         throw new ResourceConflictException(Some(s"User $userId is existed"))
       else
-        try {
-          ds.save[UserInfo](newUser)
-        } catch {
-          case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
-        }
-      newUser
+        newUser
     }
-
+    val result = userInfo map userSaveEmitEvent
     val (salt, crypted) = saltPassword(password)
 
     // 创建并保存新用户Credential实例
@@ -803,16 +827,7 @@ object AccountManager {
         case ex: DuplicateKeyException => throw new InvalidArgsException(Some(s"User $userId credential is existed"))
       }
     }
-
-    // 触发创建新用户的事件
-    userInfo map (v => {
-      val eventArgs: Map[String, JsonNode] = Map(
-        "user" -> userInfoMorphia2Yunkai(v)
-      )
-      EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
-    })
-
-    userInfo
+    result flatMap (item => item)
   }
 
   def createUserByAuth(code: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
@@ -880,7 +895,7 @@ object AccountManager {
       RedisFactory.pool.withClient(client => {
         implicit val parse = TokenRedisParse()
         val result = client.get[Token](token)
-        client.del(token)
+        //client.del(token)
         result
       })
     }
@@ -891,7 +906,7 @@ object AccountManager {
     val digits = f"${Random.nextInt(1000000)}%06d"
     val redisKey = ValidationCode.calcRedisKey(action, tel, countryCode)
 
-    import OperationCode.{ResetPassword, Signup, UpdateTel}
+    import OperationCode.{ ResetPassword, Signup, UpdateTel }
     implicit val format = ValidationCodeRedisFormat()
     implicit val parse = ValidationCodeRedisParse()
 
@@ -925,7 +940,9 @@ object AccountManager {
         case _ => throw InvalidArgsException(Some("Invalid operation code"))
       }
     }
-    val userIdFuture = getUserById(userId.get, Seq(), None)
+
+    val userIdFuture = if (userId nonEmpty) getUserById(userId.get, Seq(), None) else futurePool { None }
+
     // 当且仅当上述两个条件达成的时候，才生成验证码并发送
     for {
       quotaFlag <- quotaExceeds
@@ -940,7 +957,7 @@ object AccountManager {
           case item if item.value == Signup.value =>
             if (telSearchResult nonEmpty)
               // 手机号码已存在
-              throw InvalidArgsException(Some(s"The phone number $tel is incorrect"))
+              throw ResourceConflictException(Some(s"The phone number $tel already exists"))
             else
               ValidationCode(digits, action, None, tel, countryCode)
           case item if item.value == ResetPassword.value =>
@@ -1014,7 +1031,7 @@ object AccountManager {
       // 更新Credential
       val updateOps = ds.createUpdateOperations(classOf[Credential]).set(Credential.fdSalt, salt)
         .set(Credential.fdPasswdHash, crypted)
-      ds.updateFirst(query, updateOps)
+      ds.updateFirst(query, updateOps, true)
       emitEvent()
       ()
     }
@@ -1036,7 +1053,12 @@ object AccountManager {
    * @return
    */
   def resetPasswordByToken(userId: Long, newPassword: String, token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
-    verifyToken(OperationCode.ResetPassword, token, userId = Some(userId)) flatMap (checked => {
+    val result = for {
+      checked1 <- verifyToken(OperationCode.ResetPassword, token, userId = Some(userId))
+      checked2 <- verifyToken(OperationCode.UpdateTel, token, userId = Some(userId))
+    } yield checked1 || checked2
+
+    result flatMap (checked => {
       if (!checked)
         throw AuthException()
       else
@@ -1176,6 +1198,19 @@ object AccountManager {
     u.nickName = u.nickName + "_" + doc
     u
   }
+  def userSaveEmitEvent(userInfo: UserInfo)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = futurePool {
+    try {
+      ds.save[UserInfo](userInfo)
+    } catch {
+      case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User ${userInfo.userId} is existed"))
+    }
+    // 触发创建新用户的事件
+    val eventArgs: Map[String, JsonNode] = Map(
+      "user" -> userInfoMorphia2Yunkai(userInfo)
+    )
+    EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
+    userInfo
+  }
   def oauthToUserInfo4WX(json: JsonNode)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
     val userInfo = futurePool {
       val nickName = json.get("nickname").asText()
@@ -1200,16 +1235,13 @@ object AccountManager {
         if (getUserByField(UserInfo.fdNickName, nickName) != null) {
           nickDuplicateRemoval(user)
         }
-        try {
-          ds.save[UserInfo](user)
-        } catch {
-          case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User $userId is existed"))
-        }
         user
       })
     }
-    userInfo flatMap (item => item map userInfoMorphia2Yunkai)
+    val result = userInfo flatMap (item => { item map userSaveEmitEvent })
+    result flatMap (u => u map userInfoMorphia2Yunkai)
   }
+
   /**
    * 微信登录
    */

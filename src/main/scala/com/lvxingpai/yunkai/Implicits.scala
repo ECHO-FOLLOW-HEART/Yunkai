@@ -49,8 +49,11 @@ object Implicits {
       val memo = if (user.memo != null) Option(user.memo) else None
       val roles = Option(user.roles) map (_.toSeq map Role.apply) getOrElse Seq()
 
+      val residence = if (user.residence != null && user.residence.nonEmpty) Some(user.residence) else None
+      val birthday = if (user.birthday != null && user.birthday.nonEmpty) Some(user.birthday) else None
+
       UserInfo(user.id.toString, user.userId, user.nickName, Option(user.avatar), signature = Option(user.signature),
-        roles = roles, memo = memo, gender = gender, tel = tel, loginStatus = false)
+        roles = roles, memo = memo, gender = gender, tel = tel, loginStatus = false, birth = birthday, residence = residence)
     }
 
     implicit def userInfoYunkai2Morphia(user: UserInfo): model.UserInfo = {
@@ -65,6 +68,9 @@ object Implicits {
       user2.avatar = user.avatar.orNull
       user2.signature = user.signature.orNull
       user2.tel = user.signature getOrElse UUID.randomUUID().toString
+      user2.gender = (user.gender map (_.name)).orNull
+      user2.residence = user.residence.orNull
+      user2.birthday = user.birth.orNull
       user2
     }
   }
