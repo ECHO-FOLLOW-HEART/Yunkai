@@ -864,7 +864,7 @@ object AccountManager {
           // * The code coincides
           // * The action conincides
           val checkResult = (magicCode.nonEmpty && magicCode == valCode) ||
-            (code.code == valCode && code.action == action && !code.checked)
+            (code.code == valCode && code.action == action) // && !code.checked)
 
           // Set the validation code to CHECKED status no matter the check result is true or not.
           val expire = 10 * 60 * 1000L // 10分钟后过期
@@ -877,8 +877,8 @@ object AccountManager {
             client.del(redisKey)
             Some(tokenKey)
           } else {
-            code.checked = true
-            client.setex(redisKey, expire / 1000, code)
+            //            code.checked = true
+            //            client.setex(redisKey, expire / 1000, code)
             None
           }
         })) getOrElse None
