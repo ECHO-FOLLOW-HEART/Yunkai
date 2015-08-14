@@ -1284,4 +1284,20 @@ object AccountManager {
       result <- create(user)
     } yield result
   }
+  // 黑名单
+  def checkBlackList(senderId: Long, receiverId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = futurePool {
+    if (senderId <= receiverId) {
+      val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(senderId)
+        .field(Relationship.fdUserB).equal(receiverId)
+        .retrievedFields(true, Relationship.fdBlackA)
+        .get
+      rel.blackA
+    } else {
+      val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(receiverId)
+        .field(Relationship.fdUserB).equal(senderId)
+        .retrievedFields(true, Relationship.fdBlackB)
+        .get
+      rel.blackB
+    }
+  }
 }

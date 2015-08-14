@@ -262,6 +262,9 @@ service userservice {
   // 第三方用户(微信)登录
   UserInfo loginByOAuth(1: string code, 2:string source)
 
+  //检查黑名单
+  bool checkBlackList(1: i64 senderId, 2: i64 receiverId)
+
   // 用户退出登录
   // void logout(1: i64 userId)
 
