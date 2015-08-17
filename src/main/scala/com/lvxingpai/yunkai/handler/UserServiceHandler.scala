@@ -232,6 +232,11 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def updateUserRoles(userId: Long, addRoles: Boolean, roles: Option[Seq[Role]]): Future[yunkai.UserInfo] =
     AccountManager.updateUserRoles(userId, addRoles, roles getOrElse Seq()) map (user => user)
+
+  override def isMember(userId: Long, chatGroupId: Long): Future[Boolean] =
+    GroupManager.isMember(userId, chatGroupId)
+
+  override def getUsersByTelList(fields: Option[Seq[UserInfoProp]], tels: Seq[String]): Future[Seq[yunkai.UserInfo]] = AccountManager.getUsersByTelList(fields, tels)
 }
 
 object UserServiceHandler {

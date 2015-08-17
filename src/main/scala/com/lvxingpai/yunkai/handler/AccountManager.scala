@@ -1300,4 +1300,28 @@ object AccountManager {
       rel.blackB
     }
   }
+
+  def getUsersByTelList(fields: Option[Seq[UserInfoProp]], tels: Seq[String])(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
+    import UserInfoProp._
+
+    futurePool {
+      if (tels isEmpty) {
+        Seq[yunkai.UserInfo]()
+      } else {
+        val query = tels length match {
+          case 1 => ds.createQuery(classOf[UserInfo]).field(UserInfo.fdTel).equal(tels head)
+          case _ => ds.createQuery(classOf[UserInfo]).field(UserInfo.fdTel).in(seqAsJavaList(tels))
+        }
+        // 获得需要处理的字段名
+        val allowedProperties = Seq(UserId, NickName, Avatar, Signature, Gender, Tel, Roles, Birthday, Residence)
+        val retrievedFields = if (fields nonEmpty) {
+          (fields.get filter (allowedProperties.contains(_))) ++ Seq(UserId, Id) map userInfoPropToFieldName
+        } else Seq()
+
+        query.retrievedFields(true, retrievedFields: _*)
+        val results = query.asList().toSeq
+        results map (item => userInfoMorphia2Yunkai(item))
+      }
+    }
+  }
 }

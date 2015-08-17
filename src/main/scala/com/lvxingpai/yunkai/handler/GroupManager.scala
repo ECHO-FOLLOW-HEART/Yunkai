@@ -407,4 +407,9 @@ object GroupManager {
       results <- func2(retrievedFields, selfId, members)
     } yield results
   }
+
+  def isMember(userId: Long, chatGroupId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = futurePool {
+    val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId).field(ChatGroup.fdParticipants).hasThisOne(userId).get
+    query != null
+  }
 }
