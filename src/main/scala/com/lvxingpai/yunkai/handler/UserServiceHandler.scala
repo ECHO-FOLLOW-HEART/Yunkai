@@ -99,6 +99,10 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.loginByWeixin(code, source)
   }
 
+  override def checkBlackList(senderId: Long, receiverId: Long): Future[Boolean] = {
+    AccountManager.checkBlackList(senderId, receiverId)
+  }
+
   override def getChatGroups(groupIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[ChatGroupProp]]): Future[Map[Long, yunkai.ChatGroup]] = {
     GroupManager.getChatGroups(fields.getOrElse(Seq()), groupIdList: _*) map (resultMap => {
       resultMap mapValues (value => (value map UserServiceHandler.chatGroupConversion).orNull)
@@ -228,6 +232,11 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def updateUserRoles(userId: Long, addRoles: Boolean, roles: Option[Seq[Role]]): Future[yunkai.UserInfo] =
     AccountManager.updateUserRoles(userId, addRoles, roles getOrElse Seq()) map (user => user)
+
+  override def isMember(userId: Long, chatGroupId: Long): Future[Boolean] =
+    GroupManager.isMember(userId, chatGroupId)
+
+  override def getUsersByTelList(fields: Option[Seq[UserInfoProp]], tels: Seq[String]): Future[Seq[yunkai.UserInfo]] = AccountManager.getUsersByTelList(fields, tels)
 }
 
 object UserServiceHandler {

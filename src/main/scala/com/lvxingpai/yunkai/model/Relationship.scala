@@ -32,6 +32,12 @@ class Relationship {
 
   @BeanProperty
   var memoB: String = null
+
+  @BeanProperty
+  var blackA: Boolean = false
+
+  @BeanProperty
+  var blackB: Boolean = false
 }
 
 object Relationship {
@@ -41,6 +47,8 @@ object Relationship {
   val fdUserB = "userB"
   val fdMemoA = "memoA"
   val fdMemoB = "memoB"
+  val fdBlackA = "blackA"
+  val fdBlackB = "blackB"
 
   def apply(userA: Long, userB: Long): Relationship = {
     val result = new Relationship
