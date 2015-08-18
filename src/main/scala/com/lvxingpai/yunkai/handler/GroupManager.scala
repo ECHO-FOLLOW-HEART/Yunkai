@@ -409,7 +409,7 @@ object GroupManager {
   }
 
   def isMember(userId: Long, chatGroupId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = futurePool {
-    val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId).field(ChatGroup.fdParticipants).hasThisOne(userId).get
-    query != null
+    val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId).field(ChatGroup.fdParticipants).hasThisOne(userId)
+    query nonEmpty
   }
 }

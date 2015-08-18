@@ -1284,20 +1284,47 @@ object AccountManager {
       result <- create(user)
     } yield result
   }
-  // 黑名单
-  def checkBlackList(senderId: Long, receiverId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = futurePool {
+  // 黑名单, blockA为true表示userA在userB的黑名单中, blockB为true表示userB在userA的黑名单中
+  def checkBlockList(senderId: Long, receiverId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = futurePool {
     if (senderId <= receiverId) {
       val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(senderId)
         .field(Relationship.fdUserB).equal(receiverId)
-        .retrievedFields(true, Relationship.fdBlackA)
-        .get
-      rel.blackA
+        .retrievedFields(true, Relationship.fdBlockA)
+
+      if (rel isEmpty) false else rel.get.blockA
     } else {
       val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(receiverId)
         .field(Relationship.fdUserB).equal(senderId)
-        .retrievedFields(true, Relationship.fdBlackB)
-        .get
-      rel.blackB
+        .retrievedFields(true, Relationship.fdBlockB)
+
+      if (rel isEmpty) false else rel.get.blockB
+    }
+  }
+
+  /**
+   * 修改用户黑名单属性
+   * @param userA 屏蔽人
+   * @param userB 被屏蔽人
+   * @param block  设置是否屏蔽
+   * @param ds
+   * @param futurePool
+   * @return
+   */
+  def updateBlockList(userA: Long, userB: Long, block: Boolean)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+    val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
+    val query = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1).field(Relationship.fdUserB).equal(user2)
+    val updateOps = if (userA <= userB)
+      ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdBlockB, block)
+    else ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdBlockA, block)
+    futurePool {
+      ds.updateFirst(query, updateOps)
+      // 触发设置黑名单事件
+      val updateInfo = new ObjectMapper().createObjectNode()
+      updateInfo.put("blockB", block)
+      val eventArgs: Map[String, JsonNode] = Map(
+        "updateInfo" -> updateInfo
+      )
+      EventEmitter.emitEvent(EventEmitter.evtAddBlockList, eventArgs)
     }
   }
 

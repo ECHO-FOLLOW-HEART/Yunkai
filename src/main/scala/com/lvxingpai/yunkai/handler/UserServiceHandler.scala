@@ -99,9 +99,11 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.loginByWeixin(code, source)
   }
 
-  override def checkBlackList(senderId: Long, receiverId: Long): Future[Boolean] = {
-    AccountManager.checkBlackList(senderId, receiverId)
-  }
+  override def checkBlockList(senderId: Long, receiverId: Long): Future[Boolean] =
+    AccountManager.checkBlockList(senderId, receiverId)
+
+  override def updateBlockList(userA: Long, userB: Long, block: Boolean): Future[Unit] =
+    AccountManager.updateBlockList(userA, userB, block)
 
   override def getChatGroups(groupIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[ChatGroupProp]]): Future[Map[Long, yunkai.ChatGroup]] = {
     GroupManager.getChatGroups(fields.getOrElse(Seq()), groupIdList: _*) map (resultMap => {
