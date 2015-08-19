@@ -263,10 +263,10 @@ service userservice {
   UserInfo loginByOAuth(1: string code, 2:string source)
 
   // 检查黑名单, blockA为true表示userA在userB的黑名单中, blockB为true表示userB在userA的黑名单中
-  bool checkBlockList(1: i64 senderId, 2: i64 receiverId)
+  bool isBlocked(1: i64 senderId, 2: i64 receiverId)
 
   // 设置黑名单, userA将userB设置为黑名单
-  void updateBlockList(1: i64 userA, 2: i64 userB, 3: bool block)
+  void updateBlackList(1: i64 userA, 2: i64 userB, 3: bool block)
 
   // 用户退出登录
   // void logout(1: i64 userId)

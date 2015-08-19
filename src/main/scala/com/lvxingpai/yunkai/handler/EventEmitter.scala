@@ -67,12 +67,12 @@ object EventEmitter {
   /**
    * 添加黑名单的事件
    */
-  val evtAddBlockList = "addBlockList"
+  val evtAddBlackList = "addBlackList"
 
   /**
    * 移除黑名单的事件
    */
-  val evtRemoveBlockList = "removeBlocList"
+  val evtRemoveBlackList = "removeBlackList"
 
   /**
    * 关注某个用户的事件
@@ -127,7 +127,7 @@ object EventEmitter {
     ApiumPlant(ConnectionParam(host, port, username, password, virtualHost), "yunkai",
       Seq(evtCreateUser, evtLogin, evtResetPassword, evtAddContact, evtRemoveContact, evtModUserInfo,
         evtCreateChatGroup, evtModChatGroup, evtAddGroupMembers, evtRemoveGroupMembers, evtSendContactRequest,
-        evtAcceptContactRequest, evtRejectContactRequest, evtAddBlockList))
+        evtAcceptContactRequest, evtRejectContactRequest, evtAddBlackList))
   }
 
   /**

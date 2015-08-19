@@ -1285,7 +1285,7 @@ object AccountManager {
     } yield result
   }
   // 黑名单, blockA为true表示userA在userB的黑名单中, blockB为true表示userB在userA的黑名单中
-  def checkBlockList(senderId: Long, receiverId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = futurePool {
+  def isBlocked(senderId: Long, receiverId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = futurePool {
     if (senderId <= receiverId) {
       val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(senderId)
         .field(Relationship.fdUserB).equal(receiverId)
@@ -1310,7 +1310,7 @@ object AccountManager {
    * @param futurePool
    * @return
    */
-  def updateBlockList(userA: Long, userB: Long, block: Boolean)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def updateBlackList(userA: Long, userB: Long, block: Boolean)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
     val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
     val query = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1).field(Relationship.fdUserB).equal(user2)
     val updateOps = if (userA <= userB)
@@ -1324,7 +1324,7 @@ object AccountManager {
       val eventArgs: Map[String, JsonNode] = Map(
         "updateInfo" -> updateInfo
       )
-      EventEmitter.emitEvent(EventEmitter.evtAddBlockList, eventArgs)
+      EventEmitter.emitEvent(EventEmitter.evtAddBlackList, eventArgs)
     }
   }
 
