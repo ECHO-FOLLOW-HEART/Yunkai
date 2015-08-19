@@ -1284,21 +1284,17 @@ object AccountManager {
       result <- create(user)
     } yield result
   }
+
   // 黑名单, blockA为true表示userA在userB的黑名单中, blockB为true表示userB在userA的黑名单中
-  def isBlocked(senderId: Long, receiverId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = futurePool {
-    if (senderId <= receiverId) {
-      val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(senderId)
-        .field(Relationship.fdUserB).equal(receiverId)
-        .retrievedFields(true, Relationship.fdBlockA)
+  def isBlocked(selfId: Long, targetId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = futurePool {
+    import Relationship._
 
-      if (rel isEmpty) false else rel.get.blockA
-    } else {
-      val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(receiverId)
-        .field(Relationship.fdUserB).equal(senderId)
-        .retrievedFields(true, Relationship.fdBlockB)
+    val query = if (selfId <= targetId)
+      ds.createQuery(classOf[Relationship]) field fdUserA equal selfId field fdUserB equal targetId field fdBlockB equal true
+    else
+      ds.createQuery(classOf[Relationship]) field fdUserB equal selfId field fdUserA equal targetId field fdBlockA equal true
 
-      if (rel isEmpty) false else rel.get.blockB
-    }
+    query.get() != null
   }
 
   /**
@@ -1317,7 +1313,7 @@ object AccountManager {
       ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdBlockB, block)
     else ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdBlockA, block)
     futurePool {
-      ds.updateFirst(query, updateOps)
+      ds.updateFirst(query, updateOps, true)
       // 触发设置黑名单事件
       val updateInfo = new ObjectMapper().createObjectNode()
       updateInfo.put("blockB", block)
