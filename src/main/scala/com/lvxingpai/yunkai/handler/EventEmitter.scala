@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.lvxingpai.apium.ApiumPlant.ConnectionParam
 import com.lvxingpai.apium.{ ApiumPlant, ApiumSeed }
 import com.lvxingpai.yunkai.Global
-
+import org.joda.time.DateTime
 import scala.language.postfixOps
 
 /**
@@ -144,7 +144,9 @@ object EventEmitter {
       else
         m + ("miscInfo" -> new ObjectMapper().createObjectNode())
     })
-    val seed = ApiumSeed(apiumPlant.defaultTaskName(eventName), kwargs = eventMap)
+    val eta = DateTime.now().plus(10 * 1000L)
+    val expire = DateTime.now().plus(60 * 60 * 1000L)
+    val seed = ApiumSeed(apiumPlant.defaultTaskName(eventName), kwargs = eventMap, expire = Some(expire), eta = Some(eta))
     apiumPlant.sendSeed(eventName, seed)
   }
 }
