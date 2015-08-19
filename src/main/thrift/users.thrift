@@ -307,4 +307,6 @@ service userservice {
   bool isMember(1: i64 userId, 2: i64 chatGroupId)
 
   list<UserInfo> getUsersByTelList(1: optional list<UserInfoProp> fields, 2: list<string> tels)
+
+  void setContact()
 }

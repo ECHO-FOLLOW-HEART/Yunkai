@@ -239,6 +239,8 @@ class UserServiceHandler extends Userservice.FutureIface {
     GroupManager.isMember(userId, chatGroupId)
 
   override def getUsersByTelList(fields: Option[Seq[UserInfoProp]], tels: Seq[String]): Future[Seq[yunkai.UserInfo]] = AccountManager.getUsersByTelList(fields, tels)
+
+  override def setContact(): Future[Unit] = AccountManager.setContact()
 }
 
 object UserServiceHandler {

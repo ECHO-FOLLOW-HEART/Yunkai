@@ -19,6 +19,7 @@ import com.twitter.util.{ Future, FuturePool }
 import com.typesafe.config.ConfigException
 import org.apache.commons.io.IOUtils
 import org.bson.types.ObjectId
+import org.joda.time.DateTime
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.{ CriteriaContainer, UpdateOperations }
 
@@ -186,7 +187,8 @@ object AccountManager {
     //    val userList = getUsersByIdList(Seq(), user1, user2)
     val relationship = futurePool {
       val rel = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1)
-        .field(Relationship.fdUserB).equal(user2)
+        .field(Relationship.fdUserB).equal(user2).field(Relationship.fdContactA).equal(true)
+        .field(Relationship.fdContactB).equal(true)
         .retrievedFields(true, Relationship.fdId)
         .get
       rel != null
@@ -223,6 +225,7 @@ object AccountManager {
       val jobs = targetUsersFiltered map (target => futurePool {
         val (user1, user2) = if (userId <= target) (userId, target) else (target, userId)
         val op = ds.createUpdateOperations(cls).set(Relationship.fdUserA, user1).set(Relationship.fdUserB, user2)
+          .set(Relationship.fdContactA, true).set(Relationship.fdContactB, true)
         val query = ds.createQuery(cls).field(Relationship.fdUserA).equal(user1)
           .field(Relationship.fdUserB).equal(user2)
         ds.updateFirst(query, op, true)
@@ -257,26 +260,29 @@ object AccountManager {
       if (m exists (_._2 isEmpty))
         throw NotFoundException()
       else {
-        def buildQuery(user1: Long, user2: Long): CriteriaContainer = {
-          val l = Seq(user1, user2).sorted
-          ds.createQuery(classOf[Relationship]).criteria(Relationship.fdUserA).equal(l head)
-            .criteria(Relationship.fdUserB).equal(l last)
-        }
+        val cls = classOf[Relationship]
+        targetUsersFiltered map (target => futurePool {
+          val op = if (userId <= target)
+            ds.createUpdateOperations(cls).set(Relationship.fdContactB, false)
+          else
+            ds.createUpdateOperations(cls).set(Relationship.fdContactA, false)
+          val (userA, userB) = if (userId <= target) (userId, target) else (target, userId)
+          val query = ds.createQuery(cls).field(Relationship.fdUserA).equal(userA)
+            .field(Relationship.fdUserB).equal(userB)
+          ds.updateFirst(query, op)
 
-        val query = ds.createQuery(classOf[Relationship])
-        query.or(targetUsersFiltered map (buildQuery(userId, _)): _*)
-        ds.delete(query)
+          // 触发删除联系人的事件
+          val userAInfo = m(userId).get
+          for (elem <- targetUsersFiltered) {
+            val userBInfo = m(elem).get
+            val eventArgs: Map[String, JsonNode] = Map(
+              "user" -> userAInfo,
+              "target" -> userBInfo
+            )
+            EventEmitter.emitEvent(EventEmitter.evtRemoveContact, eventArgs)
+          }
 
-        // 触发删除联系人的事件
-        val userAInfo = m(userId).get
-        for (elem <- targetUsersFiltered) {
-          val userBInfo = m(elem).get
-          val eventArgs: Map[String, JsonNode] = Map(
-            "user" -> userAInfo,
-            "target" -> userBInfo
-          )
-          EventEmitter.emitEvent(EventEmitter.evtRemoveContact, eventArgs)
-        }
+        })
       }
     })
   }
@@ -295,7 +301,8 @@ object AccountManager {
   def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq(), offset: Option[Int] = None,
     count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
     val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
-      (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
+      (f => ds.createQuery(classOf[Relationship]).field(Relationship.fdContactA).equal(true)
+        .field(Relationship.fdContactB).equal(true).criteria(f).equal(userId))
     val queryRel = ds.createQuery(classOf[Relationship])
     queryRel.or(criteria: _*)
     val defaultOffset = 0
@@ -311,56 +318,17 @@ object AccountManager {
 
       result.toSet.toSeq filter (_ != userId)
     }
-
     for {
       ids <- contactIds
       contactsMap <- getUsersByIdList(fields, Option(userId), ids: _*)
-    } yield contactsMap.toSeq.map(_._2.orNull) filter (_ != null)
+    } yield {
+      println("contactIds = "+ids)
+      val result = contactsMap.toSeq.map(_._2.orNull) filter (_ != null)
+      for(ele <- result)
+        println(ele.nickName)
+      result
+    }
   }
-
-  //  def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq(), offset: Option[Int] = None,
-  //    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
-  //    val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
-  //      (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
-  //    val queryRel = ds.createQuery(classOf[Relationship])
-  //    queryRel.or(criteria: _*)
-  //    val defaultOffset = 0
-  //    val defaultCount = 1000
-  //
-  //    // 获得好友的userId
-  //    val contactIdsMemos = futurePool {
-  //      queryRel.offset(offset.getOrElse(defaultOffset)).limit(count.getOrElse(defaultCount))
-  //      val ret = for {
-  //        rel <- queryRel.asList().toSeq
-  //      } yield {
-  //        if (rel.userA == userId) (rel.userB -> rel.memoB) else (rel.userA -> rel.memoA)
-  //      }
-  //      //      result.toSet.toSeq filter (_ != userId)
-  //      Map(ret: _*)
-  //    }
-  //
-  //    for {
-  //      memoMap <- contactIdsMemos
-  //      userInfoMap <- getUsersByIdList(fields,None ,memoMap.keys.toSeq filter (_ != userId): _*)
-  //    } yield {
-  //      val v = userInfoMap filter (_._2.nonEmpty)
-  //      (v mapValues (opt => {
-  //        val userInfo = opt.get
-  //        val memo = Option(memoMap(userInfo.userId))
-  //        val gender = Option(userInfo.gender match {
-  //          case "m" | "M" => Gender.Male
-  //          case "f" | "F" => Gender.Female
-  //          case "s" | "S" => Gender.Secret
-  //          case "u" | "U" | null => null
-  //          case _ => throw new IllegalArgumentException("Invalid gender")
-  //        })
-  //        val roles = Option(userInfo.roles) map (_.toSeq map Role.apply) getOrElse Seq()
-  //        yunkai.UserInfo(userInfo.id.toString, userInfo.userId, userInfo.nickName,
-  //          Option(userInfo.avatar), gender, Option(userInfo.signature), Option(userInfo.tel),
-  //          loginStatus = false, memo = memo, roles = roles)
-  //      })).values.toSeq
-  //    }
-  //  }
 
   /**
    * 修改用户备注
@@ -657,7 +625,8 @@ object AccountManager {
         throw NotFoundException(Some(s"User not find $userId"))
       else {
         val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
-          (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
+          (f => ds.createQuery(classOf[Relationship]).field(Relationship.fdContactA).equal(true)
+            .field(Relationship.fdContactB).equal(true).criteria(f).equal(userId))
         val query = ds.createQuery(classOf[Relationship])
         query.or(criteria: _*)
         query.countAll().toInt
@@ -779,7 +748,8 @@ object AccountManager {
           "user" -> userInfoMorphia2Yunkai(userInfo),
           "source" -> string2JsonNode(source)
         )
-        EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs)
+        val eta = Some(DateTime.now().plus(10 * 1000L))
+        EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs, eta, None)
 
         userInfo
       } else
@@ -1346,5 +1316,11 @@ object AccountManager {
         results map (item => userInfoMorphia2Yunkai(item))
       }
     }
+  }
+
+  def setContact()(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
+    val query = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).exists()
+    val op = ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdContactA, true).set(Relationship.fdContactB, true)
+    ds.update(query, op)
   }
 }
