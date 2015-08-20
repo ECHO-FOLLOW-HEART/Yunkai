@@ -300,10 +300,8 @@ object AccountManager {
    */
   def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq(), offset: Option[Int] = None,
     count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
-    val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
-      (f => ds.createQuery(classOf[Relationship]).field(Relationship.fdContactA).equal(true)
-        .field(Relationship.fdContactB).equal(true).criteria(f).equal(userId))
-    val queryRel = ds.createQuery(classOf[Relationship])
+    val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
+    val queryRel = ds.createQuery(classOf[Relationship]).field(Relationship.fdContactA).equal(true).field(Relationship.fdContactB).equal(true)
     queryRel.or(criteria: _*)
     val defaultOffset = 0
     val defaultCount = 1000
@@ -625,9 +623,8 @@ object AccountManager {
         throw NotFoundException(Some(s"User not find $userId"))
       else {
         val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map
-          (f => ds.createQuery(classOf[Relationship]).field(Relationship.fdContactA).equal(true)
-            .field(Relationship.fdContactB).equal(true).criteria(f).equal(userId))
-        val query = ds.createQuery(classOf[Relationship])
+          (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
+        val query = ds.createQuery(classOf[Relationship]).field(Relationship.fdContactA).equal(true).field(Relationship.fdContactB).equal(true)
         query.or(criteria: _*)
         query.countAll().toInt
       }
