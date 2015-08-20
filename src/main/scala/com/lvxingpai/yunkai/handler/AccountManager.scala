@@ -322,9 +322,9 @@ object AccountManager {
       ids <- contactIds
       contactsMap <- getUsersByIdList(fields, Option(userId), ids: _*)
     } yield {
-      println("contactIds = "+ids)
+      println("contactIds = " + ids)
       val result = contactsMap.toSeq.map(_._2.orNull) filter (_ != null)
-      for(ele <- result)
+      for (ele <- result)
         println(ele.nickName)
       result
     }

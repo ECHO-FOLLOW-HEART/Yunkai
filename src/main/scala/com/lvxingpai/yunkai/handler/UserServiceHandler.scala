@@ -99,8 +99,8 @@ class UserServiceHandler extends Userservice.FutureIface {
     AccountManager.loginByWeixin(code, source)
   }
 
-  override def isBlocked(senderId: Long, receiverId: Long): Future[Boolean] =
-    AccountManager.isBlocked(senderId, receiverId)
+  override def isBlocked(selfId: Long, targetId: Long): Future[Boolean] =
+    AccountManager.isBlocked(selfId, targetId)
 
   override def updateBlackList(userA: Long, userB: Long, block: Boolean): Future[Unit] =
     AccountManager.updateBlackList(userA, userB, block)

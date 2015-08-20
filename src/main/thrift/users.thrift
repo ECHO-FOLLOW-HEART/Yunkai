@@ -207,17 +207,17 @@ service userservice {
   // 批量添加好友
   void addContacts(1:i64 userA, 2:list<i64> targets) throws (1:NotFoundException ex)
 
-  // 删除单个好友
+  // 删除单个好友, 1删除2
   void removeContact(1:i64 userA, 2:i64 userB) throws (1:NotFoundException ex)
 
-  // 批量删除好友
+  // 批量删除好友, 1删除2
   void removeContacts(1:i64 userA, 2:list<i64> targets) throws (1:NotFoundException ex)
 
   // 获得用户的好友列表
   list<UserInfo> getContactList(1:i64 userId, 2: optional list<UserInfoProp> fields, 3:optional i32 offset,
     4:optional i32 count) throws (1:NotFoundException ex)
 
-  // 修改用户备注
+  // 修改用户备注, 1将2备注为3
   void updateMemo(1: i64 userA, 2: i64 userB, 3: string memo) throws (1:NotFoundException ex)
 
   // 获得用户的好友个数
@@ -262,8 +262,8 @@ service userservice {
   // 第三方用户(微信)登录
   UserInfo loginByOAuth(1: string code, 2:string source)
 
-  // 检查黑名单, blockA为true表示userA在userB的黑名单中, blockB为true表示userB在userA的黑名单中
-  bool isBlocked(1: i64 senderId, 2: i64 receiverId)
+  // 检查2是否在1的黑名单中, true表示在, false表示不在
+  bool isBlocked(1: i64 selfId, 2: i64 targetId)
 
   // 设置黑名单, userA将userB设置为黑名单
   void updateBlackList(1: i64 userA, 2: i64 userB, 3: bool block)
@@ -306,7 +306,9 @@ service userservice {
   // 用户是否在某个群中
   bool isMember(1: i64 userId, 2: i64 chatGroupId)
 
+  // 根据电话批量查询用户信息
   list<UserInfo> getUsersByTelList(1: optional list<UserInfoProp> fields, 2: list<string> tels)
 
+  // 给数据库刷contactA和contactB字段, 用完可删
   void setContact()
 }
