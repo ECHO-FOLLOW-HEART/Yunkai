@@ -130,14 +130,13 @@ object EventEmitter {
         evtAcceptContactRequest, evtRejectContactRequest, evtAddBlackList))
   }
 
-  val expireDefault = Some(DateTime.now().plus(60 * 60 * 1000L))
   /**
    * 触发事件
    *
    * @param eventName 事件名称
    * @param eventArgs 事件参数。要求是一个scala.collection.immutable.Map[String, JsonNode]类型的对象
    */
-  def emitEvent(eventName: String, eventArgs: Map[String, JsonNode], eta: Option[DateTime] = None, expire: Option[DateTime] = expireDefault) {
+  def emitEvent(eventName: String, eventArgs: Map[String, JsonNode], eta: Option[Long] = None, expire: Option[Long] = None) {
     // miscInfo的默认值为{}
     val eventMap = Option(eventArgs) map (m => {
       if (m contains "miscInfo")
@@ -145,7 +144,21 @@ object EventEmitter {
       else
         m + ("miscInfo" -> new ObjectMapper().createObjectNode())
     })
-    val seed = ApiumSeed(apiumPlant.defaultTaskName(eventName), kwargs = eventMap, expire = expire, eta = eta)
+
+    val expireDefault = Some(DateTime.now plus 60 * 60 * 1000L)
+
+    val expireDelta = expire match {
+      case Some(-1) => None
+      case None => expireDefault
+      case Some(v) => Some(DateTime.now plus v)
+    }
+
+    val etaDelta = eta match {
+      case None => None
+      case Some(v) => Some(DateTime.now plus v)
+    }
+
+    val seed = ApiumSeed(apiumPlant.defaultTaskName(eventName), kwargs = eventMap, expire = expireDelta, eta = etaDelta)
     apiumPlant.sendSeed(eventName, seed)
   }
 }

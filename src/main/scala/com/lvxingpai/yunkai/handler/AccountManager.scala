@@ -745,8 +745,9 @@ object AccountManager {
           "user" -> userInfoMorphia2Yunkai(userInfo),
           "source" -> string2JsonNode(source)
         )
-        val eta = Some(DateTime.now().plus(10 * 1000L))
-        EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs, eta, None)
+        val eta = Some(10 * 1000L)
+
+        EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs, eta)
 
         userInfo
       } else
