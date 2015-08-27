@@ -1,12 +1,10 @@
 package com.lvxingpai.yunkai
 
-import com.lvxingpai.appconfig.{ AppConfig, EtcdBuilder, EtcdConfBuilder, EtcdServiceBuilder }
+import com.lvxingpai.appconfig.{ AppConfig, EtcdConfBuilder, EtcdServiceBuilder }
 import com.lvxingpai.yunkai.Implicits.defaultExecutionContext
-import com.typesafe.config.Config
 
-import scala.collection.JavaConversions._
-import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration._
+import scala.concurrent.{ Await, Future }
 import scala.language.postfixOps
 
 /**
@@ -28,27 +26,43 @@ object Global {
     } else
       throw new IllegalArgumentException(s"The run level does not exist")
 
-    val backendKeys = defaultConf.getConfig(s"backendKeys.$runLevel")
-    val confKeys = defaultConf.getConfig(s"confKeys.$runLevel")
+    // 根据runlevel获得配置项
 
-    /**
-     * conf里面存放若干key。根据这些key，去etcd中获取对应的配置信息。
-     * @return
-     */
-    def func(conf: Config, builder: EtcdBuilder): Future[Config] = {
-      // 将conf中的key取出，逐一添加到builder中，最后生成完整的配置信息
-      val entries = conf.entrySet().toSeq map (item => item.getKey -> item.getValue.unwrapped().toString)
-      entries.foldLeft(builder)((b, pair) => {
-        b.addKey(pair._1, pair._2)
-      }).build()
-    }
+    val backendKeysBase = Seq("redis-main" -> "redis", "rabbitmq", "smscenter")
 
+    val backendKeys = backendKeysBase :+ (runLevel match {
+      case "production" =>
+        "mongo-production" -> "mongo"
+      case "dev" =>
+        "mongo-dev" -> "mongo"
+    })
+
+    val confKeys = (runLevel match {
+      case "production" => "yunkai"
+      case "dev" => "yunkai-dev" -> "yunkai"
+    }) :: "yunkai-base" -> "yunkai" :: Nil
+
+    // 配置节点
+    val futureConfig = confKeys.foldLeft(EtcdConfBuilder())((builder, item) => {
+      item match {
+        case name: String => builder.addKey(name)
+        case (name: String, alias: String) => builder.addKey(name, alias)
+      }
+    }).build()
+
+    // 服务节点
+    val futureService = backendKeys.foldLeft(EtcdServiceBuilder())((builder, item) => {
+      item match {
+        case name: String => builder.addKey(name)
+        case (name: String, alias: String) => builder.addKey(name, alias)
+      }
+    }).build()
+
+    // 将二者，再加上defaultConf，融合在一起
     val future = for {
-      confList <- Future.sequence(Seq(func(backendKeys, EtcdServiceBuilder()), func(confKeys, EtcdConfBuilder())))
+      confList <- Future.sequence(futureService :: futureConfig :: Nil)
     } yield {
-      (confList :+ defaultConf).reduce((c1, c2) => {
-        c1.withFallback(c2)
-      })
+      (confList :+ defaultConf) reduce ((c1, c2) => c1 withFallback c2)
     }
 
     Await.result(future, 10 seconds)
