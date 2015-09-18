@@ -27,7 +27,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
   val yunkaiUserInfo: com.lvxingpai.yunkai.UserInfo = user
 
   feature("the AccountManager can get a user's details") {
-
     scenario("an invalid user ID is provided") {
       Given("a illegal userId")
       val userId: Long = 100000
@@ -108,7 +107,7 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
   }
 
   feature("the AccountManager can login a user") {
-    scenario("login") {
+    scenario("login by user id") {
       Given("an valid cell phone number, password and source")
       userServiceHandler.manager = mockManager
       val password = "a1b2c3"
@@ -117,6 +116,61 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
       When("login is invoked")
       waitFuture(userServiceHandler.login(user.tel, password, "1"))
     }
+
+    scenario("login by user oauth") {
+      Given("an valid code and source")
+      userServiceHandler.manager = mockManager
+      val code: String = "11123dasdasd22131123dad"
+      val source: String = "1"
+      (mockManager.loginByWeixin _).expects(code, source).returning(Future(yunkaiUserInfo)).once
+
+      When("loginByOAuth is invoked")
+      waitFuture(userServiceHandler.loginByOAuth(code, source))
+    }
   }
 
+  feature("the AccountManager can create new users") {
+    scenario("the user already exits") {
+      Given("a user-signup form")
+      val nickName: String = "luotuo"
+      val tel: String = "13811001100"
+      val password: String = "a1b2c3"
+      val miscInfo: scala.collection.Map[UserInfoProp, String] = scala.collection.Map(
+        UserInfoProp.Tel -> "13811001100"
+      )
+      userServiceHandler.manager = mockManager
+      (mockManager.createUser _).expects(nickName, password, Some(tel)).returning(Future(null))
+
+      When("createUser is invoked")
+      intercept[NotFoundException] {
+        waitFuture(userServiceHandler.createUser(nickName, password, Some(miscInfo)))
+      }
+    }
+
+    scenario("a cell phone number is provided") {
+      Given("a legal user info")
+      val userId: Long = 100000
+      val nickName: String = "xigua"
+      val password: String = "a1b2c3"
+      val userInfo = com.lvxingpai.yunkai.model.UserInfo(userId, nickName)
+      userInfo.tel = "13888888888"
+      val miscInfo: scala.collection.Map[UserInfoProp, String] = scala.collection.Map(
+        UserInfoProp.Tel -> "13888888888"
+      )
+      userServiceHandler.manager = mockManager
+
+      (mockManager.createUser _).expects(nickName, password, Some(userInfo.tel)).returning(Future(userInfo))
+
+      When("createUser is invoked")
+      val ret = waitFuture(userServiceHandler.createUser(nickName, password, Some(miscInfo)))
+
+      Then("userId, nickName and tel will exist")
+      ret.userId should be(userInfo.userId)
+      ret.nickName should be(userInfo.nickName)
+      ret.avatar should be(None)
+      ret.tel.get should be(userInfo.tel)
+      ret.signature should be(None)
+      ret.gender should be(None)
+    }
+  }
 }

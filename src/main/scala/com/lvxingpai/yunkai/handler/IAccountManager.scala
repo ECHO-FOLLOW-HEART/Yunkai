@@ -36,4 +36,14 @@ trait IAccountManager {
 
   def login(loginName: String, password: String, source: String): Future[UserInfo]
 
+  def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit]
+
+  def resetPasswordByToken(userId: Long, newPassword: String, token: String): Future[Unit]
+
+  def loginByWeixin(code: String, source: String): Future[yunkai.UserInfo]
+
+  def isBlocked(selfId: Long, targetId: Long): Future[Boolean]
+
+  def updateBlackList(userA: Long, userB: Long, block: Boolean): Future[Unit]
+
 }

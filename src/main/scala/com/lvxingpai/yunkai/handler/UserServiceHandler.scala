@@ -82,10 +82,10 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] =
-    AccountManager.resetPassword(userId, oldPassword, newPassword)
+    manager.resetPassword(userId, oldPassword, newPassword)
 
   override def resetPasswordByToken(userId: Long, newPassword: String, token: String): Future[Unit] =
-    AccountManager.resetPasswordByToken(userId, newPassword, token)
+    manager.resetPasswordByToken(userId, newPassword, token)
 
   override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
     val tel = miscInfo flatMap (_.get(UserInfoProp.Tel))
@@ -98,14 +98,14 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def loginByOAuth(code: String, source: String): Future[yunkai.UserInfo] = {
-    AccountManager.loginByWeixin(code, source)
+    manager.loginByWeixin(code, source)
   }
 
   override def isBlocked(selfId: Long, targetId: Long): Future[Boolean] =
-    AccountManager.isBlocked(selfId, targetId)
+    manager.isBlocked(selfId, targetId)
 
   override def updateBlackList(userA: Long, userB: Long, block: Boolean): Future[Unit] =
-    AccountManager.updateBlackList(userA, userB, block)
+    manager.updateBlackList(userA, userB, block)
 
   override def getChatGroups(groupIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[ChatGroupProp]]): Future[Map[Long, yunkai.ChatGroup]] = {
     GroupManager.getChatGroups(fields.getOrElse(Seq()), groupIdList: _*) map (resultMap => {
