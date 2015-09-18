@@ -2,6 +2,7 @@ package com.lvxingpai.yunkai
 
 import com.lvxingpai.appconfig.{ AppConfig, EtcdConfBuilder, EtcdServiceBuilder }
 import com.lvxingpai.yunkai.Implicits.defaultExecutionContext
+import com.typesafe.config.ConfigValueFactory
 
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, Future }
@@ -23,8 +24,10 @@ object Global {
         case _ => throw new IllegalArgumentException(s"Invalid run level: $rl")
       }
       rl
-    } else
-      throw new IllegalArgumentException(s"The run level does not exist")
+    } else {
+      "dev"
+    }
+    //throw new IllegalArgumentException(s"The run level does not exist")
 
     // 根据runlevel获得配置项
 
@@ -65,6 +68,6 @@ object Global {
       (confList :+ defaultConf) reduce ((c1, c2) => c1 withFallback c2)
     }
 
-    Await.result(future, 10 seconds)
+    Await.result(future, 10 seconds).withValue("runlevel", ConfigValueFactory.fromAnyRef(runLevel))
   }
 }

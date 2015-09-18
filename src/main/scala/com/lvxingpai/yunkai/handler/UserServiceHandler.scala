@@ -21,8 +21,10 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   import UserServiceHandler.userInfoConversion
 
+  var manager: IAccountManager = AccountManager
+
   override def getUserById(userId: Long, fields: Option[Seq[UserInfoProp]], selfId: Option[Long] = None): Future[yunkai.UserInfo] = {
-    AccountManager.getUserById(userId, fields.getOrElse(Seq()), selfId) map (userInfo => {
+    manager.getUserById(userId, fields.getOrElse(Seq()), selfId) map (userInfo => {
       if (userInfo nonEmpty)
         userInfo.get
       else
@@ -87,7 +89,7 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
     val tel = miscInfo flatMap (_.get(UserInfoProp.Tel))
-    AccountManager.createUser(nickName, password, tel) map (userInfo => {
+    manager.createUser(nickName, password, tel) map (userInfo => {
       if (userInfo == null)
         throw new NotFoundException(Some("Create user failure"))
       else
@@ -161,7 +163,7 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def getUsersById(userIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[UserInfoProp]], selfId: Option[Long]): Future[Map[Long, yunkai.UserInfo]] = {
-    AccountManager.getUsersByIdList(fields.getOrElse(Seq()), selfId, userIdList: _*) map (resultMap => {
+    manager.getUsersByIdList(fields.getOrElse(Seq()), selfId, userIdList: _*) map (resultMap => {
       resultMap mapValues (_.orNull)
     })
   }

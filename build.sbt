@@ -34,7 +34,7 @@ libraryDependencies ++= Seq(
   "com.twitter" %% "finagle-thriftmux" % finagleVersion,
   "com.twitter" %% "scrooge-core" % "3.18.1",
   "org.apache.thrift" % "libthrift" % "0.9.2",
-//  "org.slf4j" % "slf4j-log4j12" % "1.7.12",
+  //  "org.slf4j" % "slf4j-log4j12" % "1.7.12",
   "com.typesafe" % "config" % "1.2.1",
   //  "com.google.code.findbugs" % "jsr305" % "3.0.0",
   "org.springframework" % "spring-aspects" % springVersion,
@@ -52,7 +52,8 @@ libraryDependencies ++= Seq(
   "com.lvxingpai" %% "appconfig" % "0.2.1-SNAPSHOT",
   "ch.qos.logback" % "logback-classic" % "1.1.3",
   "com.lvxingpai" %% "apium" % "0.1-SNAPSHOT",
-  "commons-io" % "commons-io" % "2.4"
+  "commons-io" % "commons-io" % "2.4",
+  "org.scalamock" %% "scalamock-scalatest-support" % "3.2" % "test"
 )
 
 publishTo := {
