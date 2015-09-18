@@ -16,4 +16,24 @@ trait IAccountManager {
 
   def getUsersByIdList(fields: Seq[UserInfoProp], selfId: Option[Long], userIds: Long*): Future[Map[Long, Option[yunkai.UserInfo]]]
 
+  def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, Any]): Future[UserInfo]
+
+  def isContact(userA: Long, userB: Long): Future[Boolean]
+
+  def addContact(userId: Long, targetUsers: Long*): Future[Unit]
+
+  def removeContacts(userId: Long, targetUsers: Long*): Future[Unit]
+
+  def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq(), offset: Option[Int] = None,
+    count: Option[Int] = None): Future[Seq[yunkai.UserInfo]]
+
+  def updateMemo(userA: Long, userB: Long, memo: String): Future[Unit]
+
+  def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int] = None,
+    count: Option[Int] = None): Future[Seq[yunkai.UserInfo]]
+
+  def getContactCount(userId: Long): Future[Int]
+
+  def login(loginName: String, password: String, source: String): Future[UserInfo]
+
 }

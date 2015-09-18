@@ -41,34 +41,34 @@ class UserServiceHandler extends Userservice.FutureIface {
       }
       propName -> propVal
     }): _*)
-    AccountManager.updateUserInfo(userId, updateData) map UserServiceHandler.userInfoConversion
+    manager.updateUserInfo(userId, updateData) map UserServiceHandler.userInfoConversion
   }
 
-  override def isContact(userA: Long, userB: Long): Future[Boolean] = AccountManager.isContact(userA, userB)
+  override def isContact(userA: Long, userB: Long): Future[Boolean] = manager.isContact(userA, userB)
 
-  override def addContact(userA: Long, userB: Long): Future[Unit] = AccountManager.addContact(userA, userB)
+  override def addContact(userA: Long, userB: Long): Future[Unit] = manager.addContact(userA, userB)
 
-  override def addContacts(userA: Long, userB: Seq[Long]): Future[Unit] = AccountManager.addContact(userA, userB: _*)
+  override def addContacts(userA: Long, userB: Seq[Long]): Future[Unit] = manager.addContact(userA, userB: _*)
 
-  override def removeContact(userA: Long, userB: Long): Future[Unit] = AccountManager.removeContacts(userA, userB)
+  override def removeContact(userA: Long, userB: Long): Future[Unit] = manager.removeContacts(userA, userB)
 
   override def removeContacts(userA: Long, userList: Seq[Long]): Future[Unit] =
-    AccountManager.removeContacts(userA, userList: _*)
+    manager.removeContacts(userA, userList: _*)
 
   override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]], offset: Option[Int],
     count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
-    AccountManager.getContactList(userId, fields = fields.getOrElse(Seq()), offset = offset, count = count)
+    manager.getContactList(userId, fields = fields.getOrElse(Seq()), offset = offset, count = count)
   }
 
   override def updateMemo(userA: Long, userB: Long, memo: String): Future[Unit] = {
-    AccountManager.updateMemo(userA, userB, memo)
+    manager.updateMemo(userA, userB, memo)
   }
 
   override def searchUserInfo(queryFields: scala.collection.Map[UserInfoProp, String],
     fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] =
-    AccountManager.searchUserInfo(Map(queryFields.toSeq: _*), fields, offset, count)
+    manager.searchUserInfo(Map(queryFields.toSeq: _*), fields, offset, count)
 
-  override def getContactCount(userId: Long): Future[Int] = AccountManager.getContactCount(userId)
+  override def getContactCount(userId: Long): Future[Int] = manager.getContactCount(userId)
 
   /**
    * 用户登录
@@ -78,7 +78,7 @@ class UserServiceHandler extends Userservice.FutureIface {
    * @return 用户的详细资料
    */
   override def login(loginName: String, password: String, source: String): Future[yunkai.UserInfo] = {
-    AccountManager.login(loginName, password, source) map UserServiceHandler.userInfoConversion
+    manager.login(loginName, password, source) map UserServiceHandler.userInfoConversion
   }
 
   override def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] =
