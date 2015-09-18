@@ -1310,10 +1310,4 @@ object AccountManager extends IAccountManager {
       }
     }
   }
-
-  def setContact(): Future[Unit] = futurePool {
-    val query = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).exists()
-    val op = ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdContactA, true).set(Relationship.fdContactB, true)
-    ds.update(query, op)
-  }
 }

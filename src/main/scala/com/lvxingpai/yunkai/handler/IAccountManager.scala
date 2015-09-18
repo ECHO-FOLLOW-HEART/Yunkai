@@ -1,9 +1,10 @@
 package com.lvxingpai.yunkai.handler
 
 import com.lvxingpai.yunkai
-import com.lvxingpai.yunkai.UserInfoProp
-import com.lvxingpai.yunkai.model.UserInfo
+import com.lvxingpai.yunkai.{ Role, OperationCode, UserInfoProp }
+import com.lvxingpai.yunkai.model.{ ContactRequest, UserInfo }
 import com.twitter.util.Future
+import org.bson.types.ObjectId
 
 /**
  * Created by pengyt on 2015/9/18.
@@ -46,4 +47,25 @@ trait IAccountManager {
 
   def updateBlackList(userA: Long, userB: Long, block: Boolean): Future[Unit]
 
+  def sendContactRequest(sender: Long, receiver: Long, message: Option[String] = None): Future[ObjectId]
+
+  def rejectContactRequest(requestId: String, message: Option[String] = None): Future[Unit]
+
+  def acceptContactRequest(requestId: String): Future[Unit]
+
+  def cancelContactRequest(requestId: String): Future[Unit]
+
+  def verifyCredential(userId: Long, password: String): Future[Boolean]
+
+  def updateTelNumber(userId: Long, tel: String, token: String): Future[Unit]
+
+  def getContactRequestList(userId: Long, offset: Int, limit: Int): Future[Seq[ContactRequest]]
+
+  def sendValidationCode(action: OperationCode, userId: Option[Long], tel: String, countryCode: Option[Int] = None): Future[Unit]
+
+  def checkValidationCode(valCode: String, action: OperationCode, tel: String, countryCode: Option[Int] = None): Future[Option[String]]
+
+  def updateUserRoles(userId: Long, addRoles: Boolean, roles: Seq[Role]): Future[UserInfo]
+
+  def getUsersByTelList(fields: Option[Seq[UserInfoProp]], tels: Seq[String]): Future[Seq[yunkai.UserInfo]]
 }

@@ -13,14 +13,15 @@ import org.mongodb.morphia.Datastore
 
 import scala.collection.JavaConversions._
 
-//import scala.collection.Map
-
 import scala.language.{ implicitConversions, postfixOps }
 
 /**
  * Created by zephyre on 6/19/15.
  */
-object GroupManager {
+object GroupManager extends IGroupManager {
+
+  private val ds = MorphiaFactory.datastore
+  private val futurePool: FuturePool = FuturePool.unboundedPool
   /**
    * 将ChatGroupProp转换为字段名称
    *
@@ -59,13 +60,13 @@ object GroupManager {
    * @param userId
    * @return
    */
-  def getUserChatGroupCount(userId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Int] = futurePool {
+  def getUserChatGroupCount(userId: Long): Future[Int] = futurePool {
     ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdParticipants).hasThisOne(userId).countAll().toInt
   }
 
-  def createChatGroup(creator: Long, members: Seq[Long], chatGroupProps: Map[ChatGroupProp, Any] = Map())(implicit ds: Datastore, futurePool: FuturePool): Future[ChatGroup] = {
+  def createChatGroup(creator: Long, members: Seq[Long], chatGroupProps: Map[ChatGroupProp, Any] = Map()): Future[ChatGroup] = {
     // TODO 创建的时候判断是否超限，如果是的话，抛出GroupMemberLimitException异常。同时别忘了修改users.thrift，将这个异常添加到声明列表中
-    val futureGid = IdGenerator.generateId("yunkai:idgenerator/default")
+    val futureGid = IdGenerator.generateId("yunkai:idgenerator/default")(futurePool)
 
     // 如果讨论组创建人未选择其他的人，那么就创建者自己一个人，如果选择了其他人，那么群成员便是创建者和其他创建者拉进来的人
     val participants = (members :+ creator).toSet.toSeq
@@ -121,7 +122,7 @@ object GroupManager {
   }
 
   // 获取讨论组信息
-  def getChatGroup(chatGroupId: Long, fields: Seq[ChatGroupProp] = Seq[ChatGroupProp]())(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ChatGroup]] = futurePool {
+  def getChatGroup(chatGroupId: Long, fields: Seq[ChatGroupProp] = Seq[ChatGroupProp]()): Future[Option[ChatGroup]] = futurePool {
     val allowedProperties = Seq(ChatGroupProp.Name, ChatGroupProp.GroupDesc, ChatGroupProp.ChatGroupId,
       ChatGroupProp.Avatar, ChatGroupProp.Tags, ChatGroupProp.Creator, ChatGroupProp.Admin, ChatGroupProp.Participants,
       ChatGroupProp.MaxUsers, ChatGroupProp.Visible)
@@ -135,7 +136,7 @@ object GroupManager {
   }
 
   //TODO 实现
-  def getChatGroups(fields: Seq[ChatGroupProp], groupIdList: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[ChatGroup]]] = {
+  def getChatGroups(fields: Seq[ChatGroupProp], groupIdList: Long*): Future[Map[Long, Option[ChatGroup]]] = {
     val allowedProperties = Seq(ChatGroupProp.Name, ChatGroupProp.GroupDesc, ChatGroupProp.ChatGroupId,
       ChatGroupProp.Avatar, ChatGroupProp.Tags, ChatGroupProp.Creator, ChatGroupProp.Admin, ChatGroupProp.Participants,
       ChatGroupProp.MaxUsers, ChatGroupProp.Visible)
@@ -158,7 +159,7 @@ object GroupManager {
   }
 
   // 修改讨论组信息（比如名称、描述等）
-  def updateChatGroup(chatGroupId: Long, operatorId: Long, chatGroupProps: Map[ChatGroupProp, Any])(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ChatGroup]] = {
+  def updateChatGroup(chatGroupId: Long, operatorId: Long, chatGroupProps: Map[ChatGroupProp, Any]): Future[Option[ChatGroup]] = {
     // 检查修改人operatorId是否有效
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     val operator = AccountManager.getUserById(operatorId, responseFields, None)
@@ -226,7 +227,7 @@ object GroupManager {
 
   // 获取用户讨论组信息
   def getUserChatGroups(userId: Long, fields: Seq[ChatGroupProp] = Seq(), offset: Option[Int] = None,
-    limit: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ChatGroup]] = {
+    limit: Option[Int] = None): Future[Seq[ChatGroup]] = {
     import ChatGroup._
 
     // 默认最大的获取数量
@@ -255,7 +256,7 @@ object GroupManager {
   }
 
   // 批量添加讨论组成员
-  def addChatGroupMembers(chatGroupId: Long, operatorId: Long, userIdsToAdd: Seq[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[Long]] = {
+  def addChatGroupMembers(chatGroupId: Long, operatorId: Long, userIdsToAdd: Seq[Long]): Future[Seq[Long]] = {
     // 获得ChatGroup的最大人数
     val futureGroup = GroupManager.getChatGroup(chatGroupId, Seq(ChatGroupProp.ChatGroupId, ChatGroupProp.Name,
       ChatGroupProp.Avatar, ChatGroupProp.MaxUsers, ChatGroupProp.Participants))
@@ -311,7 +312,7 @@ object GroupManager {
       usersOpt <- futureUsers // Users to be removed(with both userId and nickName available)
       users <- Future(verifyUsers(usersOpt) - operatorId)
       entry <- func1(group, users)
-      _ <- emitChatGroupMembersEvents(EventEmitter.evtAddGroupMembers, group, usersOpt(operatorId).get, entry._2)
+      _ <- emitChatGroupMembersEvents(EventEmitter.evtAddGroupMembers, group, usersOpt(operatorId).get, entry._2)(futurePool)
     } yield {
       entry._1
     }
@@ -339,7 +340,7 @@ object GroupManager {
   }
 
   // 批量删除讨论组成员
-  def removeChatGroupMembers(chatGroupId: Long, operatorId: Long, userToRemove: Seq[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[Long]] = {
+  def removeChatGroupMembers(chatGroupId: Long, operatorId: Long, userToRemove: Seq[Long]): Future[Seq[Long]] = {
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     // 查看operatorId是否有效
     val futureOperator = AccountManager.getUserById(operatorId, responseFields, None)
@@ -374,14 +375,14 @@ object GroupManager {
       group2 <- verify(group)
       operator <- futureOperator
       users <- futureUsers
-      _ <- emitChatGroupMembersEvents(EventEmitter.evtRemoveGroupMembers, group2, operator.get, userInfos)
+      _ <- emitChatGroupMembersEvents(EventEmitter.evtRemoveGroupMembers, group2, operator.get, userInfos)(futurePool)
     } yield {
       group.participants
     }
   }
 
   // 获得讨论组成员
-  def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]] = None, selfId: Option[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
+  def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]] = None, selfId: Option[Long]): Future[Seq[yunkai.UserInfo]] = {
     // 取得participants
     def func1(gId: Long): Future[Seq[Long]] = futurePool {
       val groupInfo = ds.find(classOf[ChatGroup], ChatGroup.fdChatGroupId, gId).get()
@@ -392,7 +393,7 @@ object GroupManager {
     // 返回的fields
     val retrievedFields = fields.getOrElse(Seq()) ++ Seq(UserInfoProp.UserId, UserInfoProp.Id)
     // 获取结果
-    def func2(fields1: Seq[UserInfoProp], selfId1: Option[Long], members: Seq[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
+    def func2(fields1: Seq[UserInfoProp], selfId1: Option[Long], members: Seq[Long]): Future[Seq[yunkai.UserInfo]] = {
       val userMap = AccountManager.getUsersByIdList(fields1, selfId1, members: _*) map (resultMap => {
         resultMap mapValues (_.orNull)
       })
@@ -408,7 +409,7 @@ object GroupManager {
     } yield results
   }
 
-  def isMember(userId: Long, chatGroupId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = futurePool {
+  def isMember(userId: Long, chatGroupId: Long): Future[Boolean] = futurePool {
     val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdChatGroupId).equal(chatGroupId).field(ChatGroup.fdParticipants).hasThisOne(userId)
     query nonEmpty
   }

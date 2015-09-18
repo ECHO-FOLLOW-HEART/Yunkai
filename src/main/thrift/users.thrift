@@ -308,7 +308,4 @@ service userservice {
 
   // 根据电话批量查询用户信息
   list<UserInfo> getUsersByTelList(1: optional list<UserInfoProp> fields, 2: list<string> tels)
-
-  // 给数据库刷contactA和contactB字段, 用完可删
-  void setContact()
 }

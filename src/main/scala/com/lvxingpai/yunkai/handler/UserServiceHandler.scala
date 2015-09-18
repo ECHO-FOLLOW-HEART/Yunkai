@@ -21,10 +21,12 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   import UserServiceHandler.userInfoConversion
 
-  var manager: IAccountManager = AccountManager
+  var accountManager: IAccountManager = AccountManager
+
+  var groupManager: IGroupManager = GroupManager
 
   override def getUserById(userId: Long, fields: Option[Seq[UserInfoProp]], selfId: Option[Long] = None): Future[yunkai.UserInfo] = {
-    manager.getUserById(userId, fields.getOrElse(Seq()), selfId) map (userInfo => {
+    accountManager.getUserById(userId, fields.getOrElse(Seq()), selfId) map (userInfo => {
       if (userInfo nonEmpty)
         userInfo.get
       else
@@ -41,34 +43,34 @@ class UserServiceHandler extends Userservice.FutureIface {
       }
       propName -> propVal
     }): _*)
-    manager.updateUserInfo(userId, updateData) map UserServiceHandler.userInfoConversion
+    accountManager.updateUserInfo(userId, updateData) map UserServiceHandler.userInfoConversion
   }
 
-  override def isContact(userA: Long, userB: Long): Future[Boolean] = manager.isContact(userA, userB)
+  override def isContact(userA: Long, userB: Long): Future[Boolean] = accountManager.isContact(userA, userB)
 
-  override def addContact(userA: Long, userB: Long): Future[Unit] = manager.addContact(userA, userB)
+  override def addContact(userA: Long, userB: Long): Future[Unit] = accountManager.addContact(userA, userB)
 
-  override def addContacts(userA: Long, userB: Seq[Long]): Future[Unit] = manager.addContact(userA, userB: _*)
+  override def addContacts(userA: Long, userB: Seq[Long]): Future[Unit] = accountManager.addContact(userA, userB: _*)
 
-  override def removeContact(userA: Long, userB: Long): Future[Unit] = manager.removeContacts(userA, userB)
+  override def removeContact(userA: Long, userB: Long): Future[Unit] = accountManager.removeContacts(userA, userB)
 
   override def removeContacts(userA: Long, userList: Seq[Long]): Future[Unit] =
-    manager.removeContacts(userA, userList: _*)
+    accountManager.removeContacts(userA, userList: _*)
 
   override def getContactList(userId: Long, fields: Option[Seq[UserInfoProp]], offset: Option[Int],
     count: Option[Int]): Future[Seq[yunkai.UserInfo]] = {
-    manager.getContactList(userId, fields = fields.getOrElse(Seq()), offset = offset, count = count)
+    accountManager.getContactList(userId, fields = fields.getOrElse(Seq()), offset = offset, count = count)
   }
 
   override def updateMemo(userA: Long, userB: Long, memo: String): Future[Unit] = {
-    manager.updateMemo(userA, userB, memo)
+    accountManager.updateMemo(userA, userB, memo)
   }
 
   override def searchUserInfo(queryFields: scala.collection.Map[UserInfoProp, String],
     fields: Option[Seq[UserInfoProp]], offset: Option[Int], count: Option[Int]): Future[Seq[yunkai.UserInfo]] =
-    manager.searchUserInfo(Map(queryFields.toSeq: _*), fields, offset, count)
+    accountManager.searchUserInfo(Map(queryFields.toSeq: _*), fields, offset, count)
 
-  override def getContactCount(userId: Long): Future[Int] = manager.getContactCount(userId)
+  override def getContactCount(userId: Long): Future[Int] = accountManager.getContactCount(userId)
 
   /**
    * 用户登录
@@ -78,18 +80,18 @@ class UserServiceHandler extends Userservice.FutureIface {
    * @return 用户的详细资料
    */
   override def login(loginName: String, password: String, source: String): Future[yunkai.UserInfo] = {
-    manager.login(loginName, password, source) map UserServiceHandler.userInfoConversion
+    accountManager.login(loginName, password, source) map UserServiceHandler.userInfoConversion
   }
 
   override def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] =
-    manager.resetPassword(userId, oldPassword, newPassword)
+    accountManager.resetPassword(userId, oldPassword, newPassword)
 
   override def resetPasswordByToken(userId: Long, newPassword: String, token: String): Future[Unit] =
-    manager.resetPasswordByToken(userId, newPassword, token)
+    accountManager.resetPasswordByToken(userId, newPassword, token)
 
   override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
     val tel = miscInfo flatMap (_.get(UserInfoProp.Tel))
-    manager.createUser(nickName, password, tel) map (userInfo => {
+    accountManager.createUser(nickName, password, tel) map (userInfo => {
       if (userInfo == null)
         throw new NotFoundException(Some("Create user failure"))
       else
@@ -98,23 +100,23 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def loginByOAuth(code: String, source: String): Future[yunkai.UserInfo] = {
-    manager.loginByWeixin(code, source)
+    accountManager.loginByWeixin(code, source)
   }
 
   override def isBlocked(selfId: Long, targetId: Long): Future[Boolean] =
-    manager.isBlocked(selfId, targetId)
+    accountManager.isBlocked(selfId, targetId)
 
   override def updateBlackList(userA: Long, userB: Long, block: Boolean): Future[Unit] =
-    manager.updateBlackList(userA, userB, block)
+    accountManager.updateBlackList(userA, userB, block)
 
   override def getChatGroups(groupIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[ChatGroupProp]]): Future[Map[Long, yunkai.ChatGroup]] = {
-    GroupManager.getChatGroups(fields.getOrElse(Seq()), groupIdList: _*) map (resultMap => {
+    groupManager.getChatGroups(fields.getOrElse(Seq()), groupIdList: _*) map (resultMap => {
       resultMap mapValues (value => (value map UserServiceHandler.chatGroupConversion).orNull)
     })
   }
 
   override def getChatGroup(chatGroupId: Long, fields: Option[Seq[ChatGroupProp]]): Future[yunkai.ChatGroup] = {
-    GroupManager.getChatGroup(chatGroupId, fields.getOrElse(Seq())) map (item => {
+    groupManager.getChatGroup(chatGroupId, fields.getOrElse(Seq())) map (item => {
       if (item isEmpty)
         throw NotFoundException(Some("Chat group not found"))
       else
@@ -133,7 +135,7 @@ class UserServiceHandler extends Userservice.FutureIface {
       })
     }): _*) filter (_._2 != null)
 
-    GroupManager.updateChatGroup(chatGroupId, operatorId, updateInfo) map (item => {
+    groupManager.updateChatGroup(chatGroupId, operatorId, updateInfo) map (item => {
       if (item isEmpty)
         throw NotFoundException(Some("Chat group not found"))
       else
@@ -143,7 +145,7 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def getUserChatGroups(userId: Long, fields: Option[Seq[ChatGroupProp]], offset: Option[Int],
     count: Option[Int]): Future[Seq[yunkai.ChatGroup]] = {
-    val result = GroupManager.getUserChatGroups(userId, fields.getOrElse(Seq()))
+    val result = groupManager.getUserChatGroups(userId, fields.getOrElse(Seq()))
     for {
       items <- result
     } yield {
@@ -153,17 +155,17 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def addChatGroupMembers(chatGroupId: Long, operatorId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
-    GroupManager.addChatGroupMembers(chatGroupId, operatorId, userIds)
+    groupManager.addChatGroupMembers(chatGroupId, operatorId, userIds)
 
   override def removeChatGroupMembers(chatGroupId: Long, operatorId: Long, userIds: Seq[Long]): Future[Seq[Long]] =
-    GroupManager.removeChatGroupMembers(chatGroupId, operatorId, userIds)
+    groupManager.removeChatGroupMembers(chatGroupId, operatorId, userIds)
 
   override def getChatGroupMembers(chatGroupId: Long, fields: Option[Seq[UserInfoProp]], selfId: Option[Long]): Future[Seq[yunkai.UserInfo]] = {
-    GroupManager.getChatGroupMembers(chatGroupId, fields, selfId)
+    groupManager.getChatGroupMembers(chatGroupId, fields, selfId)
   }
 
   override def getUsersById(userIdList: Seq[Long] = Seq[Long](), fields: Option[Seq[UserInfoProp]], selfId: Option[Long]): Future[Map[Long, yunkai.UserInfo]] = {
-    manager.getUsersByIdList(fields.getOrElse(Seq()), selfId, userIdList: _*) map (resultMap => {
+    accountManager.getUsersByIdList(fields.getOrElse(Seq()), selfId, userIdList: _*) map (resultMap => {
       resultMap mapValues (_.orNull)
     })
   }
@@ -185,27 +187,27 @@ class UserServiceHandler extends Userservice.FutureIface {
       prop -> value2
     }): _*) filter (_._2 != null)
 
-    GroupManager.createChatGroup(creator, participants, miscInfo) map UserServiceHandler.chatGroupConversion
+    groupManager.createChatGroup(creator, participants, miscInfo) map UserServiceHandler.chatGroupConversion
   }
 
-  override def getUserChatGroupCount(userId: Long): Future[Int] = GroupManager.getUserChatGroupCount(userId)
+  override def getUserChatGroupCount(userId: Long): Future[Int] = groupManager.getUserChatGroupCount(userId)
 
   override def sendContactRequest(sender: Long, receiver: Long, message: Option[String]): Future[String] =
-    AccountManager.sendContactRequest(sender, receiver, message) map (_.toString)
+    accountManager.sendContactRequest(sender, receiver, message) map (_.toString)
 
   override def rejectContactRequest(requestId: String, message: Option[String]): Future[Unit] =
-    AccountManager.rejectContactRequest(requestId, message)
+    accountManager.rejectContactRequest(requestId, message)
 
   override def acceptContactRequest(requestId: String): Future[Unit] =
-    AccountManager.acceptContactRequest(requestId)
+    accountManager.acceptContactRequest(requestId)
 
   override def cancelContactRequest(requestId: String): Future[Unit] =
-    AccountManager.cancelContactRequest(requestId)
+    accountManager.cancelContactRequest(requestId)
 
   override def verifyCredential(userId: Long, password: String): Future[Boolean] =
-    AccountManager.verifyCredential(userId, password)
+    accountManager.verifyCredential(userId, password)
 
-  override def updateTelNumber(userId: Long, tel: String, token: String): Future[Unit] = AccountManager.updateTelNumber(userId, tel, token)
+  override def updateTelNumber(userId: Long, tel: String, token: String): Future[Unit] = accountManager.updateTelNumber(userId, tel, token)
 
   override def getContactRequests(userId: Long, offset: Option[Int], limit: Option[Int]): Future[Seq[ContactRequest]] = {
     import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
@@ -218,16 +220,16 @@ class UserServiceHandler extends Userservice.FutureIface {
     val actualOffset = offset getOrElse defaultOffset
     val actualLimit = Math.max(offset getOrElse defaultCount, maxCount)
 
-    AccountManager.getContactRequestList(userId, actualOffset, actualLimit) map (list => {
+    accountManager.getContactRequestList(userId, actualOffset, actualLimit) map (list => {
       list map (v => v: YunkaiContactRequest)
     })
   }
 
   override def sendValidationCode(action: OperationCode, userId: Option[Long], tel: String, countryCode: Option[Int]): Future[Unit] =
-    AccountManager.sendValidationCode(action, userId, tel, countryCode)
+    accountManager.sendValidationCode(action, userId, tel, countryCode)
 
   override def checkValidationCode(code: String, action: OperationCode, tel: String, countryCode: Option[Int]): Future[String] = {
-    AccountManager.checkValidationCode(code, action, tel, countryCode) map (opt => {
+    accountManager.checkValidationCode(code, action, tel, countryCode) map (opt => {
       opt getOrElse {
         throw ValidationCodeException()
       }
@@ -235,14 +237,12 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def updateUserRoles(userId: Long, addRoles: Boolean, roles: Option[Seq[Role]]): Future[yunkai.UserInfo] =
-    AccountManager.updateUserRoles(userId, addRoles, roles getOrElse Seq()) map (user => user)
+    accountManager.updateUserRoles(userId, addRoles, roles getOrElse Seq()) map (user => user)
 
   override def isMember(userId: Long, chatGroupId: Long): Future[Boolean] =
-    GroupManager.isMember(userId, chatGroupId)
+    groupManager.isMember(userId, chatGroupId)
 
-  override def getUsersByTelList(fields: Option[Seq[UserInfoProp]], tels: Seq[String]): Future[Seq[yunkai.UserInfo]] = AccountManager.getUsersByTelList(fields, tels)
-
-  override def setContact(): Future[Unit] = AccountManager.setContact()
+  override def getUsersByTelList(fields: Option[Seq[UserInfoProp]], tels: Seq[String]): Future[Seq[yunkai.UserInfo]] = accountManager.getUsersByTelList(fields, tels)
 }
 
 object UserServiceHandler {
