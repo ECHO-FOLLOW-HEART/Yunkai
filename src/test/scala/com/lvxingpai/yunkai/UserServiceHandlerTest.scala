@@ -190,13 +190,12 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
   val chatGroup = com.lvxingpai.yunkai.model.ChatGroup(fakeUserId, chatGroupId, members)
   chatGroup.name = "test group"
   chatGroup.groupDesc = "this is a test chat group"
-
+  userServiceHandler.groupManager = mockGroupManager
   feature("GroupManager can get chat groups") {
     scenario("empty chatGroupIdList is provided") {
       Given("an empty chatGroupIdList")
       val responseFields: Seq[ChatGroupProp] = Seq(ChatGroupProp.ChatGroupId, ChatGroupProp.Name, ChatGroupProp.Participants)
       val chatGroupIdList: Seq[Long] = Seq()
-      userServiceHandler.groupManager = mockGroupManager
       (mockGroupManager.getChatGroups _).expects(responseFields, chatGroupIdList).returning(Future(Map()))
 
       When("getChatGroups is invoked")
@@ -208,7 +207,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
       val responseFields: Seq[ChatGroupProp] = Seq(ChatGroupProp.ChatGroupId, ChatGroupProp.Name, ChatGroupProp.Participants)
       val chatGroupIdList: Seq[Long] = Seq(200001)
       val fakeChatGroupId: Long = 200001
-      userServiceHandler.groupManager = mockGroupManager
       val chatGroupMap: Map[Long, Option[com.lvxingpai.yunkai.model.ChatGroup]] = Map(
         fakeChatGroupId -> None
       )
@@ -223,7 +221,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
       val responseFields: Seq[ChatGroupProp] = Seq(ChatGroupProp.ChatGroupId, ChatGroupProp.Name, ChatGroupProp.Participants)
       val chatGroupIdList: Seq[Long] = Seq(200000, 200001)
       val fakeChatGroupId: Long = 200001
-      userServiceHandler.groupManager = mockGroupManager
       val chatGroupMap: Map[Long, Option[com.lvxingpai.yunkai.model.ChatGroup]] = Map(
         chatGroupId -> Some(chatGroup),
         fakeChatGroupId -> None
@@ -238,7 +235,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
       Given("a chatGroupId")
       val responseFields: Seq[ChatGroupProp] = Seq(ChatGroupProp.ChatGroupId, ChatGroupProp.Name, ChatGroupProp.Participants)
       val fakeChatGroupId: Long = 200001
-      userServiceHandler.groupManager = mockGroupManager
       (mockGroupManager.getChatGroup _).expects(fakeChatGroupId, responseFields).returning(Future(None))
 
       When("getChatGroup is invoked")
@@ -251,7 +247,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
       Given("a chatGroupId")
       val responseFields: Seq[ChatGroupProp] = Seq(ChatGroupProp.ChatGroupId, ChatGroupProp.Name, ChatGroupProp.Participants)
       val fakeChatGroupId: Long = 200000
-      userServiceHandler.groupManager = mockGroupManager
       (mockGroupManager.getChatGroup _).expects(fakeChatGroupId, responseFields).returning(Future(Some(chatGroup)))
 
       When("getChatGroup is invoked")
@@ -267,7 +262,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
       )
       val fakeChatGroupId: Long = 200001
       val operatorId: Long = 100004
-      userServiceHandler.groupManager = mockGroupManager
       (mockGroupManager.updateChatGroup _).expects(fakeChatGroupId, operatorId, *).returning(Future(None))
 
       When("updateChatGroup is invoked")
@@ -283,7 +277,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
       )
       val fakeChatGroupId: Long = 200000
       val operatorId: Long = 100004
-      userServiceHandler.groupManager = mockGroupManager
       (mockGroupManager.updateChatGroup _).expects(fakeChatGroupId, operatorId, *).returning(Future(Some(chatGroup)))
 
       When("updateChatGroup is invoked")
@@ -324,7 +317,22 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
     }
   }
 
-  feature("") {
+  feature("GroupManager can create chat group") {
+//    scenario("creator not exists or member is not exists") {
+//      Given("a invalid chatGroupId")
+//      val invalidCreator: Long = 1000000
+//      val invalidMember: Long = 100001
+//      (mockGroupManager.createChatGroup _).expects(invalidCreator, Seq(fakeUserId), *).returning(Future(null))
+//      (mockGroupManager.createChatGroup _).expects(fakeUserId, Seq(invalidMember), *).returning(Future(null))
+//      When("createChatGroup is invoked")
+//      intercept[NotFoundException]{
+//        waitFuture(userServiceHandler.createChatGroup(invalidCreator, Seq(fakeUserId), Some(Map(ChatGroupProp.Name -> "test chat Group"))))
+//      }
+//      intercept[NotFoundException] {
+//        waitFuture(userServiceHandler.createChatGroup(fakeUserId, Seq(invalidMember), Some(Map(ChatGroupProp.Name -> "test chat Group"))))
+//      }
+//    }
+
 
   }
 }
