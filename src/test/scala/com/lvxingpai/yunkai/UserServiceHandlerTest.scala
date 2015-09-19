@@ -73,14 +73,14 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
       val userMap = waitFuture(userServiceHandler.getUsersById(userIdList, Some(properties), None))
 
       Then("the user corresponding to the fake user ID should be null")
-      userMap(fakeUserId) should be(null)
+      userMap(invalidUserId) should be(null)
 
       And("the details of other users should be correctly retrieved")
       val actual = userMap(fakeUserId)
       actual.userId should be(user.userId)
       actual.nickName should be(user.nickName)
-      actual.avatar should be(user.avatar)
-      actual.tel should be(user.tel)
+      actual.avatar should be(None)
+      actual.tel.get should be(user.tel)
       actual.signature should be(None)
       actual.gender should be(None)
     }
