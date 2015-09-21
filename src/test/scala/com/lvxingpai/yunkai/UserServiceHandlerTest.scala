@@ -2,6 +2,7 @@ package com.lvxingpai.yunkai
 
 import com.lvxingpai.yunkai.handler.{ IGroupManager, IAccountManager, UserServiceHandler }
 import com.twitter.util.{ Await, Duration, Future }
+import org.bson.types.ObjectId
 import org.scalatest.{ ShouldMatchers, GivenWhenThen, FeatureSpec }
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.OneInstancePerTest
@@ -177,12 +178,12 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
   }
 
   val haiziId: Long = 100033
-  val haizi = com.lvxingpai.yunkai.model.UserInfo(fakeUserId, "haizi")
+  val haizi = com.lvxingpai.yunkai.model.UserInfo(haiziId, "haizi")
   haizi.tel = "15300167111"
 
   val mockGroupManager = mock[IGroupManager]
   val xiaoyaoId: Long = 100053
-  val xiaoyao = com.lvxingpai.yunkai.model.UserInfo(fakeUserId, "xiaoyao")
+  val xiaoyao = com.lvxingpai.yunkai.model.UserInfo(xiaoyaoId, "xiaoyao")
   xiaoyao.tel = "15300167102"
 
   val chatGroupId: Long = 200000
@@ -318,21 +319,124 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
   }
 
   feature("GroupManager can create chat group") {
-//    scenario("creator not exists or member is not exists") {
-//      Given("a invalid chatGroupId")
-//      val invalidCreator: Long = 1000000
-//      val invalidMember: Long = 100001
-//      (mockGroupManager.createChatGroup _).expects(invalidCreator, Seq(fakeUserId), *).returning(Future(null))
-//      (mockGroupManager.createChatGroup _).expects(fakeUserId, Seq(invalidMember), *).returning(Future(null))
-//      When("createChatGroup is invoked")
-//      intercept[NotFoundException]{
-//        waitFuture(userServiceHandler.createChatGroup(invalidCreator, Seq(fakeUserId), Some(Map(ChatGroupProp.Name -> "test chat Group"))))
-//      }
-//      intercept[NotFoundException] {
-//        waitFuture(userServiceHandler.createChatGroup(fakeUserId, Seq(invalidMember), Some(Map(ChatGroupProp.Name -> "test chat Group"))))
-//      }
-//    }
+    //    scenario("creator not exists or member is not exists") {
+    //      Given("a invalid chatGroupId")
+    //      val invalidCreator: Long = 1000000
+    //      val invalidMember: Long = 100001
+    //      (mockGroupManager.createChatGroup _).expects(invalidCreator, Seq(fakeUserId), *).returning(Future(null))
+    //      (mockGroupManager.createChatGroup _).expects(fakeUserId, Seq(invalidMember), *).returning(Future(null))
+    //      When("createChatGroup is invoked")
+    //      intercept[NotFoundException] {
+    //        waitFuture(userServiceHandler.createChatGroup(invalidCreator, Seq(fakeUserId), Some(Map(ChatGroupProp.Name -> "test chat Group"))))
+    //      }
+    //      intercept[NotFoundException] {
+    //        waitFuture(userServiceHandler.createChatGroup(fakeUserId, Seq(invalidMember), Some(Map(ChatGroupProp.Name -> "test chat Group"))))
+    //      }
+    //    }
+    scenario("creator id and member ids are valid") {
+      Given("a valid creator id and valid member id")
+      (mockGroupManager.createChatGroup _).expects(fakeUserId, Seq(xiaoyaoId), *).returning(Future(chatGroup))
 
+      When("createChatGroup is invoked")
+      waitFuture(userServiceHandler.createChatGroup(fakeUserId, Seq(xiaoyaoId), Some(Map(ChatGroupProp.Name -> "test chat Group"))))
+    }
+  }
 
+  val id: ObjectId = new ObjectId()
+  feature("AccountManager can send contact request") {
+    //    scenario("sender id  not exists or request id  not exists") {
+    //      Given("a invalid sender id or requestId")
+    //      val invalidId: Long = 100000
+    //      (mockAccountManager.sendContactRequest _).expects(invalidId, xiaoyaoId, *).returning(Future(null))
+    //      (mockAccountManager.sendContactRequest _).expects(xiaoyaoId, invalidId, *).returning(Future(null))
+    //
+    //      When("sendContactRequest is invoked")
+    //      intercept[NotFoundException] {
+    //        mockAccountManager.sendContactRequest(invalidId, xiaoyaoId, Some("宇宙无敌超级美少女雅典娜二代"))
+    //      }
+    //      intercept[NotFoundException] {
+    //        mockAccountManager.sendContactRequest(xiaoyaoId, invalidId, Some("宇宙无敌超级美少女雅典娜二代"))
+    //      }
+    //    }
+
+    scenario("valid sender id and request id are provided") {
+      Given("a valid sender id and a valid request id")
+      (mockAccountManager.sendContactRequest _).expects(fakeUserId, xiaoyaoId, *).returning(Future(id))
+
+      When("sendContactRequest is invoked")
+      mockAccountManager.sendContactRequest(fakeUserId, xiaoyaoId, Some("宇宙无敌超级美少女雅典娜二代"))
+    }
+  }
+
+  feature("AccountManager can get contact requests") {
+    //    scenario("user id not exists") {
+    //      Given("a invalid user id")
+    //      val invalidId: Long = 100000
+    //      (mockAccountManager.getContactRequestList _).expects(invalidId, 0, 50).returning(Future(null))
+    //
+    //      When("getContactRequestList is invoked")
+    //      intercept[NotFoundException] {
+    //        mockAccountManager.getContactRequestList(invalidId, 0, 50)
+    //      }
+    //    }
+
+    scenario("user id is provided") {
+      Given("a valid user id")
+      val contactRequest = com.lvxingpai.yunkai.model.ContactRequest(xiaoyaoId, fakeUserId, Some("宇宙无敌超级美少女雅典娜二代"), None)
+      (mockAccountManager.getContactRequestList _).expects(fakeUserId, 0, 50).returning(Future(Seq(contactRequest)))
+
+      When("getContactRequestList is invoked")
+      mockAccountManager.getContactRequestList(fakeUserId, 0, 50)
+    }
+  }
+
+  feature("AccountManager can update user roles") {
+
+    //    scenario("user id not exists") {
+    //      Given("a invalid user id")
+    //      val roles = Seq(Role.get(10).get)
+    //      val invalidId: Long = 100000
+    //      (mockAccountManager.updateUserRoles _).expects(invalidId, true, roles).returning(Future(null))
+    //
+    //      When("updateUserRoles is invoked")
+    //      intercept[NotFoundException] {
+    //        mockAccountManager.updateUserRoles(invalidId, true, roles)
+    //      }
+    //    }
+
+    scenario("a user id is provided") {
+      Given("a valid user id")
+      val roles = Seq(Role.get(10).get)
+      (mockAccountManager.updateUserRoles _).expects(fakeUserId, true, roles).returning(Future(user))
+
+      When("updateUserRoles is invoked")
+      mockAccountManager.updateUserRoles(fakeUserId, true, roles)
+    }
+  }
+
+  feature("AccountManager can check validation code") {
+    //    scenario("tel is not exsits") {
+    //      Given("a invalid tel")
+    //      val code = "7432"
+    //      val operationCode = OperationCode.get(1).get
+    //      val tel = "18911111111"
+    //      (mockAccountManager.checkValidationCode _).expects(code, operationCode, tel, None).returning(Future(None))
+    //
+    //      When("checkValidationCode is invoked")
+    //      intercept[ValidationCodeException] {
+    //        mockAccountManager.checkValidationCode(code, operationCode, tel, None)
+    //      }
+    //    }
+
+    scenario("tel is provided") {
+      Given("a valid user id")
+      val code = "7432"
+      val operationCode = OperationCode.get(1).get
+      val token = "success"
+      (mockAccountManager.checkValidationCode _).expects(code, operationCode, user.tel, None).returning(Future(Some(token)))
+
+      When("checkValidationCode is invoked")
+      mockAccountManager.checkValidationCode(code, operationCode, user.tel, None)
+    }
   }
 }
