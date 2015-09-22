@@ -1,6 +1,6 @@
 package com.lvxingpai.yunkai
 
-import com.lvxingpai.yunkai.handler.{ IGroupManager, IAccountManager, UserServiceHandler }
+import com.lvxingpai.yunkai.handler.{ GroupManager, AccountManager, UserServiceHandler }
 import com.twitter.util.{ Await, Duration, Future }
 import org.bson.types.ObjectId
 import org.scalatest.{ ShouldMatchers, GivenWhenThen, FeatureSpec }
@@ -18,12 +18,28 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
   def waitFuture[T](future: Future[T], timeout: Duration = 60 seconds): T = Await.result(future, timeout)
 
   // 共享变量
-  val userServiceHandler = new UserServiceHandler
-  val mockAccountManager = mock[IAccountManager]
+  val mockAccountManager = mock[AccountManager]
 
   val fakeUserId: Long = 520520
   val user = com.lvxingpai.yunkai.model.UserInfo(fakeUserId, "luotuo")
   user.tel = "13811001100"
+
+  val haiziId: Long = 100033
+  val haizi = com.lvxingpai.yunkai.model.UserInfo(haiziId, "haizi")
+  haizi.tel = "15300167111"
+
+  val mockGroupManager = mock[GroupManager]
+  val xiaoyaoId: Long = 100053
+  val xiaoyao = com.lvxingpai.yunkai.model.UserInfo(xiaoyaoId, "xiaoyao")
+  xiaoyao.tel = "15300167102"
+
+  val chatGroupId: Long = 200000
+  val members: Seq[Long] = Seq(100053, 520520)
+  val chatGroup = com.lvxingpai.yunkai.model.ChatGroup(fakeUserId, chatGroupId, members)
+  chatGroup.name = "test group"
+  chatGroup.groupDesc = "this is a test chat group"
+
+  val userServiceHandler = new UserServiceHandler(mockAccountManager, mockGroupManager)
 
   val yunkaiUserInfo: com.lvxingpai.yunkai.UserInfo = user
 
@@ -31,7 +47,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
     scenario("an invalid user ID is provided") {
       Given("a illegal userId")
       val userId: Long = 100000
-      userServiceHandler.accountManager = mockAccountManager
       (mockAccountManager.getUserById _).expects(userId, *, *).returning(Future(None))
 
       When("getUserById is invoked")
@@ -42,7 +57,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
 
     scenario("the user's nick name, ID and cell phone number are requested") {
       Given("a legal user info")
-      userServiceHandler.accountManager = mockAccountManager
 
       (mockAccountManager.getUserById _).expects(fakeUserId, *, *).returning(Future(Some(yunkaiUserInfo)))
 
@@ -62,7 +76,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
       Given("a user ID list mixed with a fake user ID")
       val invalidUserId: Long = 100000
       val userIdList = Seq(invalidUserId) :+ fakeUserId
-      userServiceHandler.accountManager = mockAccountManager
       val properties = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Tel)
       (mockAccountManager.getUsersByIdList _).expects(properties, None, userIdList).returning(Future(
         Map(
@@ -91,7 +104,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
     scenario("the user does not exist") {
       Given("an invalid user ID is provided")
       val userId: Long = 100000
-      userServiceHandler.accountManager = mockAccountManager
       (mockAccountManager.updateUserInfo _).expects(userId, *).returning(Future(null))
 
       When("updateUserInfo is invoked")
@@ -101,7 +113,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
     }
     scenario("update a user's information") {
       Given("an valid user ID is provided")
-      userServiceHandler.accountManager = mockAccountManager
       (mockAccountManager.updateUserInfo _).expects(fakeUserId, *).returning(Future(yunkaiUserInfo)).once
 
       When("updateUserInfo is invoked")
@@ -112,7 +123,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
   feature("the AccountManager can login a user") {
     scenario("login by user id") {
       Given("an valid cell phone number, password and source")
-      userServiceHandler.accountManager = mockAccountManager
       val password = "a1b2c3"
       (mockAccountManager.login _).expects(user.tel, password, *).returning(Future(user)).once
 
@@ -122,7 +132,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
 
     scenario("login by user oauth") {
       Given("an valid code and source")
-      userServiceHandler.accountManager = mockAccountManager
       val code: String = "11123dasdasd22131123dad"
       val source: String = "1"
       (mockAccountManager.loginByWeixin _).expects(code, source).returning(Future(yunkaiUserInfo)).once
@@ -141,7 +150,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
       val miscInfo: scala.collection.Map[UserInfoProp, String] = scala.collection.Map(
         UserInfoProp.Tel -> "13811001100"
       )
-      userServiceHandler.accountManager = mockAccountManager
       (mockAccountManager.createUser _).expects(nickName, password, Some(tel)).returning(Future(null))
 
       When("createUser is invoked")
@@ -160,7 +168,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
       val miscInfo: scala.collection.Map[UserInfoProp, String] = scala.collection.Map(
         UserInfoProp.Tel -> "13888888888"
       )
-      userServiceHandler.accountManager = mockAccountManager
 
       (mockAccountManager.createUser _).expects(nickName, password, Some(userInfo.tel)).returning(Future(userInfo))
 
@@ -177,21 +184,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
     }
   }
 
-  val haiziId: Long = 100033
-  val haizi = com.lvxingpai.yunkai.model.UserInfo(haiziId, "haizi")
-  haizi.tel = "15300167111"
-
-  val mockGroupManager = mock[IGroupManager]
-  val xiaoyaoId: Long = 100053
-  val xiaoyao = com.lvxingpai.yunkai.model.UserInfo(xiaoyaoId, "xiaoyao")
-  xiaoyao.tel = "15300167102"
-
-  val chatGroupId: Long = 200000
-  val members: Seq[Long] = Seq(100053, 520520)
-  val chatGroup = com.lvxingpai.yunkai.model.ChatGroup(fakeUserId, chatGroupId, members)
-  chatGroup.name = "test group"
-  chatGroup.groupDesc = "this is a test chat group"
-  userServiceHandler.groupManager = mockGroupManager
   feature("GroupManager can get chat groups") {
     scenario("empty chatGroupIdList is provided") {
       Given("an empty chatGroupIdList")
@@ -310,7 +302,6 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
 
     scenario("chat group list is nonempty") {
       Given("a valid userId")
-      userServiceHandler.groupManager = mockGroupManager
       (mockGroupManager.getUserChatGroups _).expects(xiaoyaoId, *, *, *).returning(Future(Seq(chatGroup)))
       val responseFields: Seq[ChatGroupProp] = Seq(ChatGroupProp.ChatGroupId, ChatGroupProp.Name, ChatGroupProp.Participants)
       When("getUserChatGroups is invoked")

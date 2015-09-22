@@ -1,7 +1,6 @@
 package com.lvxingpai.yunkai.handler
 
 import com.lvxingpai.yunkai
-import com.lvxingpai.yunkai.Implicits._
 import com.lvxingpai.yunkai.model.{ ChatGroup, UserInfo }
 import com.lvxingpai.yunkai.{ NotFoundException, UserInfoProp, Userservice, _ }
 import com.twitter.util.Future
@@ -17,13 +16,12 @@ import scala.language.{ implicitConversions, postfixOps }
  *
  * Created by zephyre on 5/4/15.
  */
-class UserServiceHandler extends Userservice.FutureIface {
+class UserServiceHandler(val accountManager: AccountManager, val groupManager: GroupManager) extends Userservice.FutureIface {
+
+  def this(accMgr: Option[AccountManager] = None, grpMgr: Option[GroupManager] = None) =
+    this(accMgr.getOrElse(AccountManagerImpl), grpMgr.getOrElse(GroupManagerImpl))
 
   import UserServiceHandler.userInfoConversion
-
-  var accountManager: IAccountManager = AccountManager
-
-  var groupManager: IGroupManager = GroupManager
 
   override def getUserById(userId: Long, fields: Option[Seq[UserInfoProp]], selfId: Option[Long] = None): Future[yunkai.UserInfo] = {
     accountManager.getUserById(userId, fields.getOrElse(Seq()), selfId) map (userInfo => {
