@@ -243,7 +243,7 @@ object GroupManagerImpl extends GroupManager {
       case ChatGroupProp.GroupDesc => fdGroupDesc
       case ChatGroupProp.Admin => fdAdmin
       case _ => ""
-    } filter (_.nonEmpty)) :+ fdChatGroupId).toSet.toSeq
+    } filter (_.nonEmpty)) :+ fdChatGroupId).distinct
 
     val query = ds.createQuery(classOf[ChatGroup]).field(ChatGroup.fdParticipants).hasThisOne(userId)
       .retrievedFields(true, retrievedFields: _*).offset(offset getOrElse 0).limit(limit getOrElse maxCount)

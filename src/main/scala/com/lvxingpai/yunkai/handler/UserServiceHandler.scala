@@ -16,10 +16,18 @@ import scala.language.{ implicitConversions, postfixOps }
  *
  * Created by zephyre on 5/4/15.
  */
-class UserServiceHandler(val accountManager: AccountManager, val groupManager: GroupManager) extends Userservice.FutureIface {
+class UserServiceHandler(var accountManager: AccountManager, var groupManager: GroupManager) extends Userservice.FutureIface {
 
   def this(accMgr: Option[AccountManager] = None, grpMgr: Option[GroupManager] = None) =
     this(accMgr.getOrElse(AccountManagerImpl), grpMgr.getOrElse(GroupManagerImpl))
+
+  def setAccountManager(manager: AccountManager): Unit = {
+    this.accountManager = manager
+  }
+
+  def setGroupManager(manager: GroupManager): Unit = {
+    this.groupManager = manager
+  }
 
   import UserServiceHandler.userInfoConversion
 
@@ -147,8 +155,7 @@ class UserServiceHandler(val accountManager: AccountManager, val groupManager: G
     for {
       items <- result
     } yield {
-      if (items isEmpty) throw NotFoundException(Some(s"User $userId chat groups not found"))
-      else items map UserServiceHandler.chatGroupConversion
+      items map UserServiceHandler.chatGroupConversion
     }
   }
 

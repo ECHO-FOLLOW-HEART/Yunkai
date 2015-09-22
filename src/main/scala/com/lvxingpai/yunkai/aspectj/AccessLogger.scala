@@ -20,7 +20,7 @@ class AccessLogger {
       val message = s"Invoked: ${signature.toLongString}"
 
       val logger = LoggerFactory.getLogger("access")
-      logger.info(message)
+      //      logger.info(message)
     }
   }
 }
