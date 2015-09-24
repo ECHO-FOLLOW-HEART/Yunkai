@@ -422,18 +422,18 @@ class UserServiceHandlerTest extends FeatureSpec with ShouldMatchers with GivenW
   }
 
   feature("AccountManager can check validation code") {
-    //    scenario("tel is not exsits") {
-    //      Given("a invalid tel")
-    //      val code = "7432"
-    //      val operationCode = OperationCode.get(1).get
-    //      val tel = "18911111111"
-    //      (mockAccountManager.checkValidationCode _).expects(code, operationCode, tel, None).returning(Future(None))
-    //
-    //      When("checkValidationCode is invoked")
-    //      intercept[ValidationCodeException] {
-    //        mockAccountManager.checkValidationCode(code, operationCode, tel, None)
-    //      }
-    //    }
+    scenario("tel is not exsits") {
+      Given("a invalid tel")
+      val code = "7432"
+      val operationCode = OperationCode.get(1).get
+      val tel = "18911111111"
+      (mockAccountManager.checkValidationCode _).expects(code, operationCode, tel, None).returning(Future(None))
+
+      When("checkValidationCode is invoked")
+      intercept[ValidationCodeException] {
+        mockAccountManager.checkValidationCode(code, operationCode, tel, None)
+      }
+    }
 
     scenario("tel is provided") {
 
