@@ -311,4 +311,6 @@ service userservice {
 
   // 给数据库刷contactA和contactB字段, 用完可删
   void setContact()
+
+  list<i64> getAllUserIds()
 }

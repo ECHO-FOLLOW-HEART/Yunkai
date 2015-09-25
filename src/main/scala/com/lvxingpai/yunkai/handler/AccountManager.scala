@@ -1321,4 +1321,9 @@ object AccountManager {
     val op = ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdContactA, true).set(Relationship.fdContactB, true)
     ds.update(query, op)
   }
+
+  def getAllUserIds()(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[Long]] = futurePool {
+    val userInfos = ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).exists().retrievedFields(true, UserInfo.fdUserId).asList().toSeq
+    userInfos map (userInfo => userInfo.userId)
+  }
 }

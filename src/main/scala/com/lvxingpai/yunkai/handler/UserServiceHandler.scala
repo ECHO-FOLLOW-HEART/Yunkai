@@ -241,6 +241,8 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def getUsersByTelList(fields: Option[Seq[UserInfoProp]], tels: Seq[String]): Future[Seq[yunkai.UserInfo]] = AccountManager.getUsersByTelList(fields, tels)
 
   override def setContact(): Future[Unit] = AccountManager.setContact()
+
+  override def getAllUserIds(): Future[Seq[Long]] = AccountManager.getAllUserIds()
 }
 
 object UserServiceHandler {
