@@ -64,7 +64,7 @@ class ChatGroup {
   @NotNull
   @Min(value = 1)
   @Max(value = 2000)
-  var maxUsers: Int = 50
+  var maxUsers: Int = 250
 
   @BeanProperty
   @NotNull
