@@ -42,11 +42,11 @@ object SmsCenter {
       }
       client.asInstanceOf[FinagledClient]
     } else {
-      val backends = conf.getConfig("backends.smscenter")
-      val servers = backends.root().toSeq map (item => {
+      val services = conf.getConfig("services.smscenter")
+      val servers = services.root().toSeq map (item => {
         val (key, _) = item
-        val host = backends.getString(s"$key.host")
-        val port = backends.getInt(s"$key.port")
+        val host = services.getString(s"$key.host")
+        val port = services.getInt(s"$key.port")
         host -> port
       })
 

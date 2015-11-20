@@ -19,6 +19,9 @@ import scala.util.Try
  * Created by zephyre on 5/4/15.
  */
 object YunkaiServer extends App {
+  val c = Configuration.load()
+  val c2 = ConfigFactory.defaultApplication()
+
   val injector = Global.injector
   val handler = injector.getInstance(classOf[UserServiceHandler])
   val conf = injector.getInstance(Key.get(classOf[Configuration], Names.named("etcd")))

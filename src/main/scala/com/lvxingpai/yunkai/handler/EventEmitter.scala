@@ -110,11 +110,11 @@ object EventEmitter {
 
     // 获得rabbitmq的地址
     import scala.collection.JavaConversions._
-    val backends = conf.getConfig("backends.rabbitmq")
-    val servers = backends.root().toSeq map (item => {
+    val services = conf.getConfig("services.rabbitmq")
+    val servers = services.root().toSeq map (item => {
       val (key, _) = item
-      val host = backends.getString(s"$key.host")
-      val port = backends.getInt(s"$key.port")
+      val host = services.getString(s"$key.host")
+      val port = services.getInt(s"$key.port")
       host -> port
     })
 
