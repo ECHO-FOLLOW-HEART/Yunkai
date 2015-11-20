@@ -165,6 +165,9 @@ exception OverQuotaLimitException {
 }
 
 service userservice {
+  // 测试接口, 返回"pong"
+  string ping()
+
   // 获得单个用户信息
   UserInfo getUserById(1:i64 userId, 2: optional list<UserInfoProp> fields, 3: optional i64 selfId) throws (1:NotFoundException ex)
 

@@ -5,7 +5,6 @@ import java.util.{ List => JList, UUID }
 import com.fasterxml.jackson.databind.node.{ LongNode, TextNode }
 import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.lvxingpai.yunkai.model.{ ContactRequest => DBContactRequest }
-import com.lvxingpai.yunkai.service.MorphiaFactory
 import com.twitter.util.FuturePool
 import org.bson.types.ObjectId
 
@@ -16,8 +15,6 @@ import scala.language.implicitConversions
  * Created by zephyre on 5/19/15.
  */
 object Implicits {
-  implicit lazy val mongoDatastore = MorphiaFactory.datastore
-
   implicit lazy val defaultFuturePool = FuturePool.unboundedPool
 
   implicit lazy val defaultExecutionContext = scala.concurrent.ExecutionContext

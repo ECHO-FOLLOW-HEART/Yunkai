@@ -6,6 +6,8 @@ import java.util.UUID
 import java.util.regex.Pattern
 
 import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
+import com.google.inject.{ Inject, Key }
+import com.google.inject.name.{ Named, Names }
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
@@ -35,14 +37,16 @@ import scala.util.Random
  * * 用户好友管理
  *
  */
-object AccountManager {
+class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val futurePool: FuturePool) {
+
+  lazy val groupManager = Global.injector.getInstance(classOf[GroupManager])
 
   /**
    * 获得用户信息
    *
    * @return 用户信息
    */
-  def getUserById(userId: Long, fields: Seq[UserInfoProp] = Seq(), selfId: Option[Long])(implicit ds: Datastore, futurePool: FuturePool): Future[Option[yunkai.UserInfo]] = {
+  def getUserById(userId: Long, fields: Seq[UserInfoProp] = Seq(), selfId: Option[Long]): Future[Option[yunkai.UserInfo]] = {
     for {
       userMap <- getUsersByIdList(fields, selfId, userId)
     } yield userMap.toSeq.head._2
@@ -77,7 +81,7 @@ object AccountManager {
    * @param userInfo  需要更新的用户信息
    * @return
    */
-  def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, Any])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = futurePool {
+  def updateUserInfo(userId: Long, userInfo: Map[UserInfoProp, Any]): Future[UserInfo] = futurePool {
     import UserInfoProp._
 
     // 将用户输入的userInfo规范化
@@ -152,7 +156,7 @@ object AccountManager {
    *
    * @return
    */
-  def updateUserRoles(userId: Long, addRoles: Boolean, roles: Seq[Role])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+  def updateUserRoles(userId: Long, addRoles: Boolean, roles: Seq[Role]): Future[UserInfo] = {
     import UserInfo._
 
     val cls = classOf[UserInfo]
@@ -181,7 +185,7 @@ object AccountManager {
    *
    * @return
    */
-  def isContact(userA: Long, userB: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+  def isContact(userA: Long, userB: Long): Future[Boolean] = {
     val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
 
     //    val userList = getUsersByIdList(Seq(), user1, user2)
@@ -212,7 +216,7 @@ object AccountManager {
    * @param targetUsers 需要被添加的好友的ID
    * @return
    */
-  def addContact(userId: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def addContact(userId: Long, targetUsers: Long*): Future[Unit] = {
     val targetUsersFiltered = (targetUsers filter (_ != userId)).toSet.toSeq
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
 
@@ -253,7 +257,7 @@ object AccountManager {
    *
    * @return
    */
-  def removeContacts(userId: Long, targetUsers: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def removeContacts(userId: Long, targetUsers: Long*): Future[Unit] = {
     val targetUsersFiltered = (targetUsers filter (_ != userId)).toSet.toSeq
     getUsersByIdList(Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar), None, userId +: targetUsersFiltered: _*) map (m => {
       // 相应的用户必须存在
@@ -299,7 +303,7 @@ object AccountManager {
    * @return
    */
   def getContactList(userId: Long, include: Boolean = true, fields: Seq[UserInfoProp] = Seq(), offset: Option[Int] = None,
-    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
+    count: Option[Int] = None): Future[Seq[yunkai.UserInfo]] = {
     val criteria = Seq(Relationship.fdUserA, Relationship.fdUserB) map (f => ds.createQuery(classOf[Relationship]).criteria(f).equal(userId))
     val queryRel = ds.createQuery(classOf[Relationship]).field(Relationship.fdContactA).equal(true).field(Relationship.fdContactB).equal(true)
     queryRel.or(criteria: _*)
@@ -333,11 +337,9 @@ object AccountManager {
    * @param userA 修改人
    * @param userB 被修改人
    * @param memo  备注
-   * @param ds
-   * @param futurePool
    * @return
    */
-  def updateMemo(userA: Long, userB: Long, memo: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def updateMemo(userA: Long, userB: Long, memo: String): Future[Unit] = {
     val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
     val query = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1).field(Relationship.fdUserB).equal(user2)
     val updateOps = if (userA <= userB)
@@ -358,10 +360,9 @@ object AccountManager {
   /**
    * 给定一个ContactRequest，生成相应的MongoDB update operation
    * @param req
-   * @param ds
    * @return
    */
-  private def buildContactRequestUpdateOps(req: ContactRequest)(implicit ds: Datastore): UpdateOperations[ContactRequest] = {
+  private def buildContactRequestUpdateOps(req: ContactRequest): UpdateOperations[ContactRequest] = {
     import ContactRequest._
     val updateOps = ds.createUpdateOperations(classOf[ContactRequest])
       .set(fdSender, req.sender)
@@ -387,7 +388,7 @@ object AccountManager {
    * 获得某个接收者（注意，不是请求发送者）名下所有的好友列表，按照时间逆序排列
    * @return
    */
-  def getContactRequestList(userId: Long, offset: Int, limit: Int)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[ContactRequest]] = {
+  def getContactRequestList(userId: Long, offset: Int, limit: Int): Future[Seq[ContactRequest]] = {
     for {
       userInfoOpt <- getUserById(userId, Seq(), None)
     } yield {
@@ -408,7 +409,7 @@ object AccountManager {
    * @param message   请求附言
    * @return
    */
-  def sendContactRequest(sender: Long, receiver: Long, message: Option[String] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[ObjectId] = {
+  def sendContactRequest(sender: Long, receiver: Long, message: Option[String] = None): Future[ObjectId] = {
     // 检查用户是否存在
     val responseFields: Seq[UserInfoProp] = Seq(UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Avatar)
     for {
@@ -489,11 +490,11 @@ object AccountManager {
    * @param message   拒绝请求的附言
    * @return
    */
-  def rejectContactRequest(requestId: String, message: Option[String] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def rejectContactRequest(requestId: String, message: Option[String] = None): Future[Unit] = {
     import ContactRequest.RequestStatus._
     import ContactRequest._
 
-    getContactRequest(requestId)(ds, futurePool) map (oldRequest => {
+    getContactRequest(requestId) map (oldRequest => {
       if (oldRequest isEmpty)
         throw NotFoundException(Some(s"Cannot find the request $requestId"))
       else {
@@ -527,11 +528,11 @@ object AccountManager {
    * @param requestId 请求ID
    * @return
    */
-  def acceptContactRequest(requestId: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def acceptContactRequest(requestId: String): Future[Unit] = {
     import ContactRequest.RequestStatus._
     import ContactRequest._
 
-    getContactRequest(requestId = requestId)(ds, futurePool) flatMap (oldRequest => {
+    getContactRequest(requestId = requestId) flatMap (oldRequest => {
       if (oldRequest isEmpty)
         throw NotFoundException(Some(s"Cannot find the request $requestId"))
       else {
@@ -565,11 +566,11 @@ object AccountManager {
    * @param requestId 请求ID
    * @return
    */
-  def cancelContactRequest(requestId: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def cancelContactRequest(requestId: String): Future[Unit] = {
     import ContactRequest.RequestStatus._
     import ContactRequest._
 
-    getContactRequest(requestId = requestId)(ds, futurePool) map (oldRequest => {
+    getContactRequest(requestId = requestId) map (oldRequest => {
       if (oldRequest isEmpty)
         throw NotFoundException(Some(s"Cannot find the request $requestId"))
       else {
@@ -589,7 +590,7 @@ object AccountManager {
    * @param receiver  请求接收者
    * @return
    */
-  def getContactRequest(sender: Long, receiver: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ContactRequest]] = futurePool {
+  def getContactRequest(sender: Long, receiver: Long): Future[Option[ContactRequest]] = futurePool {
     import ContactRequest._
     val req = ds.createQuery(classOf[ContactRequest]).field(fdSender).equal(sender).field(fdReceiver).equal(receiver).get()
     if (req == null)
@@ -603,7 +604,7 @@ object AccountManager {
    * @param requestId
    * @return
    */
-  def getContactRequest(requestId: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[ContactRequest]] =
+  def getContactRequest(requestId: String): Future[Option[ContactRequest]] =
     futurePool {
       Option(ds.createQuery(classOf[ContactRequest]).field(ContactRequest.fdContactRequestId)
         .equal(new ObjectId(requestId)).get())
@@ -615,7 +616,7 @@ object AccountManager {
    * @param userId    用户ID
    * @return
    */
-  def getContactCount(userId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Int] = {
+  def getContactCount(userId: Long): Future[Int] = {
     val userFuture = getUserById(userId, Seq(), None)
 
     userFuture map (userInfo => {
@@ -649,7 +650,7 @@ object AccountManager {
    * @param userIds 需要查找的用户的ID
    * @return
    */
-  def getUsersByIdList(fields: Seq[UserInfoProp], selfId: Option[Long], userIds: Long*)(implicit ds: Datastore, futurePool: FuturePool): Future[Map[Long, Option[yunkai.UserInfo]]] = {
+  def getUsersByIdList(fields: Seq[UserInfoProp], selfId: Option[Long], userIds: Long*): Future[Map[Long, Option[yunkai.UserInfo]]] = {
     import UserInfoProp._
 
     futurePool {
@@ -697,7 +698,7 @@ object AccountManager {
    * @param password  密码
    * @return
    */
-  def verifyCredential(userId: Long, password: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+  def verifyCredential(userId: Long, password: String): Future[Boolean] = {
     val query = ds.createQuery(classOf[Credential]).field(Credential.fdUserId).equal(userId)
     futurePool {
       val credential = query.get()
@@ -720,7 +721,7 @@ object AccountManager {
    * @param password    登录密码
    * @return
    */
-  def login(loginName: String, password: String, source: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+  def login(loginName: String, password: String, source: String): Future[UserInfo] = {
     // 获得用户信息
     for {
       userInfo <- futurePool {
@@ -758,7 +759,7 @@ object AccountManager {
   // logout: 释放资源, 修改UserInfo的logoutTime和loginSource字段(删除本次登录的来源)
 
   // 新用户注册
-  def createUser(nickName: String, password: String, tel: Option[String])(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+  def createUser(nickName: String, password: String, tel: Option[String]): Future[UserInfo] = {
     // 判断密码是否合法
     if (!checkPassword(password))
       throw InvalidArgsException()
@@ -798,7 +799,7 @@ object AccountManager {
     result flatMap (item => item)
   }
 
-  def createUserByAuth(code: String)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = {
+  def createUserByAuth(code: String): Future[UserInfo] = {
 
     val urlStr = RequestUtils.getWeiXinUrl(code)
 
@@ -813,7 +814,7 @@ object AccountManager {
    *
    * @return
    */
-  def checkValidationCode(valCode: String, action: OperationCode, tel: String, countryCode: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[String]] = {
+  def checkValidationCode(valCode: String, action: OperationCode, tel: String, countryCode: Option[Int] = None): Future[Option[String]] = {
     val redisKey = ValidationCode.calcRedisKey(action, tel, countryCode)
     val magicCode = try {
       Global.conf.getString("smscenter.magicCode")
@@ -858,7 +859,7 @@ object AccountManager {
    * 取回一个token。注意，每个token只能被access一次。也就是说，此操作会删除对应的token。
    * @return
    */
-  def fetchToken(token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[Token]] = {
+  def fetchToken(token: String): Future[Option[Token]] = {
     futurePool {
       RedisFactory.pool.withClient(client => {
         implicit val parse = TokenRedisParse()
@@ -869,7 +870,7 @@ object AccountManager {
     }
   }
 
-  def sendValidationCode(action: OperationCode, userId: Option[Long], tel: String, countryCode: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def sendValidationCode(action: OperationCode, userId: Option[Long], tel: String, countryCode: Option[Int] = None): Future[Unit] = {
     val resendInterval = 60 * 1000L // 1分钟的发送间隔
     val digits = f"${Random.nextInt(1000000)}%06d"
     val redisKey = ValidationCode.calcRedisKey(action, tel, countryCode)
@@ -958,7 +959,7 @@ object AccountManager {
    * 重置密码
    * @return
    */
-  def resetPassword(userId: Long, oldPassword: String, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] = {
     verifyCredential(userId, oldPassword) flatMap (result => {
       if (!result)
         throw AuthException()
@@ -972,7 +973,7 @@ object AccountManager {
    * 修改用户密码的代码实现
    * @return
    */
-  private def resetPasswordImpl(userId: Long, newPassword: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  private def resetPasswordImpl(userId: Long, newPassword: String): Future[Unit] = {
 
     def emitEvent(): Future[Unit] = {
       // 触发重置用户密码的事件
@@ -1020,7 +1021,7 @@ object AccountManager {
    *
    * @return
    */
-  def resetPasswordByToken(userId: Long, newPassword: String, token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def resetPasswordByToken(userId: Long, newPassword: String, token: String): Future[Unit] = {
     val result = for {
       checked1 <- verifyToken(OperationCode.ResetPassword, token, userId = Some(userId))
       checked2 <- verifyToken(OperationCode.UpdateTel, token, userId = Some(userId))
@@ -1038,7 +1039,7 @@ object AccountManager {
    * 验证Token是否有效
    * @return
    */
-  private def verifyToken(action: OperationCode, token: String, userId: Option[Long] = None, tel: Option[String] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = {
+  private def verifyToken(action: OperationCode, token: String, userId: Option[Long] = None, tel: Option[String] = None): Future[Boolean] = {
     for {
       opt <- fetchToken(token)
     } yield {
@@ -1062,7 +1063,7 @@ object AccountManager {
    * @param tel
    * @return
    */
-  def updateTelNumber(userId: Long, tel: String, token: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def updateTelNumber(userId: Long, tel: String, token: String): Future[Unit] = {
     verifyToken(OperationCode.UpdateTel, token, userId = Some(userId)) map (checked => {
       if (!checked)
         throw AuthException()
@@ -1107,7 +1108,7 @@ object AccountManager {
    * @return
    */
   def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int] = None,
-    count: Option[Int] = None)(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
+    count: Option[Int] = None): Future[Seq[yunkai.UserInfo]] = {
     val cls = classOf[UserInfo]
 
     val query = ds.createQuery(cls)
@@ -1146,7 +1147,7 @@ object AccountManager {
       }
     }
   }
-  def getUserByField(fields: String, value: String)(implicit ds: Datastore, futurePool: FuturePool): Future[Option[yunkai.UserInfo]] = futurePool {
+  def getUserByField(fields: String, value: String): Future[Option[yunkai.UserInfo]] = futurePool {
     Option(ds.createQuery(classOf[UserInfo]).field(fields).hasThisOne(value).get) map userInfoMorphia2Yunkai
   }
   def isNumeric(str: String): Boolean = {
@@ -1166,7 +1167,7 @@ object AccountManager {
     u.nickName = u.nickName + "_" + doc
     u
   }
-  def userSaveEmitEvent(userInfo: UserInfo)(implicit ds: Datastore, futurePool: FuturePool): Future[UserInfo] = futurePool {
+  def userSaveEmitEvent(userInfo: UserInfo): Future[UserInfo] = futurePool {
     try {
       ds.save[UserInfo](userInfo)
     } catch {
@@ -1179,7 +1180,7 @@ object AccountManager {
     EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
     userInfo
   }
-  def oauthToUserInfo4WX(json: JsonNode)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
+  def oauthToUserInfo4WX(json: JsonNode): Future[yunkai.UserInfo] = {
     val userInfo = futurePool {
       val nickName = json.get("nickname").asText()
       val avatar = json.get("headimgurl").asText()
@@ -1213,7 +1214,7 @@ object AccountManager {
   /**
    * 微信登录
    */
-  def loginByWeixin(code: String, source: String)(implicit ds: Datastore, futurePool: FuturePool): Future[yunkai.UserInfo] = {
+  def loginByWeixin(code: String, source: String): Future[yunkai.UserInfo] = {
     val futureInfoNode = futurePool {
       val wxUrl = RequestUtils.getWeiXinUrl(code)
       val acc_url = new URL(wxUrl)
@@ -1254,7 +1255,7 @@ object AccountManager {
   }
 
   // 黑名单, blockA为true表示userA在userB的黑名单中, blockB为true表示userB在userA的黑名单中
-  def isBlocked(selfId: Long, targetId: Long)(implicit ds: Datastore, futurePool: FuturePool): Future[Boolean] = futurePool {
+  def isBlocked(selfId: Long, targetId: Long): Future[Boolean] = futurePool {
     import Relationship._
 
     val query = if (selfId <= targetId)
@@ -1274,7 +1275,7 @@ object AccountManager {
    * @param futurePool
    * @return
    */
-  def updateBlackList(userA: Long, userB: Long, block: Boolean)(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = {
+  def updateBlackList(userA: Long, userB: Long, block: Boolean): Future[Unit] = {
     val (user1, user2) = if (userA <= userB) (userA, userB) else (userB, userA)
     val query = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).equal(user1).field(Relationship.fdUserB).equal(user2)
     val updateOps = if (userA <= userB)
@@ -1292,7 +1293,7 @@ object AccountManager {
     }
   }
 
-  def getUsersByTelList(fields: Option[Seq[UserInfoProp]], tels: Seq[String])(implicit ds: Datastore, futurePool: FuturePool): Future[Seq[yunkai.UserInfo]] = {
+  def getUsersByTelList(fields: Option[Seq[UserInfoProp]], tels: Seq[String]): Future[Seq[yunkai.UserInfo]] = {
     import UserInfoProp._
 
     futurePool {
@@ -1316,7 +1317,7 @@ object AccountManager {
     }
   }
 
-  def setContact()(implicit ds: Datastore, futurePool: FuturePool): Future[Unit] = futurePool {
+  def setContact(): Future[Unit] = futurePool {
     val query = ds.createQuery(classOf[Relationship]).field(Relationship.fdUserA).exists()
     val op = ds.createUpdateOperations(classOf[Relationship]).set(Relationship.fdContactA, true).set(Relationship.fdContactB, true)
     ds.update(query, op)
