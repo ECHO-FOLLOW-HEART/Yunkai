@@ -4,7 +4,7 @@ import java.util.{ List => JList, UUID }
 import javax.validation.constraints.{ Min, NotNull, Size }
 
 import org.bson.types.ObjectId
-import org.hibernate.validator.constraints.NotBlank
+import org.hibernate.validator.constraints.{ Email, NotBlank }
 import org.mongodb.morphia.annotations.{ Entity, Indexed, Version, Transient }
 
 import scala.beans.BeanProperty
@@ -40,6 +40,10 @@ class UserInfo extends AbstractEntity {
   @Indexed(unique = true)
   @Size(min = 6, max = 32)
   var tel: String = null
+
+  @Email
+  @Indexed(unique = true)
+  var email: String = _
 
   //  @BeanProperty
   //  var contacts: Seq[Long] = null
@@ -107,6 +111,7 @@ object UserInfo {
     result.userId = userId
     result.nickName = nickName
     result.tel = UUID.randomUUID().toString
+    result.email = UUID.randomUUID().toString
     result
   }
 }

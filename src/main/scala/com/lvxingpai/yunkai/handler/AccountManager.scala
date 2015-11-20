@@ -12,6 +12,7 @@ import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
 import com.lvxingpai.yunkai._
+import com.lvxingpai.yunkai.enum.RegType
 import com.lvxingpai.yunkai.model.{ ContactRequest, UserInfo, _ }
 import com.lvxingpai.yunkai.serialization.{ TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse }
 import com.lvxingpai.yunkai.service.{ RedisFactory, SmsCenter }
@@ -757,6 +758,47 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
   }
 
   // logout: 释放资源, 修改UserInfo的logoutTime和loginSource字段(删除本次登录的来源)
+  def createUserPoly(regType: RegType.Value, regName: String, password: String,
+    miscInfo: Option[collection.Map[UserInfoProp, String]]): Future[UserInfo] = {
+    // 取得用户ID
+    val futureUserId = IdGenerator.generateId("yunkai:idgenerator/default")
+
+    // 创建用户并保存
+    val userInfo = for {
+      userId <- futureUserId
+    } yield {
+      val nickName = (miscInfo getOrElse collection.Map()).getOrElse(UserInfoProp.NickName, s"旅行派用户$userId")
+      val newUser = UserInfo(userId, nickName)
+      if (regType == RegType.Tel)
+        newUser.tel = regName
+      else if (regType == RegType.Email)
+        newUser.email = regName
+
+      // 检查用户是否已经存在
+      val query = ds.createQuery(classOf[UserInfo]).retrievedFields(true, UserInfo.fdUserId)
+      query.or(query.criteria(UserInfo.fdUserId).equal(userId), query.criteria(UserInfo.fdTel).equal(newUser.tel))
+      if (query.get() != null)
+        throw new ResourceConflictException(Some(s"User $userId is existed"))
+      else
+        newUser
+    }
+
+    val result = userInfo map userSaveEmitEvent
+    val (salt, crypted) = saltPassword(password)
+
+    // 创建并保存新用户Credential实例
+    for {
+      userId <- futureUserId
+    } yield {
+      val credential = Credential(userId, salt, crypted)
+      try {
+        ds.save[Credential](credential)
+      } catch {
+        case ex: DuplicateKeyException => throw new InvalidArgsException(Some(s"User $userId credential is existed"))
+      }
+    }
+    result flatMap (item => item)
+  }
 
   // 新用户注册
   def createUser(nickName: String, password: String, tel: Option[String]): Future[UserInfo] = {

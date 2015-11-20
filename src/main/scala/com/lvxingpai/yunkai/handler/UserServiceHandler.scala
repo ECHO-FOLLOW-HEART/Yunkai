@@ -1,12 +1,12 @@
 package com.lvxingpai.yunkai.handler
 
 import com.lvxingpai.yunkai
+import com.lvxingpai.yunkai.enum.RegType
 import com.lvxingpai.yunkai.model.{ ChatGroup, UserInfo }
 import com.lvxingpai.yunkai.{ NotFoundException, UserInfoProp, Userservice, _ }
-import com.twitter.util.{ FuturePool, Future }
+import com.twitter.util.Future
 
 import scala.collection.JavaConversions._
-
 import scala.language.{ implicitConversions, postfixOps }
 
 /**
@@ -95,6 +95,11 @@ class UserServiceHandler extends Userservice.FutureIface {
       else
         UserServiceHandler.userInfoConversion(userInfo)
     })
+  }
+
+  override def createUserPoly(regType: String, regName: String, password: String,
+    miscInfo: Option[collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
+    accountManager.createUserPoly(RegType withName regType, regName, password, miscInfo) map UserServiceHandler.userInfoConversion
   }
 
   override def loginByOAuth(code: String, source: String): Future[yunkai.UserInfo] = {
@@ -242,9 +247,9 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def getUsersByTelList(fields: Option[Seq[UserInfoProp]], tels: Seq[String]): Future[Seq[yunkai.UserInfo]] = accountManager.getUsersByTelList(fields, tels)
 
-  override def setContact(): Future[Unit] = accountManager.setContact()
-
   override def ping(): Future[String] = Future("pong")
+
+  override def setContact(): Future[Unit] = accountManager.setContact()
 }
 
 object UserServiceHandler {

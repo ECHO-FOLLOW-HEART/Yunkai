@@ -259,6 +259,11 @@ service userservice {
   // 新用户注册。支持的UserInfoProp暂时只有tel
   UserInfo createUser(1:string nickName, 2:string password, 3:optional map<UserInfoProp, string> miscInfo) throws (1:ResourceConflictException ex1, 2: InvalidArgsException ex2)
 
+  // 新用户注册. regType表明是通过哪一种途径注册的:
+  // tel: 电话号码
+  // email: 邮箱
+  UserInfo createUserPoly(1:string regType, 2:string regName, 3:string password, 4:optional map<UserInfoProp, string> miscInfo) throws (1:ResourceConflictException ex1, 2:InvalidArgsException ex2)
+
   // 搜索用户(参数1表示根据哪些字段搜索, 参数2表示返回的字段, 参数3表示当前页从第几个开始, 4表示一页返回多少个)
   list<UserInfo> searchUserInfo(1: map<UserInfoProp, string> queryFields, 2: optional list<UserInfoProp> fields, 3: optional i32 offset, 4: optional i32 count)
 
