@@ -11,11 +11,11 @@ import scala.collection.JavaConversions._
 object RedisFactory {
   lazy val pool = {
     val conf = Global.conf
-    val backends = conf.getConfig("backends.redis")
-    val servers = backends.root().toSeq map (item => {
+    val services = conf.getConfig("services.redis")
+    val servers = services.root().toSeq map (item => {
       val (key, _) = item
-      val host = backends.getString(s"$key.host")
-      val port = backends.getInt(s"$key.port")
+      val host = services.getString(s"$key.host")
+      val port = services.getInt(s"$key.port")
       host -> port
     })
 

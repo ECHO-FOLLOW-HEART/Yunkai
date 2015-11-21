@@ -109,3 +109,5 @@ Sandbox.scala
 YunkaiClient.scala
 *.jar
 src/main/thrift/gen-*
+
+src/main/resources/local.conf
