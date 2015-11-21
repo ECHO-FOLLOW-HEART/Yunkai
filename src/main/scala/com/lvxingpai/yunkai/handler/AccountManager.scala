@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.google.inject.Inject
 import com.google.inject.name.Named
 import com.lvxingpai.idgen.IdGen
+import com.lvxingpai.smscenter.SmsCenter
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
@@ -16,7 +17,7 @@ import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.enum.RegType
 import com.lvxingpai.yunkai.model.{ ContactRequest, UserInfo, _ }
 import com.lvxingpai.yunkai.serialization.{ TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse }
-import com.lvxingpai.yunkai.service.{ RedisFactory, SmsCenter }
+import com.lvxingpai.yunkai.service.{ RedisFactory }
 import com.lvxingpai.yunkai.utils.RequestUtils
 import com.mongodb.{ DuplicateKeyException, MongoCommandException }
 import com.twitter.util.{ Future, FuturePool }
@@ -934,7 +935,8 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         case item if item.value == UpdateTel.value =>
           s"正在绑定手机。验证码：$digits"
       }
-      SmsCenter.client.sendSms(message, Seq(tel)) map (s => ())
+
+      Global.injector.getInstance(classOf[SmsCenter.FinagledClient]).sendSms(message, Seq(tel)) map (s => ())
     }
 
     // 是否超过发送限额

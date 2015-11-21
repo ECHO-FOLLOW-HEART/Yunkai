@@ -10,17 +10,17 @@ import org.slf4j.LoggerFactory
  */
 @Aspect
 class AccessLogger {
-  private val runlevel = Global.conf.getString("runlevel")
+  //  private val runlevel =  //Global.conf.getString("runlevel")
 
   @Before("execution(com.twitter.util.Future com.lvxingpai.yunkai.handler.UserServiceHandler..*(..))")
   def log(jp: JoinPoint): Unit = {
     // 对应test的情况，不再记录日志
-    if (runlevel != "test") {
-      val signature = jp.getSignature
-      val message = s"Invoked: ${signature.toLongString}"
+    //    if (runlevel != "test") {
+    val signature = jp.getSignature
+    val message = s"Invoked: ${signature.toLongString}"
 
-      val logger = LoggerFactory.getLogger("access")
-      logger.info(message)
-    }
+    val logger = LoggerFactory.getLogger("access")
+    logger.info(message)
+    //    }
   }
 }
