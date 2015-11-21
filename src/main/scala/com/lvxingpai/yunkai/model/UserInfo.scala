@@ -5,7 +5,7 @@ import javax.validation.constraints.{ Min, NotNull, Size }
 
 import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.{ Email, NotBlank }
-import org.mongodb.morphia.annotations.{ Entity, Indexed, Version, Transient }
+import org.mongodb.morphia.annotations.{ Entity, Indexed, Transient, Version }
 
 import scala.beans.BeanProperty
 
@@ -93,6 +93,7 @@ object UserInfo {
   val fdContacts = "contacts"
   val fdSignature = "signature"
   val fdTel = "tel"
+  val fdEmail = "email"
   val fdGender = "gender"
   val fdChatGroups = "chatGroups"
   val fdRoles = "roles"

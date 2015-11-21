@@ -1,8 +1,9 @@
 package com.lvxingpai.yunkai.serialization
 
 import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.databind.{ SerializerProvider, JsonSerializer }
+import com.fasterxml.jackson.databind.{ JsonSerializer, SerializerProvider }
 import com.lvxingpai.yunkai.Token
+
 import scala.language.postfixOps
 
 /**

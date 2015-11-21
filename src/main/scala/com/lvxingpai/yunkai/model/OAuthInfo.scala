@@ -1,7 +1,9 @@
 package com.lvxingpai.yunkai.model
 
 import javax.validation.constraints.NotNull
-import org.mongodb.morphia.annotations.{ Indexed, Embedded }
+
+import org.mongodb.morphia.annotations.{ Embedded, Indexed }
+
 /**
  * Created by pengyt on 2015/7/28.
  */
@@ -36,6 +38,7 @@ class OAuthInfo {
    */
   var token: String = null
 }
+
 object OAuthInfo {
   def apply(provider: String, oauthId: String, nickName: String): OAuthInfo = {
     val result = new OAuthInfo

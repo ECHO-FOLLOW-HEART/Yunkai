@@ -3,7 +3,7 @@ package com.lvxingpai.yunkai.serialization
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.node.{ NullNode, NumericNode, TextNode }
 import com.fasterxml.jackson.databind.{ DeserializationContext, JsonDeserializer, JsonNode }
-import com.lvxingpai.yunkai.{ Token, OperationCode }
+import com.lvxingpai.yunkai.{ OperationCode, Token }
 
 /**
  * Created by zephyre on 7/4/15.

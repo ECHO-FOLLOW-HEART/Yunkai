@@ -4,11 +4,12 @@ import com.fasterxml.jackson.databind.node._
 import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.google.inject.Inject
 import com.google.inject.name.Named
+import com.lvxingpai.idgen.IdGen
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai._
-import com.lvxingpai.yunkai.model.{ ChatGroup, UserInfo }
-import com.mongodb.{ DBCollection, BasicDBList, BasicDBObject, BasicDBObjectBuilder }
+import com.lvxingpai.yunkai.model.ChatGroup
+import com.mongodb.{ BasicDBList, BasicDBObject, BasicDBObjectBuilder, DBCollection }
 import com.twitter.util.{ Future, FuturePool }
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.annotations.Property
@@ -70,7 +71,7 @@ class GroupManager @Inject() (@Named("yunkai") ds: Datastore, implicit val futur
 
   def createChatGroup(creator: Long, members: Seq[Long], chatGroupProps: Map[ChatGroupProp, Any] = Map()): Future[ChatGroup] = {
     // TODO 创建的时候判断是否超限，如果是的话，抛出GroupMemberLimitException异常。同时别忘了修改users.thrift，将这个异常添加到声明列表中
-    val futureGid = IdGenerator.generateId("yunkai:idgenerator/default")
+    val futureGid = Global.injector.getInstance(classOf[IdGen.FinagledClient]).generate("chatGroup")
 
     // 如果讨论组创建人未选择其他的人，那么就创建者自己一个人，如果选择了其他人，那么群成员便是创建者和其他创建者拉进来的人
     val participants = (members :+ creator).toSet.toSeq

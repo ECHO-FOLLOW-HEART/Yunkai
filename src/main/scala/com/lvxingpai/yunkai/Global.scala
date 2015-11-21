@@ -5,6 +5,7 @@ import com.google.inject.{ AbstractModule, Guice, Key }
 import com.lvxingpai.configuration.Configuration
 import com.lvxingpai.etcd.EtcdStoreModule
 import com.lvxingpai.morphia.MorphiaModule
+import com.lvxingpai.yunkai.inject.IdGenModule
 import com.twitter.util.FuturePool
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -20,11 +21,15 @@ object Global {
 
     val mongoConf = Configuration((configuration getConfig "yunkai.mongo").get.underlying atPath "mongo.yunkai")
     val serviceConf = (configuration getConfig "services").get
-    val injector = basicInjector.createChildInjector(new MorphiaModule(mongoConf, serviceConf), new AbstractModule {
-      override def configure(): Unit = {
-        bind(classOf[FuturePool]) toInstance FuturePool.unboundedPool
+    val injector = basicInjector.createChildInjector(
+      new MorphiaModule(mongoConf, serviceConf),
+      new IdGenModule(serviceConf),
+      new AbstractModule {
+        override def configure(): Unit = {
+          bind(classOf[FuturePool]) toInstance FuturePool.unboundedPool
+        }
       }
-    })
+    )
 
     (configuration, injector)
   }

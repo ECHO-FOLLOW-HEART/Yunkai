@@ -6,8 +6,9 @@ import java.util.UUID
 import java.util.regex.Pattern
 
 import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
-import com.google.inject.{ Inject, Key }
-import com.google.inject.name.{ Named, Names }
+import com.google.inject.Inject
+import com.google.inject.name.Named
+import com.lvxingpai.idgen.IdGen
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
@@ -22,9 +23,8 @@ import com.twitter.util.{ Future, FuturePool }
 import com.typesafe.config.ConfigException
 import org.apache.commons.io.IOUtils
 import org.bson.types.ObjectId
-import org.joda.time.DateTime
 import org.mongodb.morphia.Datastore
-import org.mongodb.morphia.query.{ CriteriaContainer, UpdateOperations }
+import org.mongodb.morphia.query.UpdateOperations
 
 import scala.collection.JavaConversions._
 import scala.language.{ implicitConversions, postfixOps }
@@ -729,9 +729,12 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         val retrievedFields = Seq(UserInfo.fdId, UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
           UserInfo.fdSignature, UserInfo.fdTel, UserInfo.fdLoginStatus, UserInfo.fdLoginSource, UserInfo.fdLoginTime)
 
-        val query = ds.find(classOf[UserInfo], UserInfo.fdTel, loginName).retrievedFields(true, retrievedFields: _*)
-        val updateOps = ds.createUpdateOperations(classOf[UserInfo]).set(UserInfo.fdLoginStatus, true).set(UserInfo.fdLoginTime, java.lang.System.currentTimeMillis()).add(UserInfo.fdLoginSource, source, false)
+        val query = ds.createQuery(classOf[UserInfo]).retrievedFields(true, retrievedFields: _*)
+        val telCriteria = query criteria UserInfo.fdTel equal loginName
+        val emailCriteria = query criteria UserInfo.fdEmail equal loginName
+        query.or(telCriteria, emailCriteria)
 
+        val updateOps = ds.createUpdateOperations(classOf[UserInfo]).set(UserInfo.fdLoginStatus, true).set(UserInfo.fdLoginTime, java.lang.System.currentTimeMillis()).add(UserInfo.fdLoginSource, source, false)
         ds.findAndModify(query, updateOps, false)
       }
       verified <- {
@@ -761,7 +764,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
   def createUserPoly(regType: RegType.Value, regName: String, password: String,
     miscInfo: Option[collection.Map[UserInfoProp, String]]): Future[UserInfo] = {
     // 取得用户ID
-    val futureUserId = IdGenerator.generateId("yunkai:idgenerator/default")
+    val futureUserId = Global.injector.getInstance(classOf[IdGen.FinagledClient]).generate("user")
 
     // 创建用户并保存
     val userInfo = for {
@@ -807,7 +810,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       throw InvalidArgsException()
 
     // 取得用户ID
-    val futureUserId = IdGenerator.generateId("yunkai:idgenerator/default")
+    val futureUserId = Global.injector.getInstance(classOf[IdGen.FinagledClient]).generate("user")
 
     // 创建用户并保存
     val userInfo = for {
@@ -952,7 +955,10 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       }
     }
 
-    val userIdFuture = if (userId nonEmpty) getUserById(userId.get, Seq(), None) else futurePool { None }
+    val userIdFuture = if (userId nonEmpty) getUserById(userId.get, Seq(), None)
+    else futurePool {
+      None
+    }
 
     // 当且仅当上述两个条件达成的时候，才生成验证码并发送
     for {
@@ -1145,8 +1151,6 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
    * @param fields
    * @param offset
    * @param count
-   * @param ds
-   * @param futurePool
    * @return
    */
   def searchUserInfo(queryFields: Map[UserInfoProp, String], fields: Option[Seq[UserInfoProp]], offset: Option[Int] = None,
@@ -1189,14 +1193,17 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       }
     }
   }
+
   def getUserByField(fields: String, value: String): Future[Option[yunkai.UserInfo]] = futurePool {
     Option(ds.createQuery(classOf[UserInfo]).field(fields).hasThisOne(value).get) map userInfoMorphia2Yunkai
   }
+
   def isNumeric(str: String): Boolean = {
     val pattern = Pattern.compile("[0-9]*")
     val isNum = pattern.matcher(str)
     isNum.matches()
   }
+
   /**
    * 截取userID的后3位，区分重复的昵称
    *
@@ -1209,6 +1216,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
     u.nickName = u.nickName + "_" + doc
     u
   }
+
   def userSaveEmitEvent(userInfo: UserInfo): Future[UserInfo] = futurePool {
     try {
       ds.save[UserInfo](userInfo)
@@ -1222,13 +1230,14 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
     EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
     userInfo
   }
+
   def oauthToUserInfo4WX(json: JsonNode): Future[yunkai.UserInfo] = {
     val userInfo = futurePool {
       val nickName = json.get("nickname").asText()
       val avatar = json.get("headimgurl").asText()
       val gender = if (json.get("sex").asText().equals("1")) "M" else "F"
       // 取得用户ID
-      val futureUserId = IdGenerator.generateId("yunkai:idgenerator/default")
+      val futureUserId = Global.injector.getInstance(classOf[IdGen.FinagledClient]).generate("user")
       val provider = "weixin"
       val oauthId = json.get("openid").asText()
       val oauthInfo = OAuthInfo(provider, oauthId, nickName)
@@ -1249,7 +1258,9 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         user
       })
     }
-    val result = userInfo flatMap (item => { item map userSaveEmitEvent })
+    val result = userInfo flatMap (item => {
+      item map userSaveEmitEvent
+    })
     result flatMap (u => u map userInfoMorphia2Yunkai)
   }
 
@@ -1313,8 +1324,6 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
    * @param userA 屏蔽人
    * @param userB 被屏蔽人
    * @param block  设置是否屏蔽
-   * @param ds
-   * @param futurePool
    * @return
    */
   def updateBlackList(userA: Long, userB: Long, block: Boolean): Future[Unit] = {
