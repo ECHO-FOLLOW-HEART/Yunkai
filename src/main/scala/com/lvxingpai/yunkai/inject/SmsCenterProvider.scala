@@ -16,7 +16,7 @@ import org.apache.thrift.protocol.TBinaryProtocol.Factory
 class SmsCenterProvider(config: Configuration) extends Provider[SmsCenter.FinagledClient] {
   lazy val get: FinagledClient = {
     val ret = for {
-      services <- config getConfig "idgen"
+      services <- config getConfig "smscenter"
     } yield {
       val entries = (services.subKeys map (key => {
         for {
