@@ -767,8 +767,8 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
           .add(UserInfo.fdLoginSource, source, false)
         ds.findAndModify(query, updateOps, false)
       }
-      verified <- Option(userInfo) map (value => verifyCredential(value.userId, password)) getOrElse futurePool(false)
-      secretKey <- getSecretKey(userInfo.userId) if verified // 获得secret key
+      verified <- Option(userInfo) map (value => verifyCredential(value.userId, password)) getOrElse Future(false) if verified
+      secretKey <- getSecretKey(userInfo.userId) // 获得secret key
       secretKey2 <- if (secretKey.nonEmpty) {
         Future(secretKey)
       } else {
