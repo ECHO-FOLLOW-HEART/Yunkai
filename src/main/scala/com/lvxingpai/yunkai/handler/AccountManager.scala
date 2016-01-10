@@ -725,7 +725,8 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
    */
   def resetSecretKey(userId: Long, expire: Option[Date] = None): Future[SecretKey] = {
     val newKey = new SecretKey()
-    newKey.key = Base64StringEncoder.encode(UUID.randomUUID().toString.getBytes)
+    newKey.key = Base64StringEncoder.encode(MessageDigest.getInstance("SHA-1")
+      .digest(UUID.randomUUID().toString.getBytes))
     newKey.timestamp = new Date()
     newKey.expire = expire.orNull
 
@@ -774,7 +775,6 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         resetSecretKey(userInfo.userId) map Some.apply
       }
     } yield {
-
       userInfo.secretKey = secretKey2.orNull
 
       //      val eventArgs: Map[String, JsonNode] = Map(
