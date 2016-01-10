@@ -2,8 +2,8 @@ package com.lvxingpai.yunkai.handler
 
 import java.net.URL
 import java.security.MessageDigest
-import java.util.UUID
 import java.util.regex.Pattern
+import java.util.{ Date, UUID }
 
 import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 import com.google.inject.Inject
@@ -15,12 +15,13 @@ import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
 import com.lvxingpai.yunkai._
 import com.lvxingpai.yunkai.enum.RegType
-import com.lvxingpai.yunkai.model.{ ContactRequest, UserInfo, _ }
+import com.lvxingpai.yunkai.model.{ ContactRequest, SecretKey, UserInfo, _ }
 import com.lvxingpai.yunkai.serialization.{ TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse }
-import com.lvxingpai.yunkai.service.{ RedisFactory }
+import com.lvxingpai.yunkai.service.RedisFactory
 import com.lvxingpai.yunkai.utils.RequestUtils
 import com.mongodb.{ DuplicateKeyException, MongoCommandException }
-import com.twitter.util.{ Future, FuturePool }
+import com.twitter.util.Try.PredicateDoesNotObtain
+import com.twitter.util.{ Base64StringEncoder, Future, FuturePool }
 import com.typesafe.config.ConfigException
 import org.apache.commons.io.IOUtils
 import org.bson.types.ObjectId
@@ -142,7 +143,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         updateInfo.put("signature", "new signature")
 
         val eventArgs: Map[String, JsonNode] = Map(
-          "user" -> userInfoMorphia2Yunkai(result),
+          "user" -> userConversion(result),
           "updateInfo" -> updateInfo
         )
         EventEmitter.emitEvent(EventEmitter.evtModUserInfo, eventArgs)
@@ -479,8 +480,8 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
     val eventArgs: Map[String, JsonNode] = Map(
       "requestId" -> requestId.toString,
       "message" -> message.getOrElse[String](""),
-      "sender" -> userInfoMorphia2Yunkai(sender),
-      "receiver" -> userInfoMorphia2Yunkai(receiver)
+      "sender" -> userConversion(sender),
+      "receiver" -> userConversion(receiver)
     )
 
     EventEmitter.emitEvent(eventName, eventArgs)
@@ -670,7 +671,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         query.retrievedFields(true, retrievedFields: _*)
         val results = Map(query.asList() map filterUUIDTel map (item => item.userId -> item): _*)
         if (selfId == None) {
-          Map(userIds map (v => v -> (results get v map userInfoMorphia2Yunkai)): _*)
+          Map(userIds map (v => v -> (results get v map userConversion)): _*)
         } else {
           // 设置备注
           val userInfos = results map { user =>
@@ -687,7 +688,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
               user
             }
           }
-          Map(userIds map (v => v -> (userInfos get v map userInfoMorphia2Yunkai)): _*)
+          Map(userIds map (v => v -> (userInfos get v map userConversion)): _*)
         }
       }
     }
@@ -717,6 +718,30 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
   }
 
   /**
+   * 重置某个userId对应的secretKey
+   * @param userId
+   * @param expire
+   * @return
+   */
+  def resetSecretKey(userId: Long, expire: Option[Date] = None): Future[SecretKey] = {
+    val newKey = new SecretKey()
+    newKey.key = Base64StringEncoder.encode(UUID.randomUUID().toString.getBytes)
+    newKey.timestamp = new Date()
+    newKey.expire = expire.orNull
+
+    futurePool {
+      val query = ds.createQuery(classOf[Credential]).field("userId").equal(userId)
+      val ops = ds.createUpdateOperations(classOf[Credential]).set("secretKey", newKey)
+      val result = ds.update(query, ops)
+      if (result.getUpdatedCount != 1) {
+        // 没有找到userId对应的记录
+        throw NotFoundException()
+      }
+      newKey
+    }
+  }
+
+  /**
    * 用户登录
    *
    * @param loginName   登录用户名（默认情况下是注册的手机号）
@@ -725,7 +750,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
    */
   def login(loginName: String, password: String, source: String): Future[UserInfo] = {
     // 获得用户信息
-    for {
+    val result = for {
       userInfo <- futurePool {
         val retrievedFields = Seq(UserInfo.fdId, UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
           UserInfo.fdSignature, UserInfo.fdTel, UserInfo.fdLoginStatus, UserInfo.fdLoginSource, UserInfo.fdLoginTime)
@@ -735,29 +760,51 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         val emailCriteria = query criteria UserInfo.fdEmail equal loginName
         query.or(telCriteria, emailCriteria)
 
-        val updateOps = ds.createUpdateOperations(classOf[UserInfo]).set(UserInfo.fdLoginStatus, true).set(UserInfo.fdLoginTime, java.lang.System.currentTimeMillis()).add(UserInfo.fdLoginSource, source, false)
+        val updateOps = ds.createUpdateOperations(classOf[UserInfo])
+          .set(UserInfo.fdLoginStatus, true)
+          .set(UserInfo.fdLoginTime, java.lang.System.currentTimeMillis())
+          .add(UserInfo.fdLoginSource, source, false)
         ds.findAndModify(query, updateOps, false)
       }
-      verified <- {
-        if (userInfo == null)
-          futurePool(false)
-        else
-          verifyCredential(userInfo.userId, password)
+      verified <- Option(userInfo) map (value => verifyCredential(value.userId, password)) getOrElse futurePool(false)
+      secretKey <- getSecretKey(userInfo.userId) if verified // 获得secret key
+      secretKey2 <- if (secretKey.nonEmpty) {
+        Future(secretKey)
+      } else {
+        resetSecretKey(userInfo.userId) map Some.apply
       }
     } yield {
-      if (verified) {
-        import Implicits.JsonConversions._
-        val eventArgs: Map[String, JsonNode] = Map(
-          "user" -> userInfoMorphia2Yunkai(userInfo),
-          "source" -> string2JsonNode(source)
-        )
-        val eta = Some(10 * 1000L)
 
-        EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs, eta)
+      userInfo.secretKey = secretKey2.orNull
 
-        userInfo
-      } else
+      //      val eventArgs: Map[String, JsonNode] = Map(
+      //        "user" -> userConversion(userInfo),
+      //        "source" -> string2JsonNode(source)
+      //      )
+      //      val eta = Some(10 * 1000L)
+      //
+      //      EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs, eta)
+
+      userInfo
+    }
+    result rescue {
+      case e: PredicateDoesNotObtain =>
+        // 发生这个异常, 说明verified的值为false
         throw AuthException()
+
+    }
+  }
+
+  /**
+   * 根据UserId获得secret key
+   * @param userId
+   * @return
+   */
+  def getSecretKey(userId: Long): Future[Option[SecretKey]] = {
+    val query = ds.createQuery(classOf[Credential]).field("userId").equal(userId).retrievedFields(true, "secretKey")
+    futurePool {
+      val credential = query.get()
+      Option(credential) flatMap (value => Option(value.secretKey))
     }
   }
 
@@ -789,12 +836,13 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
 
     val result = userInfo map userSaveEmitEvent
     val (salt, crypted) = saltPassword(password)
+    val secretKey = SecretKey()
 
     // 创建并保存新用户Credential实例
     for {
       userId <- futureUserId
     } yield {
-      val credential = Credential(userId, salt, crypted)
+      val credential = Credential(userId, salt, crypted, secretKey)
       try {
         ds.save[Credential](credential)
       } catch {
@@ -830,12 +878,13 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
     }
     val result = userInfo map userSaveEmitEvent
     val (salt, crypted) = saltPassword(password)
+    val secretKey = SecretKey()
 
     // 创建并保存新用户Credential实例
     for {
       userId <- futureUserId
     } yield {
-      val credential = Credential(userId, salt, crypted)
+      val credential = Credential(userId, salt, crypted, secretKey)
       try {
         ds.save[Credential](credential)
       } catch {
@@ -1197,7 +1246,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
   }
 
   def getUserByField(fields: String, value: String): Future[Option[yunkai.UserInfo]] = futurePool {
-    Option(ds.createQuery(classOf[UserInfo]).field(fields).hasThisOne(value).get) map userInfoMorphia2Yunkai
+    Option(ds.createQuery(classOf[UserInfo]).field(fields).hasThisOne(value).get) map userConversion
   }
 
   def isNumeric(str: String): Boolean = {
@@ -1227,7 +1276,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
     }
     // 触发创建新用户的事件
     val eventArgs: Map[String, JsonNode] = Map(
-      "user" -> userInfoMorphia2Yunkai(userInfo)
+      "user" -> userConversion(userInfo)
     )
     EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
     userInfo
@@ -1263,7 +1312,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
     val result = userInfo flatMap (item => {
       item map userSaveEmitEvent
     })
-    result flatMap (u => u map userInfoMorphia2Yunkai)
+    result flatMap (u => u map userConversion)
   }
 
   /**
@@ -1365,7 +1414,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
 
         query.retrievedFields(true, retrievedFields: _*)
         val results = query.asList().toSeq
-        results map (item => userInfoMorphia2Yunkai(item))
+        results map (item => userConversion(item))
       }
     }
   }

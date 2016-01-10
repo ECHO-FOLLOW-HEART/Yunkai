@@ -5,7 +5,7 @@ import javax.validation.constraints.{ Min, NotNull, Size }
 
 import org.bson.types.ObjectId
 import org.hibernate.validator.constraints.{ Email, NotBlank }
-import org.mongodb.morphia.annotations.{ Entity, Indexed, Transient, Version }
+import org.mongodb.morphia.annotations._
 
 import scala.beans.BeanProperty
 
@@ -83,6 +83,10 @@ class UserInfo extends AbstractEntity {
 
   @BeanProperty
   var oauthInfoList: JList[OAuthInfo] = null
+
+  @Embedded
+  @Transient
+  var secretKey: SecretKey = _
 }
 
 object UserInfo {

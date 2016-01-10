@@ -1,6 +1,6 @@
 package com.lvxingpai.yunkai
 
-import java.util.{ List => JList, UUID }
+import java.util.{ Date, List => JList, UUID }
 
 import com.fasterxml.jackson.databind.node.{ LongNode, TextNode }
 import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
@@ -26,48 +26,70 @@ object Implicits {
         req.rejectMessage, req.timestamp, req.expire)
     }
 
-    implicit def userInfoMorphia2Yunkai(user: model.UserInfo): UserInfo = {
-      // 处理tel为UUID占位符的情况
-      val tel = {
-        if (user.tel != null && user.tel.length == 36)
-          None
-        else
-          Option(user.tel)
+    /**
+     * SecretKey隐式转换: morphia -> thrift
+     */
+    implicit def secretKeyConversion(src: model.SecretKey): SecretKey =
+      SecretKey(src.key, src.timestamp.getTime, Option(src.expire) map (_.getTime))
+
+    /**
+     * SecretKey隐式转换: thrift -> morphia
+     */
+    implicit def secretKeyConversion(src: SecretKey): model.SecretKey = {
+      val result = new model.SecretKey
+      result.key = src.key
+      result.timestamp = new Date(src.timestamp)
+
+      if (src.expire.nonEmpty) {
+        result.expire = new Date(src.expire.get)
       }
 
-      val gender = Option(user.gender match {
-        case "m" | "M" => Gender.Male
-        case "f" | "F" => Gender.Female
-        case "s" | "S" => Gender.Secret
-        case "b" | "B" => Gender.Both
-        case "u" | "U" | null => null
-        case _ => throw new IllegalArgumentException("Invalid gender")
-      })
-      val memo = if (user.memo != null) Option(user.memo) else None
-      val roles = Option(user.roles) map (_.toSeq map Role.apply) getOrElse Seq()
-
-      val residence = if (user.residence != null && user.residence.nonEmpty) Some(user.residence) else None
-      val birthday = if (user.birthday != null && user.birthday.nonEmpty) Some(user.birthday) else None
-
-      UserInfo(user.id.toString, user.userId, user.nickName, Option(user.avatar), signature = Option(user.signature),
-        roles = roles, memo = memo, gender = gender, tel = tel, loginStatus = false, birth = birthday, residence = residence)
+      result
     }
 
-    implicit def userInfoYunkai2Morphia(user: UserInfo): model.UserInfo = {
+    implicit def genderConversion(value: Gender): String = value.value match {
+      case Gender.Male.value => "m"
+      case Gender.Female.value => "f"
+      case Gender.Secret.value => "s"
+      case Gender.Both.value => "b"
+    }
+
+    implicit def genderConversion(value: String): Gender = value.toLowerCase() match {
+      case "m" => Gender.Male
+      case "f" => Gender.Female
+      case "s" => Gender.Secret
+      case "b" => Gender.Both
+      case "u" => null
+    }
+
+    implicit def userConversion(user: model.UserInfo): UserInfo = {
+      // 处理tel为UUID占位符的情况
+      val tel = Option(user.tel) flatMap (value => if (value.length == 36) Some(value) else None)
+      val gender = Option(user.gender) flatMap (value => Option(genderConversion(value)))
+      val memo = Option(user.memo)
+      val roles = Option(user.roles) map (_.toSeq map Role.apply) getOrElse Seq()
+      val residence = Option(user.residence)
+      val birthday = Option(user.birthday)
+
+      val secretKey = Option(user.secretKey) map secretKeyConversion
+
+      UserInfo(user.id.toString, user.userId, user.nickName, Option(user.avatar), signature = Option(user.signature),
+        roles = roles, memo = memo, gender = gender, tel = tel, loginStatus = false, birth = birthday,
+        residence = residence, secretKey = secretKey)
+    }
+
+    implicit def userConversion(user: UserInfo): model.UserInfo = {
       val user2 = model.UserInfo(user.userId, user.nickName)
-      user2.id = {
-        val id = user.id
-        if (id != null && id.nonEmpty)
-          new ObjectId(id)
-        else
-          new ObjectId()
-      }
+      user2.id = Option(user.id) map (new ObjectId(_)) getOrElse new ObjectId()
       user2.avatar = user.avatar.orNull
       user2.signature = user.signature.orNull
       user2.tel = user.signature getOrElse UUID.randomUUID().toString
       user2.gender = (user.gender map (_.name)).orNull
       user2.residence = user.residence.orNull
       user2.birthday = user.birth.orNull
+      if (user.secretKey.nonEmpty) {
+        user2.secretKey = user.secretKey.get
+      }
       user2
     }
   }

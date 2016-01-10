@@ -2,7 +2,7 @@ package com.lvxingpai.yunkai.handler
 
 import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.enum.RegType
-import com.lvxingpai.yunkai.model.{ ChatGroup, UserInfo }
+import com.lvxingpai.yunkai.model.ChatGroup
 import com.lvxingpai.yunkai.{ NotFoundException, UserInfoProp, Userservice, _ }
 import com.twitter.util.Future
 
@@ -16,7 +16,7 @@ import scala.language.{ implicitConversions, postfixOps }
  */
 class UserServiceHandler extends Userservice.FutureIface {
 
-  import UserServiceHandler.userInfoConversion
+  //  import UserServiceHandler.userInfoConversion
 
   val accountManager = Global.injector.getInstance(classOf[AccountManager])
   val groupManager = Global.injector.getInstance(classOf[GroupManager])
@@ -39,7 +39,7 @@ class UserServiceHandler extends Userservice.FutureIface {
       }
       propName -> propVal
     }): _*)
-    accountManager.updateUserInfo(userId, updateData) map UserServiceHandler.userInfoConversion
+    accountManager.updateUserInfo(userId, updateData) map Implicits.YunkaiConversions.userConversion
   }
 
   override def isContact(userA: Long, userB: Long): Future[Boolean] = accountManager.isContact(userA, userB)
@@ -78,7 +78,7 @@ class UserServiceHandler extends Userservice.FutureIface {
    * @return 用户的详细资料
    */
   override def login(loginName: String, password: String, source: String): Future[yunkai.UserInfo] = {
-    accountManager.login(loginName, password, source) map UserServiceHandler.userInfoConversion
+    accountManager.login(loginName, password, source) map Implicits.YunkaiConversions.userConversion
   }
 
   override def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] =
@@ -90,16 +90,16 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
     val tel = miscInfo flatMap (_.get(UserInfoProp.Tel))
     accountManager.createUser(nickName, password, tel) map (userInfo => {
-      if (userInfo == null)
+      Option(userInfo) map Implicits.YunkaiConversions.userConversion getOrElse {
         throw new NotFoundException(Some("Create user failure"))
-      else
-        UserServiceHandler.userInfoConversion(userInfo)
+      }
     })
   }
 
   override def createUserPoly(regType: String, regName: String, password: String,
     miscInfo: Option[collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
-    accountManager.createUserPoly(RegType withName regType, regName, password, miscInfo) map UserServiceHandler.userInfoConversion
+    accountManager.createUserPoly(RegType withName regType, regName, password, miscInfo) map
+      Implicits.YunkaiConversions.userConversion
   }
 
   override def loginByOAuth(code: String, source: String): Future[yunkai.UserInfo] = {
@@ -240,7 +240,8 @@ class UserServiceHandler extends Userservice.FutureIface {
   }
 
   override def updateUserRoles(userId: Long, addRoles: Boolean, roles: Option[Seq[Role]]): Future[yunkai.UserInfo] =
-    accountManager.updateUserRoles(userId, addRoles, roles getOrElse Seq()) map (user => user)
+    accountManager.updateUserRoles(userId, addRoles, roles getOrElse Seq()) map
+      Implicits.YunkaiConversions.userConversion
 
   override def isMember(userId: Long, chatGroupId: Long): Future[Boolean] =
     groupManager.isMember(userId, chatGroupId)
@@ -249,40 +250,45 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def ping(): Future[String] = Future("pong")
 
-  override def setContact(): Future[Unit] = accountManager.setContact()
+  override def getUserSecretKey(userId: Long): Future[String] = {
+    accountManager.getSecretKey(userId) map (result => {
+      if (result.nonEmpty) result.get.key
+      else throw NotFoundException(Some(s"Unable to get secret key relating to user $userId"))
+    })
+  }
 }
 
 object UserServiceHandler {
 
-  /**
-   * 在models.UserInfo和yunkai.UserInfo之间进行类型转换
-   *
-   * @param user
-   * @return
-   */
-  implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
-    val userId = user.userId
-    val id = user.id
-    val nickName = user.nickName
-    val avatar = Option(user.avatar)
-    val gender = Option(user.gender match {
-      case "m" | "M" => Gender.Male
-      case "f" | "F" => Gender.Female
-      case "s" | "S" => Gender.Secret
-      case "b" | "B" => Gender.Both
-      case "u" | "U" | null => null
-      case _ => throw new IllegalArgumentException("Invalid gender")
-    })
-    val signature = Option(user.signature)
-    val tel = Option(user.tel)
-    val loginStatus = user.loginStatus
-    val loginTime = Option(user.loginTime)
-    val logoutTime = Option(user.logoutTime)
-    val loginSource = Option(user.loginSource) map (_.toSeq) getOrElse Seq()
-
-    val roles = Option(user.roles) map (_.toSeq map Role.apply) getOrElse Seq()
-    yunkai.UserInfo(id.toString, userId, nickName, avatar, gender, signature, tel, loginStatus, loginTime, logoutTime, loginSource, roles = roles)
-  }
+  //  /**
+  //   * 在models.UserInfo和yunkai.UserInfo之间进行类型转换
+  //   *
+  //   * @param user
+  //   * @return
+  //   */
+  //  implicit def userInfoConversion(user: UserInfo): yunkai.UserInfo = {
+  //    val userId = user.userId
+  //    val id = user.id
+  //    val nickName = user.nickName
+  //    val avatar = Option(user.avatar)
+  //    val gender = Option(user.gender match {
+  //      case "m" | "M" => Gender.Male
+  //      case "f" | "F" => Gender.Female
+  //      case "s" | "S" => Gender.Secret
+  //      case "b" | "B" => Gender.Both
+  //      case "u" | "U" | null => null
+  //      case _ => throw new IllegalArgumentException("Invalid gender")
+  //    })
+  //    val signature = Option(user.signature)
+  //    val tel = Option(user.tel)
+  //    val loginStatus = user.loginStatus
+  //    val loginTime = Option(user.loginTime)
+  //    val logoutTime = Option(user.logoutTime)
+  //    val loginSource = Option(user.loginSource) map (_.toSeq) getOrElse Seq()
+  //
+  //    val roles = Option(user.roles) map (_.toSeq map Role.apply) getOrElse Seq()
+  //    yunkai.UserInfo(id.toString, userId, nickName, avatar, gender, signature, tel, loginStatus, loginTime, logoutTime, loginSource, roles = roles)
+  //  }
 
   implicit def chatGroupConversion(chatGroup: ChatGroup): yunkai.ChatGroup = {
     val id = chatGroup.id
