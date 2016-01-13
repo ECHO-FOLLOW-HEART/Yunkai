@@ -733,8 +733,8 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
     futurePool {
       val query = ds.createQuery(classOf[Credential]).field("userId").equal(userId)
       val ops = ds.createUpdateOperations(classOf[Credential]).set("secretKey", newKey)
-      val result = ds.update(query, ops)
-      if (result.getUpdatedCount != 1) {
+      val result = ds.update(query, ops, true)
+      if (result.getUpdatedCount != 1 && result.getInsertedCount != 1) {
         // 没有找到userId对应的记录
         throw NotFoundException()
       }
