@@ -768,14 +768,10 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         ds.findAndModify(query, updateOps, false)
       }
       verified <- Option(userInfo) map (value => verifyCredential(value.userId, password)) getOrElse Future(false) if verified
-      secretKey <- getSecretKey(userInfo.userId) // 获得secret key
-      secretKey2 <- if (secretKey.nonEmpty) {
-        Future(secretKey)
-      } else {
-        resetSecretKey(userInfo.userId) map Some.apply
-      }
+      secretKeyOpt <- getSecretKey(userInfo.userId) // 获得secret key
+      secretKey <- secretKeyOpt map (u => Future(u)) getOrElse resetSecretKey(userInfo.userId)
     } yield {
-      userInfo.secretKey = secretKey2.orNull
+      userInfo.secretKey = secretKey
 
       //      val eventArgs: Map[String, JsonNode] = Map(
       //        "user" -> userConversion(userInfo),
@@ -834,7 +830,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         newUser
     }
 
-    val result = userInfo map userSaveEmitEvent
+    //    val result = userInfo map userSaveEmitEvent
     val (salt, crypted) = saltPassword(password)
     val secretKey = SecretKey()
 
@@ -849,7 +845,12 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         case ex: DuplicateKeyException => throw new InvalidArgsException(Some(s"User $userId credential is existed"))
       }
     }
-    result flatMap (item => item)
+
+    userInfo map (value => {
+      value.secretKey = secretKey
+      value
+    })
+    //    result flatMap (item => item)
   }
 
   // 新用户注册
@@ -876,7 +877,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       else
         newUser
     }
-    val result = userInfo map userSaveEmitEvent
+    //    val result = userInfo map userSaveEmitEvent
     val (salt, crypted) = saltPassword(password)
     val secretKey = SecretKey()
 
@@ -891,16 +892,11 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         case ex: DuplicateKeyException => throw new InvalidArgsException(Some(s"User $userId credential is existed"))
       }
     }
-    result flatMap (item => item)
-  }
-
-  def createUserByAuth(code: String): Future[UserInfo] = {
-
-    val urlStr = RequestUtils.getWeiXinUrl(code)
-
-    val url: URL = new URL(urlStr)
-
-    null
+    userInfo map (value => {
+      value.secretKey = secretKey
+      value
+    })
+    //    result flatMap (item => item)
   }
 
   /**
@@ -1343,19 +1339,18 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       node <- futureInfoNode
     } yield node.get("openid").asText()
 
-    // 如果第三方用户已存在，视为第二次登录
-    def create(user: Option[yunkai.UserInfo]): Future[yunkai.UserInfo] = {
-      if (user nonEmpty)
-        Future(user.get)
-      else {
-        futureInfoNode flatMap (info => oauthToUserInfo4WX(info))
-      }
-    }
     for {
       oauthId <- futureOauthId
-      user <- getUserByField("oauthInfoList.oauthId", oauthId)
-      result <- create(user)
-    } yield result
+      userOpt <- getUserByField("oauthInfoList.oauthId", oauthId)
+      user <- userOpt map (u => Future(u)) getOrElse {
+        // 如果第三方用户不存在, 则创建一个
+        futureInfoNode flatMap oauthToUserInfo4WX
+      }
+      secretKeyOpt <- getSecretKey(user.userId)
+      secretKey <- secretKeyOpt map (u => Future(u)) getOrElse resetSecretKey(user.userId)
+    } yield {
+      user.copy(secretKey = Some(secretKey))
+    }
   }
 
   // 黑名单, blockA为true表示userA在userB的黑名单中, blockB为true表示userB在userA的黑名单中
