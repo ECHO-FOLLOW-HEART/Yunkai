@@ -10,6 +10,7 @@ import org.bson.types.ObjectId
 
 import scala.collection.JavaConversions._
 import scala.language.implicitConversions
+import scala.util.Try
 
 /**
  * Created by zephyre on 5/19/15.
@@ -67,7 +68,9 @@ object Implicits {
       val tel = Option(user.tel) flatMap (value => if (value.length == 36) Some(value) else None)
       val gender = Option(user.gender) flatMap (value => Option(genderConversion(value)))
       val memo = Option(user.memo)
-      val roles = Option(user.roles) map (_.toSeq map Role.apply) getOrElse Seq()
+      val roles = Option(user.roles) map (_.toSeq) getOrElse Seq() map (value => {
+        Try(Role(value)).toOption
+      }) filter (_.nonEmpty) map (_.get)
       val residence = Option(user.residence)
       val birthday = Option(user.birthday)
 
