@@ -14,7 +14,6 @@ import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
 import com.lvxingpai.yunkai._
-import com.lvxingpai.yunkai.enum.RegType
 import com.lvxingpai.yunkai.model.{ ContactRequest, SecretKey, UserInfo, _ }
 import com.lvxingpai.yunkai.serialization.{ TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse }
 import com.lvxingpai.yunkai.service.RedisFactory
@@ -805,98 +804,54 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
   }
 
   // logout: 释放资源, 修改UserInfo的logoutTime和loginSource字段(删除本次登录的来源)
-  def createUserPoly(regType: RegType.Value, regName: String, password: String,
-    miscInfo: Option[collection.Map[UserInfoProp, String]]): Future[UserInfo] = {
+  def createUserPoly(password: String, miscInfo: Option[collection.Map[UserInfoProp, String]]): Future[UserInfo] = {
     // 取得用户ID
     val futureUserId = Global.injector.getInstance(classOf[IdGen.FinagledClient]).generate("user")
 
-    // 创建用户并保存
-    val userInfo = for {
+    // 创建用户
+    val userInfoFuture = for {
       userId <- futureUserId
     } yield {
-      val nickName = (miscInfo getOrElse collection.Map()).getOrElse(UserInfoProp.NickName, s"旅行派用户$userId")
+      val miscInfoMap = miscInfo getOrElse collection.Map()
+      val nickName = miscInfoMap.getOrElse(UserInfoProp.NickName, s"旅行派用户$userId")
       val newUser = UserInfo(userId, nickName)
-      if (regType == RegType.Tel)
-        newUser.tel = regName
-      else if (regType == RegType.Email)
-        newUser.email = regName
 
-      // 检查用户是否已经存在
-      val query = ds.createQuery(classOf[UserInfo]).retrievedFields(true, UserInfo.fdUserId)
-      query.or(query.criteria(UserInfo.fdUserId).equal(userId), query.criteria(UserInfo.fdTel).equal(newUser.tel))
-      if (query.get() != null)
-        throw new ResourceConflictException(Some(s"User $userId is existed"))
-      else
-        newUser
+      miscInfoMap get UserInfoProp.Email foreach (newUser.email = _)
+      miscInfoMap get UserInfoProp.Tel foreach (newUser.tel = _)
+      newUser
     }
 
-    //    val result = userInfo map userSaveEmitEvent
     val (salt, crypted) = saltPassword(password)
     val secretKey = SecretKey()
 
     // 创建并保存新用户Credential实例
-    for {
+    val credentialFuture = for {
       userId <- futureUserId
     } yield {
-      val credential = Credential(userId, salt, crypted, secretKey)
-      try {
-        ds.save[Credential](credential)
-      } catch {
-        case ex: DuplicateKeyException => throw new InvalidArgsException(Some(s"User $userId credential is existed"))
-      }
+      Credential(userId, salt, crypted, secretKey)
     }
 
-    userInfo map (value => {
-      value.secretKey = secretKey
-      value
-    })
-    //    result flatMap (item => item)
-  }
-
-  // 新用户注册
-  def createUser(nickName: String, password: String, tel: Option[String]): Future[UserInfo] = {
-    // 判断密码是否合法
-    if (!checkPassword(password))
-      throw InvalidArgsException()
-
-    // 取得用户ID
-    val futureUserId = Global.injector.getInstance(classOf[IdGen.FinagledClient]).generate("user")
-
-    // 创建用户并保存
-    val userInfo = for {
-      userId <- futureUserId
+    // 是否成功添加了user
+    var successUser = false
+    (for {
+      userInfo <- userInfoFuture
+      credential <- credentialFuture
     } yield {
-      val newUser = UserInfo(userId, nickName)
-      newUser.tel = tel.getOrElse(UUID.randomUUID().toString)
+      userInfo.secretKey = secretKey
+      ds.save[UserInfo](userInfo)
+      successUser = true
 
-      // 检查用户是否已经存在
-      val query = ds.createQuery(classOf[UserInfo]).retrievedFields(true, UserInfo.fdUserId)
-      query.or(query.criteria(UserInfo.fdUserId).equal(userId), query.criteria(UserInfo.fdTel).equal(newUser.tel))
-      if (query.get() != null)
-        throw new ResourceConflictException(Some(s"User $userId is existed"))
-      else
-        newUser
+      ds.save[Credential](credential)
+      userInfo
+    }) rescue {
+      case _: DuplicateKeyException =>
+        // 如果成功添加了user, 但是添加credential出错:
+        if (successUser) userInfoFuture map ds.delete[UserInfo]
+        throw InvalidArgsException(Some(s"Duplicated resources"))
+      case e: Throwable =>
+        if (successUser) userInfoFuture map ds.delete[UserInfo]
+        throw e
     }
-    //    val result = userInfo map userSaveEmitEvent
-    val (salt, crypted) = saltPassword(password)
-    val secretKey = SecretKey()
-
-    // 创建并保存新用户Credential实例
-    for {
-      userId <- futureUserId
-    } yield {
-      val credential = Credential(userId, salt, crypted, secretKey)
-      try {
-        ds.save[Credential](credential)
-      } catch {
-        case ex: DuplicateKeyException => throw new InvalidArgsException(Some(s"User $userId credential is existed"))
-      }
-    }
-    userInfo map (value => {
-      value.secretKey = secretKey
-      value
-    })
-    //    result flatMap (item => item)
   }
 
   /**
@@ -1264,22 +1219,8 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
     u
   }
 
-  def userSaveEmitEvent(userInfo: UserInfo): Future[UserInfo] = futurePool {
-    try {
-      ds.save[UserInfo](userInfo)
-    } catch {
-      case ex: DuplicateKeyException => throw new ResourceConflictException(Some(s"User ${userInfo.userId} is existed"))
-    }
-    // 触发创建新用户的事件
-    val eventArgs: Map[String, JsonNode] = Map(
-      "user" -> userConversion(userInfo)
-    )
-    EventEmitter.emitEvent(EventEmitter.evtCreateUser, eventArgs)
-    userInfo
-  }
-
   def oauthToUserInfo4WX(json: JsonNode): Future[yunkai.UserInfo] = {
-    val userInfo = futurePool {
+    val userInfo = {
       val nickName = json.get("nickname").asText()
       val avatar = json.get("headimgurl").asText()
       val gender = if (json.get("sex").asText().equals("1")) "M" else "F"
@@ -1288,8 +1229,9 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       val provider = "weixin"
       val oauthId = json.get("openid").asText()
       val oauthInfo = OAuthInfo(provider, oauthId, nickName)
-      if (isNumeric(nickName))
+      if (isNumeric(nickName)) {
         oauthInfo.nickName = nickName + "_桃子"
+      }
 
       val oauthInfoList = seqAsJavaList(Seq(oauthInfo))
       futureUserId map (userId => {
@@ -1299,16 +1241,19 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         //user.oauthIdList = seqAsJavaList(Seq(oauthId))
         user.oauthInfoList = oauthInfoList
         //如果第三方昵称已被其他用户使用，则添加后缀
-        if (getUserByField(UserInfo.fdNickName, nickName) != null) {
-          nickDuplicateRemoval(user)
-        }
+        Option(getUserByField(UserInfo.fdNickName, nickName)) foreach (_ => nickDuplicateRemoval(user))
+
+        // 保存
+        ds.save[UserInfo](user)
+
         user
-      })
+      }) rescue {
+        // 有重复的键
+        case _: DuplicateKeyException => throw InvalidArgsException(Some(s"Duplicated resources"))
+      }
     }
-    val result = userInfo flatMap (item => {
-      item map userSaveEmitEvent
-    })
-    result flatMap (u => u map userConversion)
+
+    userInfo map Implicits.YunkaiConversions.userConversion
   }
 
   /**

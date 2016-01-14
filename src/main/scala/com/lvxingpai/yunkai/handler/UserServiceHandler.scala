@@ -1,11 +1,11 @@
 package com.lvxingpai.yunkai.handler
 
 import com.lvxingpai.yunkai
-import com.lvxingpai.yunkai.enum.RegType
 import com.lvxingpai.yunkai.model.ChatGroup
 import com.lvxingpai.yunkai.{ NotFoundException, UserInfoProp, Userservice, _ }
 import com.twitter.util.Future
 
+import scala.collection
 import scala.collection.JavaConversions._
 import scala.language.{ implicitConversions, postfixOps }
 
@@ -87,18 +87,19 @@ class UserServiceHandler extends Userservice.FutureIface {
   override def resetPasswordByToken(userId: Long, newPassword: String, token: String): Future[Unit] =
     accountManager.resetPasswordByToken(userId, newPassword, token)
 
-  override def createUser(nickName: String, password: String, miscInfo: Option[scala.collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
-    val tel = miscInfo flatMap (_.get(UserInfoProp.Tel))
-    accountManager.createUser(nickName, password, tel) map (userInfo => {
-      Option(userInfo) map Implicits.YunkaiConversions.userConversion getOrElse {
-        throw new NotFoundException(Some("Create user failure"))
-      }
-    })
+  override def createUser(nickName: String, password: String,
+    miscInfo: Option[scala.collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
+    val merged = miscInfo getOrElse collection.Map[UserInfoProp, String]() + (UserInfoProp.NickName -> nickName)
+    accountManager.createUserPoly(password, Some(merged)) map Implicits.YunkaiConversions.userConversion
   }
 
   override def createUserPoly(regType: String, regName: String, password: String,
     miscInfo: Option[collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
-    accountManager.createUserPoly(RegType withName regType, regName, password, miscInfo) map
+    val regInfo = regType match {
+      case t if t == UserInfoProp.Email.name.toLowerCase() => UserInfoProp.Email -> regName
+      case t if t == UserInfoProp.Tel.name.toLowerCase() => UserInfoProp.Tel -> regName
+    }
+    accountManager.createUserPoly(password, Some(miscInfo getOrElse collection.Map() + regInfo)) map
       Implicits.YunkaiConversions.userConversion
   }
 
