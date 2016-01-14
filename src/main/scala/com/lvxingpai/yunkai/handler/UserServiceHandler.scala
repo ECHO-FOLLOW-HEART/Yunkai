@@ -89,7 +89,7 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def createUser(nickName: String, password: String,
     miscInfo: Option[scala.collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
-    val merged = miscInfo getOrElse collection.Map[UserInfoProp, String]() + (UserInfoProp.NickName -> nickName)
+    val merged = (miscInfo getOrElse collection.Map[UserInfoProp, String]()) + (UserInfoProp.NickName -> nickName)
     accountManager.createUserPoly(password, Some(merged)) map Implicits.YunkaiConversions.userConversion
   }
 
@@ -99,7 +99,7 @@ class UserServiceHandler extends Userservice.FutureIface {
       case t if t == UserInfoProp.Email.name.toLowerCase() => UserInfoProp.Email -> regName
       case t if t == UserInfoProp.Tel.name.toLowerCase() => UserInfoProp.Tel -> regName
     }
-    accountManager.createUserPoly(password, Some(miscInfo getOrElse collection.Map() + regInfo)) map
+    accountManager.createUserPoly(password, Some((miscInfo getOrElse collection.Map()) + regInfo)) map
       Implicits.YunkaiConversions.userConversion
   }
 
