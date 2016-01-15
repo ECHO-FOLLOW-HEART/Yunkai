@@ -668,13 +668,26 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         val retrievedFields = (fields filter (allowedProperties.contains(_))) ++ Seq(UserId, Id) map userInfoPropToFieldName
 
         query.retrievedFields(true, retrievedFields: _*)
-        val results = Map(query.asList() map filterUUIDTel map (item => item.userId -> item): _*)
-        if (selfId == None) {
+        val results = Map(query.asList() map filterUUIDTel map (item => item.userId -> item): _*) map {
+          case (userId, user) =>
+            // TODO 处理avatar为{url: 形式}
+            val result = Option(user.avatar) flatMap (avatar => {
+              if (avatar startsWith "http") {
+                Some(avatar)
+              } else {
+                val mapper = new ObjectMapper()
+                Option(mapper.readTree(avatar) get "url") map (_.asText())
+              }
+            })
+            user.avatar = result.orNull
+            userId -> user
+        }
+        if (selfId.isEmpty) {
           Map(userIds map (v => v -> (results get v map userConversion)): _*)
         } else {
-          // 设置备注
           val userInfos = results map { user =>
             {
+              // 设置备注
               val (userId1, userId2, retrievedField) = if (selfId.get <= user._1) (selfId.get, user._1, Relationship.fdMemoB) else (user._1, selfId.get, Relationship.fdMemoA)
               val query = ds.createQuery(classOf[Relationship]).field("userA").equal(userId1).field("userB").equal(userId2)
                 .retrievedFields(true, retrievedField)
