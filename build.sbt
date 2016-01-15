@@ -24,6 +24,7 @@ libraryDependencies ++= Seq(
   "javax.el" % "javax.el-api" % "3.0.0",
   "org.glassfish.web" % "javax.el" % "2.2.6",
   "net.debasishg" %% "redisclient" % "2.15",
+  "net.databinder.dispatch" %% "dispatch-core" % "0.11.3",
   "cglib" % "cglib-nodep" % "3.1",
   "com.thoughtworks.proxytoys" % "proxytoys" % "1.0",
   "org.springframework" % "spring-aspects" % springVersion,

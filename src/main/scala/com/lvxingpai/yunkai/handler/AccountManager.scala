@@ -14,9 +14,10 @@ import com.lvxingpai.yunkai
 import com.lvxingpai.yunkai.Implicits.JsonConversions._
 import com.lvxingpai.yunkai.Implicits.YunkaiConversions._
 import com.lvxingpai.yunkai._
+import com.lvxingpai.yunkai.formatter.UserInfoFormatter
 import com.lvxingpai.yunkai.model.{ ContactRequest, SecretKey, UserInfo, _ }
 import com.lvxingpai.yunkai.serialization.{ TokenRedisParse, ValidationCodeRedisFormat, ValidationCodeRedisParse }
-import com.lvxingpai.yunkai.service.RedisFactory
+import com.lvxingpai.yunkai.service.{ RedisFactory, ViaeGateway }
 import com.lvxingpai.yunkai.utils.RequestUtils
 import com.mongodb.{ DuplicateKeyException, MongoCommandException }
 import com.twitter.util.Try.PredicateDoesNotObtain
@@ -460,7 +461,10 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         // 触发发送好友请求
         val senderInfo = users(sender).get
         val receiverInfo = users(receiver).get
-        sendContactRequestEvents(EventEmitter.evtSendContactRequest, newRequest.id, message, senderInfo, receiverInfo)
+        sendContactRequestEvents(
+          "viae.event.social.onSendContactRequest",
+          newRequest.id, message, senderInfo, receiverInfo
+        )
         newRequest.id
       }
     }
@@ -473,17 +477,22 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
    * @param sender
    * @param receiver
    */
-  private def sendContactRequestEvents(eventName: String, requestId: ObjectId, message: Option[String], sender: UserInfo, receiver: UserInfo) {
-    import Implicits.JsonConversions._
+  private def sendContactRequestEvents(eventName: String, requestId: ObjectId, message: Option[String],
+    sender: UserInfo, receiver: UserInfo) {
+    val formatter = Global.injector getInstance classOf[UserInfoFormatter]
+    val viae = Global.injector getInstance classOf[ViaeGateway]
 
-    val eventArgs: Map[String, JsonNode] = Map(
-      "requestId" -> requestId.toString,
-      "message" -> message.getOrElse[String](""),
-      "sender" -> userConversion(sender),
-      "receiver" -> userConversion(receiver)
+    val senderNode = formatter.formatJsonNode(Implicits.YunkaiConversions.userConversion(sender))
+    val receiverNode = formatter.formatJsonNode(Implicits.YunkaiConversions.userConversion(receiver))
+    viae.sendTask(
+      eventName,
+      kwargs = Some(Map(
+        "sender" -> senderNode,
+        "receiver" -> receiverNode,
+        "request_id" -> requestId.toString,
+        "message" -> (message getOrElse "")
+      ))
     )
-
-    EventEmitter.emitEvent(eventName, eventArgs)
   }
 
   /**
@@ -518,8 +527,8 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         for {
           userInfos <- users
         } yield {
-          sendContactRequestEvents(EventEmitter.evtRejectContactRequest, newRequest.id, message,
-            userInfos(senderId).get, userInfos(receiverId).get)
+          sendContactRequestEvents("viae.event.social.onRejectContactRequest", newRequest.id, message,
+            userInfos(receiverId).get, userInfos(senderId).get)
         }
       }
     })
@@ -556,8 +565,8 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         for {
           userInfos <- users
         } yield {
-          sendContactRequestEvents(EventEmitter.evtAcceptContactRequest, newRequest.id, None,
-            userInfos(senderId).get, userInfos(receiverId).get)
+          sendContactRequestEvents("viae.event.social.onAcceptContactRequest", newRequest.id, None,
+            userInfos(receiverId).get, userInfos(senderId).get)
         }
       }
     })
