@@ -78,7 +78,7 @@ class UserServiceHandler extends Userservice.FutureIface {
    * @return 用户的详细资料
    */
   override def login(loginName: String, password: String, source: String): Future[yunkai.UserInfo] = {
-    accountManager.login(loginName, password, source) map Implicits.YunkaiConversions.userConversion
+    accountManager.login(loginName, password, source)
   }
 
   override def resetPassword(userId: Long, oldPassword: String, newPassword: String): Future[Unit] =
