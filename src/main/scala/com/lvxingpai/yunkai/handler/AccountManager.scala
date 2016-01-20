@@ -797,6 +797,11 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
           UserInfoProp.LoginTime), Some(userInfo.userId)
       )
     } yield {
+      val viae = Global.injector getInstance classOf[ViaeGateway]
+      viae.sendTask(
+        "viae.event.account.onLogin",
+        kwargs = Some(Map("user_id" -> newUserInfo.get.userId, "source" -> source))
+      )
       newUserInfo.get.copy(secretKey = Some(secretKey))
     }
     result rescue {
@@ -1317,6 +1322,11 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
           UserInfoProp.LoginTime), Some(user.userId)
       )
     } yield {
+      val viae = Global.injector getInstance classOf[ViaeGateway]
+      viae.sendTask(
+        "viae.event.account.onLogin",
+        kwargs = Some(Map("user_id" -> newUserInfo.get.userId, "source" -> source))
+      )
       newUserInfo.get.copy(secretKey = Some(secretKey))
     }
   }

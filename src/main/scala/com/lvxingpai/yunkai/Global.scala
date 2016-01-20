@@ -5,10 +5,9 @@ import com.google.inject.{ AbstractModule, Guice, Key }
 import com.lvxingpai.configuration.Configuration
 import com.lvxingpai.etcd.EtcdStoreModule
 import com.lvxingpai.morphia.MorphiaModule
-import com.lvxingpai.yunkai.inject.{ SmsCenterModule, IdGenModule }
+import com.lvxingpai.yunkai.inject.{ IdGenModule, SmsCenterModule }
 import com.twitter.util.FuturePool
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.postfixOps
 
 /**
@@ -16,7 +15,10 @@ import scala.language.postfixOps
  */
 object Global {
   val (configuration, injector) = {
-    val basicInjector = Guice.createInjector(new EtcdStoreModule(Configuration.load()))
+    import scala.concurrent.ExecutionContext.Implicits.global
+    val ctx = global
+    val basicInjector = Guice.createInjector(new EtcdStoreModule(Configuration.load())(ctx))
+
     val configuration = basicInjector.getInstance(Key.get(classOf[Configuration], Names.named("etcd")))
 
     val mongoConf = Configuration((configuration getConfig "yunkai.mongo").get.underlying atPath "mongo.yunkai")
@@ -28,6 +30,11 @@ object Global {
       new AbstractModule {
         override def configure(): Unit = {
           bind(classOf[FuturePool]) toInstance FuturePool.unboundedPool
+        }
+      },
+      new AbstractModule {
+        override def configure(): Unit = {
+          bind(classOf[Configuration]) toInstance configuration
         }
       }
     )
