@@ -864,6 +864,13 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       successUser = true
 
       ds.save[Credential](credential)
+
+      // 发布事件
+      val viae = Global.injector getInstance classOf[ViaeGateway]
+      viae.sendTask(
+        "viae.event.account.onCreateUser",
+        kwargs = Some(Map("user_id" -> userInfo.userId))
+      )
       userInfo
     }) rescue {
       case _: DuplicateKeyException =>
@@ -1267,6 +1274,12 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
 
         // 保存
         ds.save[UserInfo](user)
+
+        val viae = Global.injector getInstance classOf[ViaeGateway]
+        viae.sendTask(
+          "viae.event.account.onCreateUser",
+          kwargs = Some(Map("user_id" -> user.userId))
+        )
 
         user
       }) rescue {
