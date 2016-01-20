@@ -14,15 +14,17 @@ com.twitter.scrooge.ScroogeSBT.newSettings
 val springVersion = "3.2.2.RELEASE"
 
 libraryDependencies ++= Seq(
-  "com.lvxingpai" %% "etcd-store-guice" % "0.1.1-SNAPSHOT",
+  "com.lvxingpai" %% "etcd-store-guice" % "0.1.3.3",
   "com.lvxingpai" %% "morphia-guice" % "0.1.0-SNAPSHOT",
   "com.lvxingpai" %% "configuration" % "0.1.1",
   "com.twitter" %% "finagle-thriftmux" % "6.30.0",
+  "com.twitter" %% "finagle-http" % "6.30.0",
   "com.twitter" %% "scrooge-core" % "4.2.0",
   "org.hibernate" % "hibernate-validator" % "5.1.3.Final",
-  "net.debasishg" %% "redisclient" % "2.15",
   "javax.el" % "javax.el-api" % "3.0.0",
   "org.glassfish.web" % "javax.el" % "2.2.6",
+  "net.debasishg" %% "redisclient" % "2.15",
+  "net.databinder.dispatch" %% "dispatch-core" % "0.11.3",
   "cglib" % "cglib-nodep" % "3.1",
   "com.thoughtworks.proxytoys" % "proxytoys" % "1.0",
   "org.springframework" % "spring-aspects" % springVersion,
