@@ -770,13 +770,12 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
    * @param password    登录密码
    * @return
    */
-  def login(loginName: String, password: String, source: String): Future[UserInfo] = {
+  def login(loginName: String, password: String, source: String): Future[yunkai.UserInfo] = {
     // 获得用户信息
     val result = for {
       userInfo <- futurePool {
         val retrievedFields = Seq(UserInfo.fdId, UserInfo.fdUserId, UserInfo.fdNickName, UserInfo.fdGender, UserInfo.fdAvatar,
           UserInfo.fdSignature, UserInfo.fdTel, UserInfo.fdLoginStatus, UserInfo.fdLoginSource, UserInfo.fdLoginTime)
-
         val query = ds.createQuery(classOf[UserInfo]).retrievedFields(true, retrievedFields: _*)
         val telCriteria = query criteria UserInfo.fdTel equal loginName
         val emailCriteria = query criteria UserInfo.fdEmail equal loginName
@@ -791,18 +790,14 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       verified <- Option(userInfo) map (value => verifyCredential(value.userId, password)) getOrElse Future(false) if verified
       secretKeyOpt <- getSecretKey(userInfo.userId) // 获得secret key
       secretKey <- secretKeyOpt map (u => Future(u)) getOrElse resetSecretKey(userInfo.userId)
+      newUserInfo <- getUserById(
+        userInfo.userId,
+        Seq(UserInfoProp.Id, UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Gender, UserInfoProp.Avatar,
+          UserInfoProp.Signature, UserInfoProp.Tel, UserInfoProp.LoginStatus, UserInfoProp.LoginSource,
+          UserInfoProp.LoginTime), Some(userInfo.userId)
+      )
     } yield {
-      userInfo.secretKey = secretKey
-
-      //      val eventArgs: Map[String, JsonNode] = Map(
-      //        "user" -> userConversion(userInfo),
-      //        "source" -> string2JsonNode(source)
-      //      )
-      //      val eta = Some(10 * 1000L)
-      //
-      //      EventEmitter.emitEvent(EventEmitter.evtLogin, eventArgs, eta)
-
-      userInfo
+      newUserInfo.get.copy(secretKey = Some(secretKey))
     }
     result rescue {
       case e: PredicateDoesNotObtain =>
@@ -1315,8 +1310,14 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       }
       secretKeyOpt <- getSecretKey(user.userId)
       secretKey <- secretKeyOpt map (u => Future(u)) getOrElse resetSecretKey(user.userId)
+      newUserInfo <- getUserById(
+        user.userId,
+        Seq(UserInfoProp.Id, UserInfoProp.UserId, UserInfoProp.NickName, UserInfoProp.Gender, UserInfoProp.Avatar,
+          UserInfoProp.Signature, UserInfoProp.Tel, UserInfoProp.LoginStatus, UserInfoProp.LoginSource,
+          UserInfoProp.LoginTime), Some(user.userId)
+      )
     } yield {
-      user.copy(secretKey = Some(secretKey))
+      newUserInfo.get.copy(secretKey = Some(secretKey))
     }
   }
 
