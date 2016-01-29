@@ -681,7 +681,9 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
           case (userId, user) =>
             // TODO 处理avatar为{url: 形式}
             val result = Option(user.avatar) flatMap (avatar => {
-              if (avatar startsWith "http") {
+              if (avatar.isEmpty) {
+                None
+              } else if (avatar startsWith "http") {
                 Some(avatar)
               } else {
                 val mapper = new ObjectMapper()
