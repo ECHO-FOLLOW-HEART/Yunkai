@@ -73,6 +73,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       case UserInfoProp.Roles => UserInfo.fdRoles
       case UserInfoProp.Residence => UserInfo.fdResidence
       case UserInfoProp.Birthday => UserInfo.fdBirthday
+      case UserInfoProp.PromotionCode => UserInfo.fdPromotionCode
       case _ => throw new IllegalArgumentException("Illegal arguemnt: %s" format prop.toString)
     }
   }

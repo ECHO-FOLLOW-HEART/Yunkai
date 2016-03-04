@@ -113,6 +113,7 @@ object UserInfo {
   val fdLoginTime = "loginTime"
   val fdLogoutTime = "logoutTime"
   val fdLoginSource = "loginSource"
+  val fdPromotionCode = "promotionCode"
 
   def apply(userId: Long, nickName: String): UserInfo = {
     val result = new UserInfo
