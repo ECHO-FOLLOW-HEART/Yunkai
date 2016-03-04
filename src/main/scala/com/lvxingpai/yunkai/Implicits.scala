@@ -105,7 +105,7 @@ object Implicits {
 
       UserInfo(user.id.toString, user.userId, user.nickName, Option(user.avatar), signature = Option(user.signature),
         roles = roles, memo = memo, gender = gender, tel = tel, loginStatus = false, birth = birthday,
-        residence = residence, secretKey = secretKey)
+        residence = residence, secretKey = secretKey, promotionCode = user.promotionCode)
     }
 
     implicit def userConversion(user: UserInfo): model.UserInfo = {
@@ -117,6 +117,7 @@ object Implicits {
       user2.gender = (user.gender map (_.name)).orNull
       user2.residence = user.residence.orNull
       user2.birthday = user.birth.orNull
+      user2.promotionCode = user.promotionCode
       if (user.secretKey.nonEmpty) {
         user2.secretKey = user.secretKey.get
       }

@@ -62,6 +62,8 @@ struct UserInfo {
   110: optional string birth,
   120: optional string residence,
   200: optional SecretKey secretKey
+  // 邀请码
+  240: string promotionCode;
 }
 
 // 讨论组信息
@@ -117,7 +119,8 @@ enum UserInfoProp {
   MEMO,
   ROLES,
   BIRTHDAY,
-  RESIDENCE
+  RESIDENCE,
+  PROMOTION_CODE
 }
 
 //Created by pengyt on 2015/5/26.

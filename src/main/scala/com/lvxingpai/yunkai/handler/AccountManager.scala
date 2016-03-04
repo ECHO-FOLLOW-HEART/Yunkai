@@ -673,7 +673,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
           case _ => ds.createQuery(classOf[UserInfo]).field(UserInfo.fdUserId).in(seqAsJavaList(userIds))
         }
         // 获得需要处理的字段名
-        val allowedProperties = Seq(UserId, NickName, Avatar, Signature, Gender, Tel, Roles, Birthday, Residence)
+        val allowedProperties = Seq(UserId, NickName, Avatar, Signature, Gender, Tel, Roles, Birthday, Residence, PromotionCode)
         val retrievedFields = (fields filter (allowedProperties.contains(_))) ++ Seq(UserId, Id) map userInfoPropToFieldName
 
         query.retrievedFields(true, retrievedFields: _*)
@@ -827,6 +827,22 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
     }
   }
 
+  /**
+   * 生成邀请码
+   * @param length
+   * @return
+   */
+  private def createPromotionCode(length: Int = 4): String = {
+    // 生成0-9A-Z之间的随机字符
+    def func(): Char = {
+      val r = Random.nextInt(36)
+      val asciiCode = if (r < 10) r + 48 else r - 10 + 65
+      asciiCode.toChar
+    }
+
+    0 to (length - 1) map (_ => func()) mkString ""
+  }
+
   // logout: 释放资源, 修改UserInfo的logoutTime和loginSource字段(删除本次登录的来源)
   def createUserPoly(password: String, miscInfo: Option[collection.Map[UserInfoProp, String]]): Future[UserInfo] = {
     // 取得用户ID
@@ -842,6 +858,10 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
 
       miscInfoMap get UserInfoProp.Email foreach (newUser.email = _)
       miscInfoMap get UserInfoProp.Tel foreach (newUser.tel = _)
+
+      // 邀请码
+      newUser.promotionCode = createPromotionCode()
+
       newUser
     }
 
@@ -1273,6 +1293,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         user.oauthInfoList = oauthInfoList
         //如果第三方昵称已被其他用户使用，则添加后缀
         Option(getUserByField(UserInfo.fdNickName, nickName)) foreach (_ => nickDuplicateRemoval(user))
+        user.promotionCode = createPromotionCode()
 
         // 保存
         ds.save[UserInfo](user)
