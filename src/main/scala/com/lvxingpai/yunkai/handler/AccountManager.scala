@@ -681,7 +681,9 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
           case (userId, user) =>
             // TODO 处理avatar为{url: 形式}
             val result = Option(user.avatar) flatMap (avatar => {
-              if (avatar startsWith "http") {
+              if (avatar.isEmpty) {
+                None
+              } else if (avatar startsWith "http") {
                 Some(avatar)
               } else {
                 val mapper = new ObjectMapper()
@@ -864,6 +866,13 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       successUser = true
 
       ds.save[Credential](credential)
+
+      // 发布事件
+      val viae = Global.injector getInstance classOf[ViaeGateway]
+      viae.sendTask(
+        "viae.event.account.onCreateUser",
+        kwargs = Some(Map("user_id" -> userInfo.userId))
+      )
       userInfo
     }) rescue {
       case _: DuplicateKeyException =>
@@ -1267,6 +1276,12 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
 
         // 保存
         ds.save[UserInfo](user)
+
+        val viae = Global.injector getInstance classOf[ViaeGateway]
+        viae.sendTask(
+          "viae.event.account.onCreateUser",
+          kwargs = Some(Map("user_id" -> user.userId))
+        )
 
         user
       }) rescue {
