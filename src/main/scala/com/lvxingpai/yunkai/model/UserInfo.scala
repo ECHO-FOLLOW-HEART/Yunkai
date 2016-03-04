@@ -45,6 +45,10 @@ class UserInfo extends AbstractEntity {
   @Indexed(unique = true)
   var email: String = _
 
+  @NotBlank
+  @Indexed(unique = true)
+  var promotionCode: String = _
+
   //  @BeanProperty
   //  var contacts: Seq[Long] = null
 
