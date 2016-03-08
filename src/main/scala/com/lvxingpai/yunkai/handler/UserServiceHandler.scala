@@ -88,18 +88,20 @@ class UserServiceHandler extends Userservice.FutureIface {
     accountManager.resetPasswordByToken(userId, newPassword, token)
 
   override def createUser(nickName: String, password: String,
-    miscInfo: Option[scala.collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
+    miscInfo: Option[scala.collection.Map[UserInfoProp, String]],
+    source: Option[String]): Future[yunkai.UserInfo] = {
     val merged = (miscInfo getOrElse collection.Map[UserInfoProp, String]()) + (UserInfoProp.NickName -> nickName)
-    accountManager.createUserPoly(password, Some(merged)) map Implicits.YunkaiConversions.userConversion
+    accountManager.createUserPoly(password, Some(merged), source) map Implicits.YunkaiConversions.userConversion
   }
 
   override def createUserPoly(regType: String, regName: String, password: String,
-    miscInfo: Option[collection.Map[UserInfoProp, String]]): Future[yunkai.UserInfo] = {
+    miscInfo: Option[collection.Map[UserInfoProp, String]],
+    source: Option[String]): Future[yunkai.UserInfo] = {
     val regInfo = regType match {
       case t if t == UserInfoProp.Email.name.toLowerCase() => UserInfoProp.Email -> regName
       case t if t == UserInfoProp.Tel.name.toLowerCase() => UserInfoProp.Tel -> regName
     }
-    accountManager.createUserPoly(password, Some((miscInfo getOrElse collection.Map()) + regInfo)) map
+    accountManager.createUserPoly(password, Some((miscInfo getOrElse collection.Map()) + regInfo), source) map
       Implicits.YunkaiConversions.userConversion
   }
 
