@@ -845,7 +845,8 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
   }
 
   // logout: 释放资源, 修改UserInfo的logoutTime和loginSource字段(删除本次登录的来源)
-  def createUserPoly(password: String, miscInfo: Option[collection.Map[UserInfoProp, String]]): Future[UserInfo] = {
+  def createUserPoly(password: String, miscInfo: Option[collection.Map[UserInfoProp, String]],
+    source: Option[String] = None): Future[UserInfo] = {
     // 取得用户ID
     val futureUserId = Global.injector.getInstance(classOf[IdGen.FinagledClient]).generate("user")
 
@@ -892,7 +893,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       val viae = Global.injector getInstance classOf[ViaeGateway]
       viae.sendTask(
         "viae.event.account.onCreateUser",
-        kwargs = Some(Map("user_id" -> userInfo.userId))
+        kwargs = Some(Map("user_id" -> userInfo.userId, "source" -> source.orNull))
       )
       userInfo
     }) rescue {
