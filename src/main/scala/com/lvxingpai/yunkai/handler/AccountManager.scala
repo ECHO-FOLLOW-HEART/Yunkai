@@ -1275,7 +1275,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
     u
   }
 
-  def oauthToUserInfo4WX(json: JsonNode): Future[yunkai.UserInfo] = {
+  def oauthToUserInfo4WX(json: JsonNode, channel: Option[String] = None): Future[yunkai.UserInfo] = {
     val userInfo = {
       val nickName = json.get("nickname").asText()
       val avatar = json.get("headimgurl").asText()
@@ -1306,7 +1306,11 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         val viae = Global.injector getInstance classOf[ViaeGateway]
         viae.sendTask(
           "viae.event.account.onCreateUser",
-          kwargs = Some(Map("user_id" -> user.userId))
+          kwargs = Some(Map(
+            "user_id" -> user.userId,
+            "source" -> provider,
+            "channel" -> channel.orNull
+          ))
         )
 
         user
@@ -1347,12 +1351,14 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       node <- futureInfoNode
     } yield node.get("openid").asText()
 
+    val channel = metadata getOrElse Map() get "channel"
+
     for {
       oauthId <- futureOauthId
       userOpt <- getUserByField("oauthInfoList.oauthId", oauthId)
       user <- userOpt map (u => Future(u)) getOrElse {
         // 如果第三方用户不存在, 则创建一个
-        futureInfoNode flatMap oauthToUserInfo4WX
+        futureInfoNode flatMap (v => oauthToUserInfo4WX(v, channel))
       }
       secretKeyOpt <- getSecretKey(user.userId)
       secretKey <- secretKeyOpt map (u => Future(u)) getOrElse resetSecretKey(user.userId)
@@ -1368,8 +1374,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         "viae.event.account.onLogin",
         kwargs = Some(Map(
           "user_id" -> newUserInfo.get.userId,
-          "source" -> source,
-          "channel" -> (metadata getOrElse Map() get "channel").orNull
+          "source" -> source
         ))
       )
       newUserInfo.get.copy(secretKey = Some(secretKey))
