@@ -846,7 +846,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
 
   // logout: 释放资源, 修改UserInfo的logoutTime和loginSource字段(删除本次登录的来源)
   def createUserPoly(password: String, miscInfo: Option[collection.Map[UserInfoProp, String]],
-    source: Option[String] = None): Future[UserInfo] = {
+    metadata: Option[Map[String, String]] = None): Future[UserInfo] = {
     // 取得用户ID
     val futureUserId = Global.injector.getInstance(classOf[IdGen.FinagledClient]).generate("user")
 
@@ -893,7 +893,10 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       val viae = Global.injector getInstance classOf[ViaeGateway]
       viae.sendTask(
         "viae.event.account.onCreateUser",
-        kwargs = Some(Map("user_id" -> userInfo.userId, "source" -> source.orNull))
+        kwargs = Some(Map(
+          "user_id" -> userInfo.userId,
+          "channel" -> (metadata getOrElse Map() get "channel").orNull
+        ))
       )
       userInfo
     }) rescue {
@@ -1319,7 +1322,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
   /**
    * 微信登录
    */
-  def loginByWeixin(code: String, source: String): Future[yunkai.UserInfo] = {
+  def loginByWeixin(code: String, source: String, metadata: Option[Map[String, String]] = None): Future[yunkai.UserInfo] = {
     val futureInfoNode = futurePool {
       val wxUrl = RequestUtils.getWeiXinUrl(code)
       val acc_url = new URL(wxUrl)
@@ -1363,7 +1366,11 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
       val viae = Global.injector getInstance classOf[ViaeGateway]
       viae.sendTask(
         "viae.event.account.onLogin",
-        kwargs = Some(Map("user_id" -> newUserInfo.get.userId, "source" -> source))
+        kwargs = Some(Map(
+          "user_id" -> newUserInfo.get.userId,
+          "source" -> source,
+          "channel" -> (metadata getOrElse Map() get "channel").orNull
+        ))
       )
       newUserInfo.get.copy(secretKey = Some(secretKey))
     }

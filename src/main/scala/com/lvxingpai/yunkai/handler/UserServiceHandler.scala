@@ -89,24 +89,25 @@ class UserServiceHandler extends Userservice.FutureIface {
 
   override def createUser(nickName: String, password: String,
     miscInfo: Option[scala.collection.Map[UserInfoProp, String]],
-    source: Option[String]): Future[yunkai.UserInfo] = {
+    metadata: Option[scala.collection.Map[String, String]]): Future[yunkai.UserInfo] = {
     val merged = (miscInfo getOrElse collection.Map[UserInfoProp, String]()) + (UserInfoProp.NickName -> nickName)
-    accountManager.createUserPoly(password, Some(merged), source) map Implicits.YunkaiConversions.userConversion
+    accountManager.createUserPoly(password, Some(merged), metadata map (_.toMap)) map
+      Implicits.YunkaiConversions.userConversion
   }
 
   override def createUserPoly(regType: String, regName: String, password: String,
     miscInfo: Option[collection.Map[UserInfoProp, String]],
-    source: Option[String]): Future[yunkai.UserInfo] = {
+    metadata: Option[scala.collection.Map[String, String]]): Future[yunkai.UserInfo] = {
     val regInfo = regType match {
       case t if t == UserInfoProp.Email.name.toLowerCase() => UserInfoProp.Email -> regName
       case t if t == UserInfoProp.Tel.name.toLowerCase() => UserInfoProp.Tel -> regName
     }
-    accountManager.createUserPoly(password, Some((miscInfo getOrElse collection.Map()) + regInfo), source) map
-      Implicits.YunkaiConversions.userConversion
+    accountManager.createUserPoly(password, Some((miscInfo getOrElse collection.Map()) + regInfo),
+      metadata map (_.toMap)) map Implicits.YunkaiConversions.userConversion
   }
 
-  override def loginByOAuth(code: String, source: String): Future[yunkai.UserInfo] = {
-    accountManager.loginByWeixin(code, source)
+  override def loginByOAuth(code: String, provider: String, metadata: Option[scala.collection.Map[String, String]]): Future[yunkai.UserInfo] = {
+    accountManager.loginByWeixin(code, provider, metadata map (_.toMap))
   }
 
   override def isBlocked(selfId: Long, targetId: Long): Future[Boolean] =
