@@ -895,7 +895,8 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
         "viae.event.account.onCreateUser",
         kwargs = Some(Map(
           "user_id" -> userInfo.userId,
-          "channel" -> (metadata getOrElse Map() get "channel").orNull
+          "channel" -> (metadata getOrElse Map() get "channel").orNull,
+          "promotionCode" -> (metadata getOrElse Map() get "promotionCode").orNull
         ))
       )
       userInfo
