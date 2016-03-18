@@ -833,7 +833,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
    * @param length
    * @return
    */
-  private def createPromotionCode(length: Int = 4): String = {
+  private def createPromotionCode(length: Int = 6): String = {
     // 生成0-9A-Z之间的随机字符
     def func(): Char = {
       val r = Random.nextInt(36)
