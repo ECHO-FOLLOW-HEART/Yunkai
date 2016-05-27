@@ -986,7 +986,7 @@ class AccountManager @Inject() (@Named("yunkai") ds: Datastore, implicit val fut
     def sendSms(): Future[Unit] = {
       val message = action match {
         case item if item.value == Signup.value =>
-          s"验证码为：$digits。你正在注册【旅行派app】账号，请输入验证码并完成注册。APP登录/下载地址:http://www.lvxingpai.com" format tel
+          s"【旅行派】欢迎使用，验证码为：$digits。" format tel
         case item if item.value == ResetPassword.value =>
           s"验证码为：$digits。你正在【旅行派app】进行重置密码操作，请输入验证码并完成操作。"
         case item if item.value == UpdateTel.value =>
